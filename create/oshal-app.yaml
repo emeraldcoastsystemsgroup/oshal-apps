@@ -73,6 +73,7 @@
 # 39 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2: the description leads with what Create makes itself (a picture from a sentence, or one drawn in editable layers) and gives each studio's work to that studio. It opened "One studio for everything you make: decks, documents and workbooks from AI Office, portraits, ...", so asked for a pet portrait Jarvis asked "Portrait Studio or Create?" (routing scoreboard, test installation, 2026-11-14) though Create's home page only opens those studios. Wording only: no route, permission, migration or catalog change.
 # 40 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: CREATE-TOOL-CREATE-03 flip horizontally and vertically on paint and group layers by on-screen Format buttons and concierge update patch { flipX, flipY }. No route, permission, migration or catalog change.
 # 41 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: CREATE-TOOL-CREATE-04 text styling (italic, underline, lineHeight, letterSpacing, outline stroke/strokeWidth, shadow) on screen and via concierge create-apply-edits plus double-click in-place canvas typing, surviving save/reopen and PNG/SVG exports. No route, permission, migration or catalog change.
+# 42 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: CREATE-TOOL-CREATE-02 text alignment buttons on screen, CREATE-TOOL-CREATE-08 concierge revision list/restore undo, CREATE-TOOL-CREATE-10 & CREATE-TOOL-BRAND-01..-03 concierge brand kit read/update/apply-brand + on-screen Apply my brand single-undo action, and CREATE-TOOL-CREATE-29 8192 px canvas size parity; route/tool bindings use existing permissions only.
 name: create
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -104,7 +105,7 @@ description: >-
   documents and workbooks, Portrait Studio portraits from your photos, Video
   Studio short videos, Creative Studio story episodes, LoRA Studio LoRA
   characters, Scan to Print 3D scans and Brand Graphics brand intro clips.
-version: 1.20.4
+version: 1.20.5
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -602,11 +603,11 @@ tools:
         width:
           type: integer
           minimum: 1
-          maximum: 4096
+          maximum: 8192
         height:
           type: integer
           minimum: 1
-          maximum: 4096
+          maximum: 8192
         background:
           type: string
           maxLength: 32
@@ -729,7 +730,7 @@ tools:
       its actual current revision and layer identities. Hold the exact edit card for approval;
       do not claim that the edit ran before the approved result.
       CURRENT_EDITING_CONTRACT_JSON
-      {"editor":"create","version":1,"sourceVersion":"1.20.4","maxOperations":16,"maxInputBytes":16384,"operations":{"add":["layer","index","images"],"update":["id","patch"],"remove":["id"],"reorder":["id","index"],"duplicate":["id","newId","offset"],"group":["ids","id"],"ungroup":["id"],"arrange":["ids","mode"],"project":["patch"],"boolean":["ids","mode"],"mask":["id","mask"],"clearMask":["id"]},"operationSchema":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["add","update","remove","reorder","duplicate","group","ungroup","arrange","project","boolean","mask","clearMask"]},"id":{"type":"string","maxLength":100},"ids":{"type":"array","minItems":2,"maxItems":200,"items":{"type":"string","maxLength":100}},"layer":{"type":"object","required":["id","type"],"properties":{"id":{"type":"string","minLength":1,"maxLength":100},"type":{"type":"string","enum":["image","text","rect","ellipse","freehand","adjustment","group","path"]},"contours":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"object","required":["nodes"],"properties":{"closed":{"type":"boolean"},"nodes":{"type":"array","minItems":2,"maxItems":2000,"items":{"type":"object","required":["x","y"],"properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1}}}}}}}}},"patch":{"type":"object"},"images":{"type":"object"},"mask":{"type":"object"},"index":{"type":"integer","minimum":0,"maximum":200},"newId":{"type":"string","maxLength":100},"offset":{"type":"number","minimum":-32768,"maximum":32768},"mode":{"type":"string","enum":["left","center","right","top","middle","bottom","distribute-x","distribute-y","union","difference","intersection","xor"]}}},"conventions":{"drawing":"Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.","coordinates":"Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.","flip":"Every paint layer and group accepts optional boolean flipX (horizontal mirror) and flipY (vertical mirror) in add or update patch. Set flipX/flipY to false to flip back; false values are omitted from normalized JSON. Adjustment layers cannot be flipped.","textStyling":"Text layers accept optional italic (boolean), underline (boolean), lineHeight (0.8..3, default 1.2), letterSpacing (-10..100 px, default 0), outline stroke (six-digit hex or null to clear) and strokeWidth (0..32 px, default 0), plus shadow (from appearance). Defaults are omitted from normalized JSON.","opacity":"0..1","masks":"Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.","adjustments":"Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.","appearance":"Version 4 shape primitives (rect/ellipse layer types) accept shape rectangle|rounded-rectangle|ellipse|triangle|diamond and radius 0..4096. Outlines on primitives/freehand/path accept dash (up to16 lengths .1..512), cap butt|round|square, join miter|round|bevel. Every paint layer/group supports shadow null or {color six-digit hex, opacity0..1, blur0..64, offsetX/offsetY -512..512}; parent-coordinate pixels, source alpha preserved. Shadows have an aggregate bounded scratch pixel budget. Group shadows must be removed before ungrouping; transformed child paint scales with the group.","vectors":"Add/update path contours [{closed,nodes:[{x,y,in:{x,y},out:{x,y}}]}], fill, stroke, strokeWidth, dash, cap, join, gradient {from,to,stops:[{offset,color}]}, clip polygon.","assets":"Only original-owner canonical uploaded image references. No URL fetching, filesystem paths, code, provider calls or inline data.","saves":"Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. The editor automatically saves its current draft before the concierge reads it and refreshes the same project on return. A concurrent browser draft is preserved with a conflict message.","locks":"Locked layers/ancestors are refused. Explicit unlocking is an edit, never silently unlock.","duplicate":"Duplicate supports nested groups. Supply newId for the copied root; descendants receive deterministic newId-prefix:base36-index IDs (prefix at most96 characters), in existing layer order. Read the returned document for IDs. Child coordinates, masks, isolated opacity and owned image references stay unchanged; clipped targets inside the copy are remapped. Only the copied root receives offset. Locked descendants, ID collisions or existing resource ceilings refuse the whole operation.","booleans":"One boolean per batch; at most256 total operand nodes. Larger paths use the browser worker. Two visible unlocked root paths, closed unclipped contours. 0.1 pixel flattening; originals hidden and retained. Mixed-winding nonzero contours refused.","exports":"Document export is editable JSON only. PNG/JPEG and bounded SVG export remain editor controls; agents must not claim a raster render."},"examples":[{"type":"add","layer":{"id":"heading","type":"text","text":"Hello","x":40,"y":40,"w":300,"h":80}},{"type":"update","id":"heading","patch":{"text":"Updated heading","opacity":0.8}},{"type":"add","layer":{"id":"exposure","type":"adjustment","scope":"stack","exposure":0.5}},{"type":"mask","id":"photo-layer","mask":{"points":[{"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":100}],"feather":4}},{"type":"group","ids":["heading","photo-layer"],"id":"composition"},{"type":"boolean","ids":["path-a","path-b"],"mode":"union"},{"type":"add","layer":{"id":"hull","type":"rect","name":"Hull","x":340,"y":200,"w":120,"h":400,"fill":"#e63946","stroke":"#1b2a4a","strokeWidth":6}},{"type":"add","layer":{"id":"window","type":"ellipse","name":"Window","x":370,"y":280,"w":60,"h":60,"fill":"#87ceeb","stroke":"#1b2a4a","strokeWidth":4}},{"type":"add","layer":{"id":"flame","type":"path","name":"Flame","x":350,"y":600,"w":100,"h":140,"fill":"#ff8c00","contours":[{"closed":true,"nodes":[{"x":0,"y":0},{"x":1,"y":0},{"x":0.5,"y":1}]}]}},{"type":"update","id":"photo-layer","patch":{"flipX":true,"flipY":false}},{"type":"update","id":"heading","patch":{"italic":true,"underline":true,"lineHeight":1.5,"letterSpacing":2,"stroke":"#111827","strokeWidth":2}}],"psd":{"profileVersion":1,"inspectTool":"create-inspect-psd","importTool":"create-import-psd","sourceTool":"create-psd-source","maxBytes":4194304,"dimensions":2048,"pixelLayers":32,"groupDepth":4,"supported":"RGB8 PSDv1 raw/RLE pixel layers, normal isolated groups, opacity and placement. Preserve immutable original; inspect losses and explicit mode before held import.","unsupported":"Other blends/pass-through, masks, text/effects/smart objects/adjustments refuse editable conversion. Flattened opaque merged cache only by explicit choice; no PSD export/full fidelity."},"unsupported":["Motion/compositing","RAW development","Page publishing","Audio workstation","PDF workbench","PSD export/full fidelity"]}
+      {"editor":"create","version":1,"sourceVersion":"1.20.5","maxOperations":16,"maxInputBytes":16384,"operations":{"add":["layer","index","images"],"update":["id","patch"],"remove":["id"],"reorder":["id","index"],"duplicate":["id","newId","offset"],"group":["ids","id"],"ungroup":["id"],"arrange":["ids","mode"],"project":["patch"],"boolean":["ids","mode"],"mask":["id","mask"],"clearMask":["id"]},"operationSchema":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["add","update","remove","reorder","duplicate","group","ungroup","arrange","project","boolean","mask","clearMask"]},"id":{"type":"string","maxLength":100},"ids":{"type":"array","minItems":2,"maxItems":200,"items":{"type":"string","maxLength":100}},"layer":{"type":"object","required":["id","type"],"properties":{"id":{"type":"string","minLength":1,"maxLength":100},"type":{"type":"string","enum":["image","text","rect","ellipse","freehand","adjustment","group","path"]},"contours":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"object","required":["nodes"],"properties":{"closed":{"type":"boolean"},"nodes":{"type":"array","minItems":2,"maxItems":2000,"items":{"type":"object","required":["x","y"],"properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1}}}}}}}}},"patch":{"type":"object"},"images":{"type":"object"},"mask":{"type":"object"},"index":{"type":"integer","minimum":0,"maximum":200},"newId":{"type":"string","maxLength":100},"offset":{"type":"number","minimum":-32768,"maximum":32768},"mode":{"type":"string","enum":["left","center","right","top","middle","bottom","distribute-x","distribute-y","union","difference","intersection","xor"]}}},"conventions":{"drawing":"Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.","canvas":"Width and height are 1..8192 pixels (at most 33554432 pixels total), matching the editor.","coordinates":"Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.","flip":"Every paint layer and group accepts optional boolean flipX (horizontal mirror) and flipY (vertical mirror) in add or update patch. Set flipX/flipY to false to flip back; false values are omitted from normalized JSON. Adjustment layers cannot be flipped.","textStyling":"Text layers accept align (left|center|right) and optional italic (boolean), underline (boolean), lineHeight (0.8..3, default 1.2), letterSpacing (-10..100 px, default 0), outline stroke (six-digit hex or null to clear) and strokeWidth (0..32 px, default 0), plus shadow (from appearance). Defaults are omitted from normalized JSON.","revisions":"Use create-list-revisions to inspect saved revisions newest first and create-restore-revision (held for approval) to restore an earlier revision or undo the latest edit as a new immutable revision.","brand":"Use create-read-brand-kit to inspect the personal brand kit, create-update-brand-kit (held) to update it with the same limits, and create-apply-brand (held) to apply kit colors, fonts and logo to a project in one revision.","opacity":"0..1","masks":"Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.","adjustments":"Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.","appearance":"Version 4 shape primitives (rect/ellipse layer types) accept shape rectangle|rounded-rectangle|ellipse|triangle|diamond and radius 0..4096. Outlines on primitives/freehand/path accept dash (up to16 lengths .1..512), cap butt|round|square, join miter|round|bevel. Every paint layer/group supports shadow null or {color six-digit hex, opacity0..1, blur0..64, offsetX/offsetY -512..512}; parent-coordinate pixels, source alpha preserved. Shadows have an aggregate bounded scratch pixel budget. Group shadows must be removed before ungrouping; transformed child paint scales with the group.","vectors":"Add/update path contours [{closed,nodes:[{x,y,in:{x,y},out:{x,y}}]}], fill, stroke, strokeWidth, dash, cap, join, gradient {from,to,stops:[{offset,color}]}, clip polygon.","assets":"Only original-owner canonical uploaded image references. No URL fetching, filesystem paths, code, provider calls or inline data.","saves":"Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. The editor automatically saves its current draft before the concierge reads it and refreshes the same project on return. A concurrent browser draft is preserved with a conflict message.","locks":"Locked layers/ancestors are refused. Explicit unlocking is an edit, never silently unlock.","duplicate":"Duplicate supports nested groups. Supply newId for the copied root; descendants receive deterministic newId-prefix:base36-index IDs (prefix at most96 characters), in existing layer order. Read the returned document for IDs. Child coordinates, masks, isolated opacity and owned image references stay unchanged; clipped targets inside the copy are remapped. Only the copied root receives offset. Locked descendants, ID collisions or existing resource ceilings refuse the whole operation.","booleans":"One boolean per batch; at most256 total operand nodes. Larger paths use the browser worker. Two visible unlocked root paths, closed unclipped contours. 0.1 pixel flattening; originals hidden and retained. Mixed-winding nonzero contours refused.","exports":"Document export is editable JSON only. PNG/JPEG and bounded SVG export remain editor controls; agents must not claim a raster render."},"examples":[{"type":"add","layer":{"id":"heading","type":"text","text":"Hello","x":40,"y":40,"w":300,"h":80}},{"type":"update","id":"heading","patch":{"text":"Updated heading","opacity":0.8}},{"type":"add","layer":{"id":"exposure","type":"adjustment","scope":"stack","exposure":0.5}},{"type":"mask","id":"photo-layer","mask":{"points":[{"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":100}],"feather":4}},{"type":"group","ids":["heading","photo-layer"],"id":"composition"},{"type":"boolean","ids":["path-a","path-b"],"mode":"union"},{"type":"add","layer":{"id":"hull","type":"rect","name":"Hull","x":340,"y":200,"w":120,"h":400,"fill":"#e63946","stroke":"#1b2a4a","strokeWidth":6}},{"type":"add","layer":{"id":"window","type":"ellipse","name":"Window","x":370,"y":280,"w":60,"h":60,"fill":"#87ceeb","stroke":"#1b2a4a","strokeWidth":4}},{"type":"add","layer":{"id":"flame","type":"path","name":"Flame","x":350,"y":600,"w":100,"h":140,"fill":"#ff8c00","contours":[{"closed":true,"nodes":[{"x":0,"y":0},{"x":1,"y":0},{"x":0.5,"y":1}]}]}},{"type":"update","id":"photo-layer","patch":{"flipX":true,"flipY":false}},{"type":"update","id":"heading","patch":{"italic":true,"underline":true,"lineHeight":1.5,"letterSpacing":2,"stroke":"#111827","strokeWidth":2}}],"psd":{"profileVersion":1,"inspectTool":"create-inspect-psd","importTool":"create-import-psd","sourceTool":"create-psd-source","maxBytes":4194304,"dimensions":2048,"pixelLayers":32,"groupDepth":4,"supported":"RGB8 PSDv1 raw/RLE pixel layers, normal isolated groups, opacity and placement. Preserve immutable original; inspect losses and explicit mode before held import.","unsupported":"Other blends/pass-through, masks, text/effects/smart objects/adjustments refuse editable conversion. Flattened opaque merged cache only by explicit choice; no PSD export/full fidelity."},"unsupported":["Motion/compositing","RAW development","Page publishing","Audio workstation","PDF workbench","PSD export/full fidelity"]}
       END_CURRENT_EDITING_CONTRACT_JSON
     executor:
       executorType: api
@@ -926,6 +927,221 @@ tools:
     usageInstructions: Requires project.export. Report this as JSON; PNG/JPEG and SVG are exported using the editor controls.
     routingTags:
       - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: create-list-revisions
+    displayName: List Project Revisions
+    type: api
+    category: creative
+    description: List retained revisions for an owned Create project, newest first, with revision number, title and timestamp.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/create/projects/{input.id}/revisions
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Read an owned project's revision history before choosing a specific revision to restore.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: create-restore-revision
+    displayName: Restore Project Revision
+    type: api
+    category: creative
+    description: Restore an earlier retained revision of an owned Create project (or undo the latest change when revision is omitted) as a new immutable revision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/create/projects/{input.id}/revisions/restore
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Restore an earlier revision of this Create project
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Optional revision number to restore; omit to undo to the immediately previous retained revision.
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Optional current revision for optimistic concurrency check.
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Hold for approval before executing. Restores the named revision (or the immediately previous retained revision when omitted for undo) as a new immutable revision so history is never overwritten.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: create-read-brand-kit
+    displayName: Read Brand Kit
+    type: api
+    category: creative
+    description: Read this person's personal brand kit (brand name, role colors, extra colors, heading and body fonts, voice, owned logo reference, revision, and plain-language color words).
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/create/brand-kit
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: Read the current brand kit and revision before answering brand questions or proposing a brand kit update.
+    routingTags:
+      - creative
+      - brand
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: create-update-brand-kit
+    displayName: Update Brand Kit
+    type: api
+    category: creative
+    description: Save validated changes to this person's personal brand kit (brand name, five role colors, optional extra colors, supported Office fonts, voice, and optional owned logo image reference).
+    executor:
+      executorType: api
+      apiEndpoint: PUT /api/create/brand-kit
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Update your personal brand kit in Create
+    inputSchema:
+      type: object
+      properties:
+        baseRevision:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          description: Exact revision read from create-read-brand-kit (0 when no kit is saved yet).
+        kit:
+          type: object
+          additionalProperties: false
+          required:
+            - version
+            - name
+            - colors
+            - extras
+            - fonts
+            - voice
+            - logo
+          properties:
+            version:
+              type: integer
+              enum: [1]
+            name:
+              type: string
+              maxLength: 80
+            colors:
+              type: object
+              additionalProperties: false
+              required: [primary, secondary, accent, dark, light]
+              properties:
+                primary: { type: string, minLength: 7, maxLength: 7 }
+                secondary: { type: string, minLength: 7, maxLength: 7 }
+                accent: { type: string, minLength: 7, maxLength: 7 }
+                dark: { type: string, minLength: 7, maxLength: 7 }
+                light: { type: string, minLength: 7, maxLength: 7 }
+            extras:
+              type: array
+              maxItems: 6
+              items:
+                type: object
+                additionalProperties: false
+                required: [name, hex]
+                properties:
+                  name: { type: string, maxLength: 40 }
+                  hex: { type: string, minLength: 7, maxLength: 7 }
+            fonts:
+              type: object
+              additionalProperties: false
+              required: [heading, body]
+              properties:
+                heading:
+                  type: string
+                  enum: ['Arial', 'Calibri', 'Cambria', 'Candara', 'Century Gothic', 'Consolas', 'Constantia', 'Corbel', 'Courier New', 'Garamond', 'Georgia', 'Trebuchet MS']
+                body:
+                  type: string
+                  enum: ['Arial', 'Calibri', 'Cambria', 'Candara', 'Century Gothic', 'Consolas', 'Constantia', 'Corbel', 'Courier New', 'Garamond', 'Georgia', 'Trebuchet MS']
+            voice:
+              type: string
+              maxLength: 280
+            logo:
+              type: [object, 'null']
+              additionalProperties: false
+              required: [src, width, height]
+              properties:
+                src: { type: string, minLength: 1, maxLength: 120 }
+                width: { type: integer, minimum: 1, maximum: 8192 }
+                height: { type: integer, minimum: 1, maximum: 8192 }
+      required:
+        - baseRevision
+        - kit
+      additionalProperties: false
+    usageInstructions: Read create-read-brand-kit first to obtain baseRevision and existing fields. Hold for approval; preserve unchanged fields and use only owned /api/create/project-assets/<uuid> references for logo.
+    routingTags:
+      - creative
+      - brand
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: create-apply-brand
+    displayName: Apply My Brand to Project
+    type: api
+    category: creative
+    description: Apply this person's saved brand kit (colors, heading/body fonts, and owned logo placed once) across an owned Create project in one single new revision, returning every layer change.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/create/projects/{input.id}/apply-brand
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Apply your personal brand kit to this Create project
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Optional current project revision for optimistic concurrency check.
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Read the project and brand kit first so you can explain the exact colors, fonts and logo changes before holding the approval card. After approval, report the saved revision and each change returned in changes.
+    routingTags:
+      - creative
+      - brand
       - editing
     skills:
       - creative-editing

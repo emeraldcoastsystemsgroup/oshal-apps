@@ -5,6 +5,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Inline-bot execution for the marketing-engine API, moved verbatim out of marketing-routes.ts at the 800-line decomposition threshold: the package BotNodeClient, the bounded executeBotOrInline turn runner and its ADR-127 result-shape check, the campaign-director/market-analyst/launch-coordinator prompt builders, the ICP JSON extractor, and the no-hosted-brain 503 translation. Reasoning still never happens in the controller; nothing about the prompts, the turn, or the 503 changed.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: thread built-in email template id (announcement, newsletter, launch) into draftPrompt so campaign-director always drafts email copy into a template.
  *
  * @module marketing-bots
  */
@@ -69,15 +70,19 @@ function campaignSummary(campaign) {
  * @param brief - The operator brief.
  * @returns The assembled prompt.
  */
-function draftPrompt(campaign, channel, brief) {
-    return [
+function draftPrompt(campaign, channel, brief, templateId) {
+    const parts = [
         'You are drafting ONE marketing post. A human reviews and publishes it — you never publish.',
         campaignSummary(campaign),
         `Brief: ${brief}`,
         `Channel constraints: ${marketing_support_1.CHANNEL_CONSTRAINTS[channel]}`,
-        marketing_support_1.HONESTY_RULES,
-        'Return ONLY the post text (for email: subject line first, blank line, then the body). No preamble, no markdown fences.',
-    ].join('\n\n');
+    ];
+    if (channel === 'email') {
+        const tpl = templateId || 'announcement';
+        parts.push(`Target email template: ${tpl} (draft copy into this template only — never output raw HTML or strip the compliance footer).`);
+    }
+    parts.push(marketing_support_1.HONESTY_RULES, 'Return ONLY the post text (for email: "Subject: …" on line 1, blank line, then the body). No preamble, no markdown fences.');
+    return parts.join('\n\n');
 }
 /**
  * @description Prompt for ICP research (market-analyst).

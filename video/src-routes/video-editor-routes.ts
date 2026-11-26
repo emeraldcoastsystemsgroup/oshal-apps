@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve editor effect/sticker/sheet modules, advertise 720p/1080p/4K 30/60fps export profiles, and mount auto-caption, voice TTS and CC0 sound-library routes.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: admit editor-concierge-early.js in EDITOR_ASSETS so Video's editor screen claims Today's concierge entry synchronously before its ES module graph finishes loading.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: accept optional aspectRatio (16:9, 9:16, 1:1) on POST /editor/agent-projects and advertise aspectRatios in GET /editor/capabilities.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: add GET /editor/media for owned media discovery and POST /editor/projects/:id/revisions/restore for non-destructive revision restore.
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
@@ -70,6 +71,11 @@ function pageRoutes(router: Router, env: RouteEnvironment): void {
 }
 
 function mediaRoutes(router: Router, env: RouteEnvironment): void {
+  router.get('/editor/media', admit(env, 'read'), handler(env, 'read', async (_req, res, owner) => {
+    const media = await env.store.listMedia(owner);
+    await confirm(env, 'read', owner)();
+    res.json({ media });
+  }));
   if (nativeMediaRoutes(router, env)) return;
   const storage = multer.diskStorage({
     destination: (_req, _file, done) => { const directory = incomingDirectory(env.dataRoot); mkdirSync(directory, { recursive: true, mode: 0o700 }); done(null, directory); },
@@ -121,7 +127,24 @@ function projectReads(router: Router, env: RouteEnvironment): void {
   }));
 }
 
+function revisionRestoreRoute(router: Router, env: RouteEnvironment): void {
+  router.post('/editor/projects/:id/revisions/restore', admit(env, 'change'), admit(env, 'read'), bodyParser, handler(env, 'change', async (req, res, owner) => {
+    const body = req.body ?? {};
+    exactFields(body, ['id', 'revision', 'baseRevision']);
+    const id = editorId(req.params.id);
+    if (body.id !== undefined && editorId(body.id) !== id) throw new EditorError(400, 'invalid_video_edit_id');
+    const targetRevision = body.revision === undefined ? undefined : baseRevision(body.revision);
+    const expectedBase = body.baseRevision === undefined ? undefined : baseRevision(body.baseRevision);
+    await requireEditorAccess(env.ctx, 'read', owner);
+    const result = await env.store.restore(owner, id, targetRevision, expectedBase, async () => {
+      await requireEditorAccess(env.ctx, 'read', owner); await requireEditorAccess(env.ctx, 'change', owner);
+    });
+    res.status(201).json(result);
+  }));
+}
+
 function projectWrites(router: Router, env: RouteEnvironment): void {
+  revisionRestoreRoute(router, env);
   const agent = loadTimelineAgent(env.ctx.appPackageDir ?? resolve(__dirname, '..'));
   router.get('/editor/editing-contract', admit(env, 'view'), handler(env, 'view', async (_req, res) => {
     res.json((await agent).editingContract());

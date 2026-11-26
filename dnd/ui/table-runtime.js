@@ -25,6 +25,8 @@
  * 2026-10-12 10:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: a shown voiceover caption is kept above the sticky action dock (liftCaption, run on show, scroll and resize). The dock (z-index 21) covers the bottom of the stage whenever the stage runs past the screen less the dock; during an AI turn in the 392 x 641 cockpit frame the whole caption sat behind it, and at 412 x 859 its last line. Guard: tests/browser/dnd-caption-phone.test.cjs.
  * 2026-10-13 15:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 14: the DM narration caption printed raw Markdown ('... eastern woods. **What do you do?**'). captionExcerpt reads plainNarration(): bold, italic and heading marks out, the words kept. Guard: tests/browser/dnd-caption-phone.test.cjs.
  * 2026-11-06 08:20:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): a token's nameplate is its short name (and a star on your own hero); 'Fenwick · AI Companion' plates printed over each other on a crowded board, and the controller is already in the sheet, the rail and the initiative chip.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Render sphere AoE blast-radius previews, sphere spell bursts, and token concentration/condition badges on the battle map.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Resolve scene.mapId when preloading bundled scene map artwork so multi-chapter arcs can reuse packaged maps cleanly.
  */
 
 'use strict';
@@ -87,7 +89,7 @@ function loadArt() {
   content.heroes.forEach((h) => add(art.tokens, h.id, tokenArtUrl(h.id)));
   Object.keys(content.monsters).forEach((k) => add(art.tokens, k, tokenArtUrl(k)));
   (content.adventures || [content.adventure]).forEach((adventure) => {
-    (adventure.scenes || []).forEach((scene) => add(art.maps, scene.id, mapArtUrl(scene.id)));
+    (adventure.scenes || []).forEach((scene) => add(art.maps, scene.id, mapArtUrl(scene.mapId || scene.id)));
   });
   art.ready = true;
 }
@@ -202,7 +204,7 @@ const resolveAction = (a, act, t) => ENG.resolveAction(W(), a, act, t);
 
 // ── Cinematic renderer + animation ───────────────────────────────────────────
 const rp = {};              // token id → eased pixel position
-let fx = [], floaters = [], embers = [];
+let fx = [], floaters = [], embers = [], hoverCell = null;
 let telegraph = null;
 const combatTelegraph = () => telegraph || (board && board.telegraph) || null;
 const cc = (t) => ({ x: t.x * cell + cell / 2, y: t.y * cell + cell / 2 });
@@ -280,8 +282,7 @@ function draw() {
       }
     });
   }
-  // targetable enemies
-  if (selectedAction && selected) validTargets(selected, selectedAction).forEach((t) => ring(cc(t), cell * 0.5, 'rgba(220,80,60,.95)', 3));
+  if (selectedAction && selected) drawAoeAndTargetHints();
   // embers behind tokens
   embers.forEach((e) => { ctx.globalAlpha = e.a; ctx.fillStyle = '#e8a23a'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, 7); ctx.fill(); }); ctx.globalAlpha = 1;
   // tokens, depth-sorted
@@ -296,6 +297,48 @@ function draw() {
 }
 
 function ring(p, r, color, w) { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.stroke(); }
+function spherePreviewCenter() {
+  if (hoverCell && ENG.inRange(selectedAction, selected, hoverCell)) return hoverCell;
+  const first = validTargets(selected, selectedAction)[0];
+  return first ? { x: first.x, y: first.y } : { x: selected.x, y: selected.y };
+}
+function drawAoeAndTargetHints() {
+  const targets = validTargets(selected, selectedAction);
+  if (selectedAction.aoeShape === 'sphere' && typeof ENG.sphereCells === 'function') {
+    const center = spherePreviewCenter();
+    const cells = ENG.sphereCells(W(), center, selectedAction.aoeSize || 20);
+    const isBuff = selectedAction.mode === 'buff' || selectedAction.targetTeam === 'ally';
+    const fill = isBuff ? 'rgba(92,208,184,.26)' : 'rgba(255,108,38,.28)';
+    const edge = isBuff ? 'rgba(130,242,216,.88)' : 'rgba(255,180,82,.90)';
+    ctx.save();
+    cells.forEach((c) => {
+      ctx.fillStyle = fill; ctx.fillRect(c.x * cell + 2, c.y * cell + 2, cell - 4, cell - 4);
+      ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.strokeRect(c.x * cell + 2.5, c.y * cell + 2.5, cell - 5, cell - 5);
+    });
+    const cp = cc(center), rad = (Math.floor((selectedAction.aoeSize || 20) / unitFeet()) + 0.5) * cell;
+    ctx.setLineDash([6, 4]); ring(cp, rad, edge, 2.5); ctx.setLineDash([]);
+    ctx.restore();
+  }
+  const ringColor = selectedAction.mode === 'heal' || selectedAction.mode === 'buff' ? 'rgba(92,220,160,.95)' : 'rgba(220,80,60,.95)';
+  targets.forEach((t) => ring(cc(t), cell * 0.5, ringColor, 3));
+}
+function drawTokenStatusIndicators(p, r, t) {
+  if (t.dead || t.fled) return;
+  if (t.concentration && t.concentration.spellName) {
+    ctx.save(); ring(p, r + 6, 'rgba(184,126,255,.92)', 2); ctx.restore();
+  }
+  const badges = [];
+  if (t.concentration && t.concentration.spellName) badges.push('C');
+  if (Number(t.tempAcBonus) > 0) badges.push(`+${Number(t.tempAcBonus)}`);
+  if (Array.isArray(t.conditions) && t.conditions.length) badges.push(String(t.conditions[0].id || '').slice(0, 3).toUpperCase());
+  if (!badges.length) return;
+  const label = badges.join('·');
+  ctx.save(); ctx.font = `700 ${Math.max(8, Math.floor(cell * 0.16))}px system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = ctx.measureText(label).width + 8, y = p.y - r - cell * 0.16;
+  ctx.fillStyle = 'rgba(28,18,42,.88)'; rrect(p.x - w / 2, y - cell * 0.11, w, cell * 0.22, 4); ctx.fill();
+  ctx.fillStyle = '#f3d8ff'; ctx.fillText(label, p.x, y); ctx.restore();
+}
 function drawCombatTelegraph() {
   const warning = combatTelegraph(); if (!warning) return;
   const actor = board.tokens.find((t) => t.id === warning.actorId && !t.dead && !t.fled);
@@ -376,6 +419,7 @@ function drawToken(t) {
   const condition = isDowned(t) ? (t.stable ? ' · STABLE' : ' · DOWN') : t.kind === 'pc' && t.dead ? ' · FALLEN' : '';
   // A short name per token (the full name and who plays it are in the token's sheet); your own hero carries a star.
   nameplate(p, r, shortTokenLabel(t) + (owner && owner.me ? ' ★' : '') + condition);
+  drawTokenStatusIndicators(p, r, t);
 }
 function hpArc(p, r, t) {
   const frac = Math.max(0, t.hp / t.maxHp);
@@ -410,7 +454,8 @@ const DMG_COLOR = { fire: '#ff7a2e', force: '#a855f7', radiant: '#ffd85e', pierc
 function spellFx(actor, action, aim) {
   const from = cc(actor), to = cc(aim || actor);
   const type = (action.damage && action.damage.type) || (action.mode === 'heal' ? 'heal' : 'slashing');
-  if (action.mode === 'heal') { fx.push({ kind: 'sparkle', at: to, color: '#7ff0a0', t0: now(), dur: 900 }); return; }
+  if (action.mode === 'heal' || action.mode === 'buff') { fx.push({ kind: 'sparkle', at: to, color: '#7ff0a0', t0: now(), dur: 900 }); return; }
+  if (action.aoeShape === 'sphere') { fx.push({ kind: 'sphere', at: to, radiusSq: Math.max(1, Math.floor((action.aoeSize || 20) / unitFeet())), color: DMG_COLOR[type] || '#ff7a2e', t0: now(), dur: 700 }); return; }
   if (action.aoeShape === 'cone') { fx.push({ kind: 'cone', from, to, color: '#ff7a2e', t0: now(), dur: 620 }); return; }
   if (action.mode === 'autohit') { for (let i = 0; i < (action.darts || 3); i++) fx.push({ kind: 'streak', from, to, color: DMG_COLOR.force, t0: now() + i * 90, dur: 420 }); return; }
   if (action.delivery === 'ranged') { fx.push({ kind: type === 'radiant' ? 'beam' : 'streak', from, to, color: DMG_COLOR[type] || '#ffd85e', t0: now(), dur: type === 'radiant' ? 520 : 420 }); return; }
@@ -437,6 +482,11 @@ function renderFx(f) {
     const s = cell * 0.5; ctx.beginPath(); ctx.moveTo(f.at.x - s + k * s, f.at.y - s); ctx.lineTo(f.at.x + s, f.at.y + s - k * s); ctx.stroke();
   } else if (f.kind === 'sparkle') {
     for (let i = 0; i < 7; i++) { const a = i / 7 * 7 + k * 3, rr = cell * (0.15 + k * 0.5); ctx.globalAlpha = 1 - k; ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(f.at.x + Math.cos(a) * rr, f.at.y - k * cell * 0.5 + Math.sin(a) * rr * 0.4, 2.2, 0, 7); ctx.fill(); }
+  } else if (f.kind === 'sphere') {
+    const rad = cell * (f.radiusSq + 0.4) * (0.3 + k * 0.7);
+    const grad = ctx.createRadialGradient(f.at.x, f.at.y, 2, f.at.x, f.at.y, rad);
+    grad.addColorStop(0, `rgba(255,244,196,${0.85 * (1 - k)})`); grad.addColorStop(0.55, `rgba(255,112,38,${0.62 * (1 - k)})`); grad.addColorStop(1, 'rgba(120,20,0,0)');
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(f.at.x, f.at.y, rad, 0, 7); ctx.fill();
   } else if (f.kind === 'burst') {
     ctx.globalAlpha = 1 - k; ring(f.at, cell * (0.2 + k * 0.7), f.color, 4 * (1 - k) + 1);
   }
@@ -604,7 +654,11 @@ function handleFreeRoamPointer(token, point) {
   if (token && token.kind === 'pc') { showCharacterSheet(token); return; }
   selected = null; clearReachable(); inspect = null; renderDock();
 }
-function handleActionTarget(token) {
+function handleActionTarget(token, point) {
+  if (selectedAction && selectedAction.aoeShape === 'sphere' && point && ENG.inRange(selectedAction, selected, point)) {
+    doAction(token && token.kind !== 'prop' ? token : { id: `cell-${point.x}-${point.y}`, name: `(${point.x},${point.y})`, x: point.x, y: point.y });
+    return;
+  }
   if (token && token.kind !== 'prop' && validTargets(selected, selectedAction).some((candidate) => candidate.id === token.id)) doAction(token);
   else { selectedAction = null; renderDock(); }
 }
@@ -630,8 +684,10 @@ function onBoardPointerDown(event) {
   if (presenting) { if (token && token.kind === 'pc') showCharacterSheet(token); else presentationGateBlocksInput(); return; }
   if (board.mode === 'setup') { inspectSetupToken(token); return; }
   if (board.mode !== 'combat') { handleFreeRoamPointer(token, point); return; }
-  if (myTurn && selected && selectedAction) { handleActionTarget(token); return; }
+  if (myTurn && selected && selectedAction) { handleActionTarget(token, point); return; }
   if (myTurn && selected && !selectedAction && !token) { handleMovementTarget(point); return; }
   if (token && token.kind === 'pc') showCharacterSheet(token);
 }
 cvs.addEventListener('pointerdown', onBoardPointerDown);
+cvs.addEventListener('pointermove', (event) => { if (board && selectedAction && selectedAction.aoeShape) hoverCell = boardPoint(event); });
+cvs.addEventListener('pointerleave', () => { hoverCell = null; });

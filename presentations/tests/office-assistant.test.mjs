@@ -5,14 +5,15 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify proposal baseline detects outline, format, title and theme changes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): verify AI Office design.mjs does not inject a duplicate greyed Summarize planned control beside the kernel's live Summarize prompt chip.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.13 (CREATE-TOOL-PRESENTATIONS-15): verify draftSnapshot detects cover subtitle changes.
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {draftSnapshot} from '../tools/office-assistant.mjs';
 
-test('proposal baseline detects outline, format, title and theme changes', () => {
-  const draft={kind:'pptx',title:'Review',outline:'Goal\nOriginal',theme:'aurora'};
+test('proposal baseline detects outline, format, title, subtitle and theme changes', () => {
+  const draft={kind:'pptx',title:'Review',subtitle:'Q3',outline:'Goal\nOriginal',theme:'aurora'};
   const before=draftSnapshot(draft);
   assert.equal(before,draftSnapshot({...draft}));
   for(const field of Object.keys(draft)) assert.notEqual(before,draftSnapshot({...draft,[field]:'changed'}));

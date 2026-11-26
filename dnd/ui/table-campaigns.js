@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Add an explicit themed campaign shelf before party selection so a signed-in player chooses the story they intend to start.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Resolve scene.mapId on campaign shelf cards when an adventure reuses bundled map art.
  */
 
 'use strict';
@@ -25,7 +26,7 @@ function adventureChapterSummary(adventure) {
 function adventureCard(adventure) {
   const theme = adventure.theme || {};
   const first = (adventure.scenes || [])[0] || {};
-  const map = `${API}/art/map/${encodeURIComponent(first.id || '')}`;
+  const map = `${API}/art/map/${encodeURIComponent(first.mapId || first.id || '')}`;
   return `<article class="adventure-card" data-adventure="${esc(adventure.id)}">
     <div class="adventure-art" style="background-image:url('${map}')">
       <span>${esc(theme.label || 'Fantasy adventure')}</span>

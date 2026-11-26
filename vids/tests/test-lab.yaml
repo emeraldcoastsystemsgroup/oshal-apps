@@ -6,6 +6,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register the public-link handoff case: a published export's token is handed to the kernel's no-login link seam (ctx.publicLinks.publish) after the row commits, a refused publish rolls the row back and answers 503 public_link_unavailable, unpublish revokes the cleared token, and with no seam (the legacy core) nothing is called. The artifact-publication case text now says the legacy core serves the published link from the row alone; natively the kernel serves it only for a handed-over token.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register vids-api-tools: the operator's route-backed jobs, clip and brand tools.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.7: register phone-first-screen (lane mobilesweep2).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8: register vids-tool-parity covering orientation normalization, Brand/Story controls, export tools, and job cancel/retry.
 version: 1
 cases:
   - id: package-readiness
@@ -209,6 +210,20 @@ cases:
       - The description under the title is not drawn at any size; the desktop brief starts where it did or higher.
       - No sideways scroll, nothing to tap under the floating Jarvis button at the end, no write and no page error on open.
     prerequisites: [runner:node-test, runtime:canonical-store-toolchain, runtime:chromium, runtime:kernel-shared-ui]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: vids-tool-parity
+    name: Vids Studio 1.6.8 tool parity controls and routes
+    purpose: "Prove orientation normalization (CREATE-TOOL-VIDS-03), Brand intro/Brand graphic/Story controls and schemas (CREATE-TOOL-VIDS-05), finished-export concierge tools (CREATE-TOOL-VIDS-07), and owner-scoped job cancel/retry (CREATE-TOOL-VIDS-08) across routes and Chromium."
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/vids-tool-parity.test.cjs]}
+    expected:
+      - "Lowercase portrait, landscape, and square normalize cleanly on POST /api/vids/jobs and POST /api/vids/story without 400 while invalid values return 400."
+      - "Owned queued or running jobs cancel cleanly and notify registered workers; failed or cancelled jobs retry cleanly when a worker is online and return box_required preserving the original row when offline."
+      - "Brand intro, Brand graphic, Story, Cancel, and Retry controls work in Chromium at 1440x900 and 412x915 with zero page errors and zero native dialogs."
+    prerequisites: [runner:node-test, runtime:canonical-store-toolchain, runtime:chromium]
     sideEffects: none
     isolation: {mode: none}
     limits: {timeoutMs: 120000, maxMemoryMb: 1024}

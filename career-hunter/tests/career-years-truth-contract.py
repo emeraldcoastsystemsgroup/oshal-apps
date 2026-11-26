@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Contract tests for person-confirmed skill/career year figures (years_truth) and miswritten recorded-term restoration (term_fidelity).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the made-up person has new made-up figures; cases for a career total counted from the roles, years in a field no record confirms, a titled claim nearer the career, and the plural of a corrected unit.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: a person who stated figures gets years only where they stated one: unconfirmed claims and an unstated total are taken out (expected values updated, résumé-shaped cases added with made-up figures); a person with no figures keeps the roles' floor; the prompt lists only the person's figures.
 """Person-confirmed years truth and recorded-term fidelity contract tests."""
 from __future__ import annotations
 
@@ -142,8 +143,17 @@ def test_overlay_and_prompt_block() -> None:
           abap_rec.get("years") == 16 and tenure.get("total_career_years") == 24
           and tenure.get("career_source") == "person")
     block = skill_tenure.prompt_block(tenure)
-    check("prompt_block states 'ABAP: exactly 16 years (the person's own figure)'",
-          "ABAP: exactly 16 years (the person's own figure)" in block)
+    check("prompt_block lists only the person's figures and forbids any other years count",
+          "- ABAP: 16 years" in block and "State a year count ONLY for a skill listed" in block
+          and "Verified per-skill spans" not in block and "State no total number of years" not in block, block)
+    no_total = dict(prof)
+    no_total.pop("career_years")
+    block_nt = skill_tenure.prompt_block(skill_tenure.compute_tenure(no_total, today=TODAY))
+    check("prompt_block with no stated total says to state no total",
+          "State no total number of years" in block_nt and "Total professional experience" not in block_nt, block_nt)
+    block_plain = skill_tenure.prompt_block(skill_tenure.compute_tenure(base_profile(), today=TODAY))
+    check("prompt_block for a person with no figures keeps the counted table",
+          "Verified per-skill spans" in block_plain and "YEARS OF EXPERIENCE (the person stated" not in block_plain, block_plain)
     check("prompt_block includes YEARS THE PERSON CONFIRMED block",
           "YEARS THE PERSON CONFIRMED" in block
           and "- SAP NetWeaver Java: 7 years" in block
@@ -162,41 +172,55 @@ ENFORCE_CASES = [  # (as written, as it must read; None = left exactly as writte
  ("Java developer with 2 years of experience", "Java developer with 12 years of experience"),
  ("DevOps engineer with 22 years of professional experience", "DevOps engineer with 24 years of professional experience"),
  ("DevOps engineer with 5 years of professional experience", None),
- ("24 years of experience leading Java teams", None), ("2 years of experience leading Java teams", None),
+ ("24 years of experience leading Java teams", None), ("2 years of experience leading Java teams", "Experience leading Java teams"),
  ("Over 20 years of experience in enterprise software, including 7 years of ABAP",
-  "Over 20 years of experience in enterprise software, including 16 years of ABAP"),
- ("Java developer with 2 years of experience in fintech", None), ("5 years of experience in retail management", None),
+  "Experience in enterprise software, including 16 years of ABAP"),
+ ("Java developer with 2 years of experience in fintech", "Java developer with experience in fintech"),
+ ("5 years of experience in retail management", "Experience in retail management"),
  ("Led a 3-year migration program and a 2-year Java rewrite", None),
  ("12-year Java veteran", None), ("9-year Java veteran", "12-year Java veteran"), ("1-year Java veteran", "12-year Java veteran"),
  ("20-year career in software", "24-year career in software"),
  ("Joined 5 years ago; promoted in 3 years; reviewed every 2 years", None),
  ("Has led DevOps for 2 years", "Has led DevOps for 5 years"), ("Has led DevOps for 1 year", "Has led DevOps for 5 years"),
- ("Ran the lab for 2 years", None), ("Has led Java teams using Python for 2 years", None),
+ ("Ran the lab for 2 years", "Ran the lab"), ("Has led Java teams using Python for 2 years", "Has led Java teams using Python"),
  ("Java (9 years)", "Java (12 years)"), ("SAP NetWeaver Java (11+ yrs)", "SAP NetWeaver Java (7 yrs)"), ("Java: 9 years", "Java: 12 years"),
  ("Python (1 year)", "Python (5 years)"), ("1 yr of Python", "5 yrs of Python"),
- ("Python - 2 yrs", "Python - 5 yrs"), ("Kubernetes (2 years)", None), ("2 years of Kubernetes", None),
- ("3 years of experience with Kubernetes", None),
+ ("Python - 2 yrs", "Python - 5 yrs"), ("Kubernetes (2 years)", "Kubernetes"), ("2 years of Kubernetes", "Kubernetes"),
+ ("3 years of experience with Kubernetes", "Experience with Kubernetes"),
  ("Total experience: 20 years", "Total experience: 24 years"), ("eleven years of ABAP", "16 years of ABAP"),
- ("20+ years' experience", "24 years' experience"), ("8-10 years of Java", None), ("Agile delivery (10 years)", None),
- ("10 years of stakeholder management", None), ("two decades of experience", None),
+ ("20+ years' experience", "24 years' experience"), ("8-10 years of Java", None), ("Agile delivery (10 years)", "Agile delivery"),
+ ("10 years of stakeholder management", "Stakeholder management"), ("two decades of experience", None),
  ("16 years of Java and ABAP", None), ("13 years of Java and ABAP", "12 years of Java and ABAP"),
  ("over 16 years of ABAP", "16 years of ABAP"), ("2 years of experience", "24 years of experience"),
  ("Offers 2 years of professional experience.", "Offers 24 years of professional experience."),
- ("Offers 2 years of professional experience across SAP landscapes.", None),
+ ("Offers 2 years of professional experience across SAP landscapes.", "Offers professional experience across SAP landscapes."),
  ("DevOps engineer with 2 years of total experience.", "DevOps engineer with 24 years of total experience."),
- ("9 years of server-side Java", "12 years of server-side Java"), ("9 years of integration and Java", None),
- ("9 years of building services in Java", None), ("20 years of large-scale SAP NetWeaver Java development", "7 years of large-scale SAP NetWeaver Java development"),
+ ("9 years of server-side Java", "12 years of server-side Java"), ("9 years of integration and Java", "Integration and Java"),
+ ("9 years of building services in Java", "Building services in Java"), ("20 years of large-scale SAP NetWeaver Java development", "7 years of large-scale SAP NetWeaver Java development"),
  ("12 years of Java, 7 years of SAP NetWeaver Java, 5 years of Python and 16 years of ABAP", None),
  ("Brings 2 years of hands-on experience in DevOps, Python and Jenkins.", "Brings 5 years of hands-on experience in DevOps, Python and Jenkins."),
 ]
-ROLES_CAREER_CASES = [  # the same person with no total of their own: the roles' dates give 22 years (2004-06 to 2026-11)
- ("2 years of experience", "22 years of experience"), ("22 years of experience", None), ("23 years of experience", None),
- ("Senior SAP engineer with 2 years of experience.", "Senior SAP engineer with 22 years of experience."),
- ("over 20 years of experience", None), ("20+ years of experience", None), ("20 years of experience", "22 years of experience"),
- ("nearly 20 years of experience", "22 years of experience"), ("over 15 years of experience", "22 years of experience"),
- ("Java developer with 22 years of experience", None), ("Java developer with 2 years of experience", "Java developer with 12 years of experience"),
- ("DevOps engineer with 21 years of professional experience", "DevOps engineer with 22 years of professional experience"),
- ("5 years of experience in retail management", None), ("Java (9 years)", "Java (12 years)"),
+ROLES_CAREER_CASES = [  # the same person with no total of their own: having stated figures, they get no total at all
+ ("2 years of experience", "Experience"), ("22 years of experience", "Experience"),
+ ("Senior SAP engineer with 2 years of experience.", "Senior SAP engineer with experience."),
+ ("over 20 years of experience", "Experience"), ("20+ years of experience", "Experience"),
+ ("Technology leader with over 25 years of experience delivering software.", "Technology leader with experience delivering software."),
+ ("Architect with 26 years of software engineering, platform delivery, and enterprise architecture experience",
+  "Architect with software engineering, platform delivery, and enterprise architecture experience"),
+ ("Brings over 10 years leading platform teams.", "Brings experience leading platform teams."),
+ ("a 26-year career in software", "a career in software"),
+ ("Java developer with 2 years of experience", "Java developer with 12 years of experience"),
+ ("5 years of experience in retail management", "Experience in retail management"), ("Java (9 years)", "Java (12 years)"),
+ ("Machine Learning (4 years), IoT (4 years), Python (5 years)", "Machine Learning, IoT, Python (5 years)"),
+ ("Languages: ABAP (16 years), SAP HANA (5 years), Java / J2EE (12 years), JavaScript (8 years)",
+  "Languages: ABAP (16 years), SAP HANA, Java / J2EE (12 years), JavaScript"),
+ ("Cloud & DevOps (5 years): AWS GovCloud (5 years), Google Cloud Platform (5 years)", "Cloud & DevOps (5 years): AWS GovCloud, Google Cloud Platform"),
+ ("Combines 12 years of Java and 5 years of Python with TypeScript.", None),
+ ("Led the first integration check in over 2 years.", None), ("Joined 5 years ago", None),
+]
+NO_FIGURES_CASES = [  # a person who stated no figures at all: the roles' dates are the floor for a total, skills untouched
+ ("2 years of experience", "22 years of experience"), ("over 20 years of experience", None), ("20+ years of experience", None),
+ ("nearly 20 years of experience", "22 years of experience"), ("Kubernetes (2 years)", None), ("5 years of experience in retail management", None),
 ]
 
 
@@ -225,7 +249,7 @@ def test_enforce_corrections() -> None:
                          "headline": "Java Architect | 20+ years' experience"}}
     fixed, _ = years_truth.enforce(listed, prof)
     check("enforce corrects the skills list and headline",
-          fixed["resume"]["skills"] == ["Java (12 years)", "SAP NetWeaver Java (7 yrs)", "Kubernetes (2 years)"]
+          fixed["resume"]["skills"] == ["Java (12 years)", "SAP NetWeaver Java (7 yrs)", "Kubernetes"]
           and fixed["resume"]["headline"] == "Java Architect | 24 years' experience", f"{fixed['resume']}")
     no_career = dict(prof)
     no_career.pop("career_years")
@@ -233,6 +257,15 @@ def test_enforce_corrections() -> None:
         fixed, changes = years_truth.enforce({"resume": {"summary": text}}, no_career)
         expected = text if want is None else want
         check(f"roles' career total: {text!r}", fixed["resume"]["summary"] == expected and bool(changes) == (want is not None),
+              f"got {fixed['resume']['summary']!r}, want {expected!r}")
+    headline = years_truth.enforce({"resume": {"headline": "Java Architect | 20+ years' experience"}}, no_career)[0]
+    check("no stated total: a headline part that was only the total goes with its separator",
+          headline["resume"]["headline"] == "Java Architect", f"{headline}")
+    plain = base_profile()
+    for text, want in NO_FIGURES_CASES:
+        fixed, changes = years_truth.enforce({"resume": {"summary": text}}, plain)
+        expected = text if want is None else want
+        check(f"no figures, roles' floor: {text!r}", fixed["resume"]["summary"] == expected and bool(changes) == (want is not None),
               f"got {fixed['resume']['summary']!r}, want {expected!r}")
 
 

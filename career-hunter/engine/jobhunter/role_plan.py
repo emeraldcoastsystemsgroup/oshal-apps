@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... it would leave out my active role"): which recorded roles every generated résumé carries, in which order, and the check that holds each generation to it. The model was handed the whole profile with the current role first and left it out (5 of the 6 packets made since it was added), because the prompt let it drop roles for relevance and nothing after the model call looked. Now the prompt lists the roles to carry, and carry() puts back any the model left out, from the role's own recorded title, employer, dates and bullets, most recent first.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve recorded month/year precision and restore dates only for uniquely anchored roles without changing legacy role-carry or sorting policy.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (Roger, 2026-11-25: his Honeycomb résumé listed "Technical Quality Manager (TQM), SAP MaxAttention, embedded at ExxonMobil" and "...(Embedded at ExxonMobil)" as two jobs, both Jun 2011 to Dec 2013): drop_repeats keeps one entry per job when the model writes the same title at the same employer for the same span twice, the one bound to the recorded role first.
 """Which recorded roles a generated résumé carries, in which order, and the check that holds every generation to it.
 
 The model writes the words; this module decides which roles are on the page. A role the candidate holds now (no end
@@ -323,3 +324,36 @@ def carry(resume: dict, entries: list, prof: dict, embargo=()) -> dict:
     return {"required": [entry["key"] for entry in entries if entry["required"]],
             "restored": [entry["key"] for entry in restored], "moved": len(moved),
             "reordered": reordered, "spans": spans}
+
+
+def drop_repeats(resume: dict) -> int:
+    """
+    @description One entry per job. A model can write the same job twice with different punctuation ("..., embedded
+    at ExxonMobil" and "... (Embedded at ExxonMobil)"); only one copy binds to the recorded role, and the other would
+    print as a second job. An entry with the same title words at the same employer as an earlier one, for the same
+    span (or with no span to tell them apart), is dropped; the copy bound to the recorded role (it carries an `id`) is
+    the one kept. Two stints with different spans both stay.
+    @param resume - The generated résumé, changed in place. @returns How many entries were dropped.
+    """
+    experience = (resume or {}).get("experience")
+    if not isinstance(experience, list):
+        return 0
+    kept, seen, dropped = [], {}, 0
+    for item in experience:
+        if not isinstance(item, dict) or not _words(item.get("title")):
+            kept.append(item)
+            continue
+        key, span = (_words(item.get("title")), _org_words(item.get("org"))), _words(item.get("span"))
+        place = seen.get(key)
+        earlier = kept[place] if place is not None else None
+        earlier_span = _words(earlier.get("span")) if earlier else ""
+        if earlier is None or (span and earlier_span and span != earlier_span):
+            seen.setdefault(key, len(kept))
+            kept.append(item)
+            continue
+        dropped += 1
+        if item.get("id") and not earlier.get("id"):
+            kept[place] = item
+    if dropped:
+        resume["experience"] = kept
+    return dropped

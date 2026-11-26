@@ -1,3 +1,10 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR                                  | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1   | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: verify brand-graphics-job-status stays read-only (legacy.read) while brand_graphic stays admin-only (legacy.execute) and matches POST /renders.
+ */
 /** Actual catalog and source-authorizer closure; explicit named-authority port seam, no provider/SQL substitutes claimed as native acceptance. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,8 +12,9 @@ import {createRequire} from 'node:module';
 import Module from 'node:module';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-const require=createRequire(new URL('../../scripts/toolchain/package.json',import.meta.url));
-process.env.NODE_PATH=[resolve(new URL('../../scripts/toolchain/node_modules',import.meta.url).pathname),process.env.NODE_PATH].filter(Boolean).join(':');Module._initPaths();
+const toolchain=process.env.STORE_CI_TOOLCHAIN||resolve(new URL('../../scripts/toolchain',import.meta.url).pathname);
+const require=createRequire(resolve(toolchain,'package.json'));
+process.env.NODE_PATH=[resolve(toolchain,'node_modules'),process.env.NODE_PATH].filter(Boolean).join(':');Module._initPaths();
 const yaml=require('js-yaml'),read=path=>yaml.load(readFileSync(new URL(path,import.meta.url),'utf8'));
 const catalog=read('../authorization.yaml'),manifest=read('../oshal-app.yaml'),APP='brand-graphics';
 const {authorizeSource,registerSourceAuthorization}=await import('../routes/source-projects.mjs');
@@ -41,7 +49,8 @@ test('source tools and bot use source permissions while every spending tool stay
  assert.equal(catalog.bindings.tools.length,manifest.tools.length);
  for(const tool of manifest.tools){const binding=catalog.bindings.tools.find(b=>b.id===tool.name);assert.ok(binding,tool.name);
   if(tool.name.includes('-source-')){assert.ok(binding.allOf.every(p=>holds('source-editor',p)));assert.ok(!binding.allOf.includes('legacy.execute'));}
-  else if(!['creative_list','vids-jobs'].includes(tool.name)){assert.ok(binding.allOf.includes('legacy.execute'));assert.ok(binding.allOf.some(p=>!holds('source-editor',p)));}
+  else if(['creative_list','vids-jobs','brand-graphics-job-status'].includes(tool.name)){assert.ok(binding.allOf.every(p=>holds('reader',p)));assert.ok(!binding.allOf.includes('legacy.execute'));}
+  else{assert.ok(binding.allOf.includes('legacy.execute'));assert.ok(binding.allOf.some(p=>!holds('source-editor',p)));}
  }
  for(const bot of manifest.bots){const binding=catalog.bindings.bots.find(b=>b.id===bot.agentId||b.id===bot.name);assert.deepEqual(binding?.allOf,['app.open','source.read']);}
  for(const job of catalog.bindings.jobs)assert.deepEqual(job.allOf,['app.open','legacy.execute']);

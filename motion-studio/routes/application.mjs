@@ -15,10 +15,12 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Serve only the fixed new inspector-draft coordinator module alongside the native workbench.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Serve tools/busy-retry.mjs, the workbench's retry of storage-busy refusals, under the existing /ui/:asset read.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: admit bounded video/audio uploads, composition audio window previews, media-workbench UI module, and modular route mounting.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-01, -04, -05, -09): mount bounded JSON preview-frame endpoint for motion-preview and serve canvas-overlay, timeline-drag and history-sheet modules.
  */
 import { mountPortableRoutes, binaryChunkParser } from './portable-http.mjs';
 import { mountRenderRoutes } from './render-http.mjs';
 import { mountValueRoutes } from './value-http.mjs';
+import { renderBoundedPreviewFrame } from './preview-frame.mjs';
 import { propertiesObservation } from './properties.mjs';
 import { fontIndex, textObservation } from './text.mjs';
 import { maskObservation } from './masks.mjs';
@@ -78,7 +80,7 @@ function contextStore(ctx) {
 
 function mountCatalogAndReadRoutes(router, run, root) {
   router.get('/app', run('view', async () => ({ send: res => res.type('html').sendFile(resolve(root, 'tools/workbench.html')) })));
-  for (const file of ['workbench.mjs', 'editor-foundation-adapter.mjs', 'editor-handoff.mjs', 'workbench.css', 'native-json.mjs', 'bundle-client.mjs', 'sha256-stream.mjs', 'value-patch.mjs', 'render-client.mjs', 'media-workbench.mjs', 'busy-retry.mjs'])router.get('/ui/' + file, run('view', async () => ({ send: res => res.type(file.endsWith('.css') ? 'text/css' : 'text/javascript').sendFile(resolve(root, 'tools', file)) })));
+  for (const file of ['workbench.mjs', 'editor-foundation-adapter.mjs', 'editor-handoff.mjs', 'workbench.css', 'native-json.mjs', 'bundle-client.mjs', 'sha256-stream.mjs', 'value-patch.mjs', 'render-client.mjs', 'media-workbench.mjs', 'canvas-overlay.mjs', 'timeline-drag.mjs', 'history-sheet.mjs', 'busy-retry.mjs'])router.get('/ui/' + file, run('view', async () => ({ send: res => res.type(file.endsWith('.css') ? 'text/css' : 'text/javascript').sendFile(resolve(root, 'tools', file)) })));
   router.get('/permissions', run('view', async (_req, _store, bound) => ({ permissions: await permissions(bound) })));
   router.get('/editing-contract', run('view', async (_req, _store, bound) => editingContract(bound)));
   router.get('/agent-contract', run('view', async (_req, _store, bound) => agentContract(bound)));
@@ -207,6 +209,7 @@ function mountPreviewAndAssetRoutes(router, run) {
     const project = await store.get(id(req.params.id), number(Number(req.params.revision), 1, LIMITS.revisions, true));
     return motionEngine(bound, { op: 'preview', document: project.document, assets: await ownedAssets(project.document, store), comp: BigInt(nativeId(req.params.compId)), time_ticks: BigInt(time), max_side: number(Number(req.params.maxSide), 1, 4096, true), transparent: req.params.transparent === '1' });
   }));
+  router.get('/projects/:id/revisions/:revision/preview-frame/:timeTicks/:compId/:maxSide', run('read', async (req, store, bound) => renderBoundedPreviewFrame(bound, store, req.params)));
   router.get('/projects/:id/revisions/:revision/audio/:compId/:startTicks/:endTicks', run('read', async (req, store, bound) => {
     const startTicks = BigInt(signedTick(req.params.startTicks)), endTicks = BigInt(signedTick(req.params.endTicks));
     if (startTicks < 0n || endTicks <= startTicks) throw new MotionError(400, 'motion_invalid_input');

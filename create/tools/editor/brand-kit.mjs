@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | One personal brand kit for every Create surface: bounded role colors, Office-safe fonts and an owned logo reference, plus readable-color, naming and template-branding helpers shared by the browser and the server validator.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: add deterministic applyBrandToProject helper shared by the editor Apply my brand button and the concierge apply-brand route, returning every layer change and placing the owned logo at most once.
  */
 
 /** @description The five colors every kit carries, in display order. Named roles (not a loose
@@ -252,4 +253,125 @@ export function brandProject(project, design, kit) {
     layers.push({ id: globalThis.crypto.randomUUID(), type: 'image', name: 'Brand logo', assetId: id, ...fitLogo(design.logo, kit.logo) });
   }
   return { ...project, background, layers, images };
+}
+
+const SHAPE_ROLES = Object.freeze(['primary', 'secondary', 'accent']);
+
+function isLayerLocked(layers, layer) {
+  if (layer.locked) return true;
+  let current = layer.id;
+  for (let depth = 0; depth < 6; depth++) {
+    const parent = layers.find(item => item.type === 'group' && item.children?.includes(current));
+    if (!parent) return false;
+    if (parent.locked) return true;
+    current = parent.id;
+  }
+  return false;
+}
+
+function recordChange(changes, layer, field, from, to) {
+  if (from === to) return;
+  changes.push({ layerId: layer.id, name: layer.name, type: layer.type, field, from, to });
+}
+
+function rebrandShape(layer, kit, role, changes) {
+  const next = { ...layer }, targetFill = kit.colors[role];
+  if (next.fill && next.fill !== 'transparent') {
+    recordChange(changes, layer, 'fill', next.fill, targetFill);
+    next.fill = targetFill;
+  }
+  if (next.stroke && next.stroke !== 'transparent' && next.strokeWidth > 0) {
+    const targetStroke = kit.colors[role === 'accent' ? 'primary' : 'accent'];
+    recordChange(changes, layer, 'stroke', next.stroke, targetStroke);
+    next.stroke = targetStroke;
+  }
+  if (next.type === 'path' && next.gradient?.stops?.length >= 2) {
+    const stops = next.gradient.stops.map((stop, idx, all) => ({
+      ...stop, color: idx === 0 ? kit.colors.primary : idx === all.length - 1 ? kit.colors.accent : kit.colors.secondary,
+    }));
+    if (JSON.stringify(stops) !== JSON.stringify(next.gradient.stops)) {
+      recordChange(changes, layer, 'gradient', next.gradient.stops.map(s => s.color).join(','), stops.map(s => s.color).join(','));
+      next.gradient = { ...next.gradient, stops };
+    }
+  }
+  return next;
+}
+
+function rebrandText(layer, below, background, kit, changes) {
+  const heading = (layer.fontWeight ?? 400) >= 700 || (layer.fontSize ?? 32) >= 40;
+  const targetFont = heading ? kit.fonts.heading : kit.fonts.body;
+  const x = layer.x + layer.w / 2, y = layer.y + Math.min(layer.h, layer.fontSize ?? 32) / 2;
+  const surface = [...below].reverse().find(item => contains(item, x, y))?.fill ?? background;
+  const behind = /^#[0-9a-f]{6}$/i.test(surface) ? surface.toLowerCase() : kit.colors.light;
+  const targetFill = heading && contrast(kit.colors.primary, behind) >= 4.5 ? kit.colors.primary : readableOn(behind, kit);
+  const next = { ...layer, fontFamily: targetFont, fill: targetFill };
+  recordChange(changes, layer, 'fontFamily', layer.fontFamily, targetFont);
+  recordChange(changes, layer, 'fill', layer.fill, targetFill);
+  if (layer.stroke && layer.strokeWidth > 0) {
+    recordChange(changes, layer, 'stroke', layer.stroke, kit.colors.accent);
+    next.stroke = kit.colors.accent;
+  }
+  return next;
+}
+
+function applyBrandLogo(project, layers, images, kit, changes, options) {
+  if (!kit.logo) return;
+  const id = logoAssetId(kit);
+  const existing = layers.findIndex(item => item.type === 'image' && (item.name === 'Brand logo' || item.assetId === id));
+  if (existing >= 0) {
+    if (isLayerLocked(layers, layers[existing])) return;
+    if (!Object.hasOwn(images, id) && Object.keys(images).length >= 64) fail('This project has reached its image limit.');
+    images[id] = { ...kit.logo };
+    if (layers[existing].assetId !== id) {
+      const previous = layers[existing].assetId;
+      layers[existing] = { ...layers[existing], assetId: id };
+      changes.push({ layerId: layers[existing].id, name: layers[existing].name, type: 'image', action: 'updated', field: 'assetId', from: previous, to: id });
+    }
+    return;
+  }
+  if (layers.length >= 200 || (!Object.hasOwn(images, id) && Object.keys(images).length >= 64)) {
+    fail('This project has reached its layer or image limit.');
+  }
+  images[id] = { ...kit.logo };
+  const scale = Math.min(project.width * 0.22 / kit.logo.width, project.height * 0.18 / kit.logo.height, 1);
+  const w = Math.max(1, kit.logo.width * scale), h = Math.max(1, kit.logo.height * scale);
+  const margin = Math.round(Math.min(project.width, project.height) * 0.05);
+  const layerId = options.logoLayerId ?? globalThis.crypto.randomUUID();
+  layers.push({ id: layerId, type: 'image', name: 'Brand logo', assetId: id, x: Math.max(0, project.width - w - margin), y: margin, w, h });
+  changes.push({ layerId, name: 'Brand logo', type: 'image', action: 'added', assetId: id });
+}
+
+/** @description Apply a validated brand kit to an existing project in one deterministic pass.
+ * Maps canvas background, unlocked shapes/paths/drawings, unlocked text fonts/colors with readable
+ * contrast, and places or updates the owned logo once without duplicating it.
+ * @param {object} project Validated project document.
+ * @param {object} rawKit Candidate brand kit.
+ * @param {{logoLayerId?:string}} options Optional deterministic logo layer ID for tests.
+ * @returns {{project:object, changes:object[]}} Rebranded project (caller validates) and change list. */
+export function applyBrandToProject(project, rawKit, options = {}) {
+  const kit = validateBrandKit(rawKit), changes = [];
+  const background = kit.colors.light;
+  if (project.background !== background) {
+    changes.push({ target: 'canvas', name: 'Canvas', field: 'background', from: project.background, to: background });
+  }
+  let shapeIndex = 0;
+  const passOne = project.layers.map(layer => {
+    if (isLayerLocked(project.layers, layer)) return { ...layer };
+    if (['rect', 'ellipse', 'path'].includes(layer.type)) {
+      return rebrandShape(layer, kit, SHAPE_ROLES[shapeIndex++ % SHAPE_ROLES.length], changes);
+    }
+    if (layer.type === 'freehand') {
+      recordChange(changes, layer, 'stroke', layer.stroke, kit.colors.accent);
+      return { ...layer, stroke: kit.colors.accent };
+    }
+    return { ...layer };
+  });
+  const layers = passOne.map((layer, index) => (
+    layer.type === 'text' && !isLayerLocked(passOne, layer)
+      ? rebrandText(layer, passOne.slice(0, index), background, kit, changes)
+      : layer
+  ));
+  const images = { ...project.images };
+  applyBrandLogo(project, layers, images, kit, changes, options);
+  return { project: { ...project, background, layers, images }, changes };
 }

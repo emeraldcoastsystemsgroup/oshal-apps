@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | DEMO-03: Strengthen's list never writes a store it may only read. On the native kernel a read mounts the person's published store read-only; a person who had never scanned got a scan that wrote it ("attempt to write a readonly database", a 500), and a store with no theme table got its scan thrown away (every theme with no jobs). list_themes() counts the themes of a read-only store that holds no theme row yet from its own scores, in memory; a store the engine may write still saves its first scan. Guard: tests/career-strengthen-readonly.test.mjs.
+
 """Career-gap intelligence — the engine behind the 'Strengthen Your Background' tab.
 
 The AI fit scorer writes a JSON array of gap/risk strings on every posting
@@ -337,14 +343,16 @@ def _gap_postings_count(conn) -> int:
         "AND ai_fit_gaps IS NOT NULL AND ai_fit_gaps != '[]'").fetchone()["n"]
 
 
-def scan() -> int:
-    """Recompute per-theme stats from every in-lane posting's gaps and upsert them,
-    PRESERVING any answer/status already stored. Returns the number of jobs scanned."""
-    with db.connect() as conn:
-        ensure_table(conn)
-        rows = conn.execute(
-            "SELECT ai_fit_score, ai_fit_gaps FROM postings WHERE active=1 AND target_role=1 "
-            "AND ai_fit_gaps IS NOT NULL AND ai_fit_gaps != '[]'").fetchall()
+def _gap_rows(conn) -> list:
+    """Every in-lane posting's score and gap strings, the one input a scan reads."""
+    return conn.execute(
+        "SELECT ai_fit_score, ai_fit_gaps FROM postings WHERE active=1 AND target_role=1 "
+        "AND ai_fit_gaps IS NOT NULL AND ai_fit_gaps != '[]'").fetchall()
+
+
+def _tally(rows) -> dict:
+    """Bucket the postings' gap strings into THEMES: per theme, the jobs raising it, their fit total and a few
+    raw strings as evidence. `scanned` counts the jobs with at least one readable gap."""
     n_jobs: dict[str, int] = {}
     fit_sum: dict[str, int] = {}
     samples: dict[str, list[str]] = {}
@@ -371,12 +379,28 @@ def scan() -> int:
         for key in job_themes:
             n_jobs[key] = n_jobs.get(key, 0) + 1
             fit_sum[key] = fit_sum.get(key, 0) + fit
+    return {"scanned": scanned, "n_jobs": n_jobs, "fit_sum": fit_sum, "samples": samples}
+
+
+def _theme_stats(tally: dict, key: str) -> tuple[int, int, list[str]]:
+    """One theme's job count, average fit and evidence strings from a tally."""
+    nj = tally["n_jobs"].get(key, 0)
+    avg = int(tally["fit_sum"].get(key, 0) / nj) if nj else 0
+    return nj, avg, tally["samples"].get(key, [])
+
+
+def scan() -> int:
+    """Recompute per-theme stats from every in-lane posting's gaps and upsert them,
+    PRESERVING any answer/status already stored. Returns the number of jobs scanned."""
+    with db.connect() as conn:
+        ensure_table(conn)
+        rows = _gap_rows(conn)
+    tally = _tally(rows)
     with db.connect() as conn:
         ensure_table(conn)
         for t in THEMES:
             k = t["key"]
-            nj = n_jobs.get(k, 0)
-            avg = int(fit_sum.get(k, 0) / nj) if nj else 0
+            nj, avg, found = _theme_stats(tally, k)
             if config.POSTGRES:
                 # user_sub is written from the connection's identity; the RLS WITH CHECK
                 # compares it to oshal.current_sub, so a wrong one is refused by the
@@ -394,7 +418,7 @@ def scan() -> int:
                        ON CONFLICT (user_sub, key) DO UPDATE SET
                          n_jobs=EXCLUDED.n_jobs, avg_fit=EXCLUDED.avg_fit,
                          sample_gaps=EXCLUDED.sample_gaps, updated_at=EXCLUDED.updated_at""",
-                    (db.require_sub(), k, nj, avg, json.dumps(samples.get(k, [])), db.now()))
+                    (db.require_sub(), k, nj, avg, json.dumps(found), db.now()))
                 continue
             conn.execute(
                 """INSERT INTO gap_themes (key, n_jobs, avg_fit, sample_gaps, updated_at)
@@ -402,8 +426,8 @@ def scan() -> int:
                    ON CONFLICT(key) DO UPDATE SET
                      n_jobs=excluded.n_jobs, avg_fit=excluded.avg_fit,
                      sample_gaps=excluded.sample_gaps, updated_at=excluded.updated_at""",
-                (k, nj, avg, json.dumps(samples.get(k, [])), db.now()))
-    return scanned
+                (k, nj, avg, json.dumps(found), db.now()))
+    return tally["scanned"]
 
 
 def is_scanned() -> bool:
@@ -415,8 +439,22 @@ def is_scanned() -> bool:
             conn.execute(f"SELECT COUNT(*) n FROM {_themes_table()}").fetchone()["n"])
 
 
-def themes_with_stats() -> tuple[list[dict], int]:
-    """Merge the code taxonomy with stored stats/answers, sorted by impact (n_jobs)."""
+def list_themes() -> tuple[list[dict], int]:
+    """Strengthen's list, which a read answers without writing.
+
+    A store this process may write is scanned once, saved, and read, as it always was. A store the kernel publishes
+    and mounts read-only for a read is never written: while it holds no theme row (its owner never scanned), its
+    themes are counted here from its own scores, in memory; once it holds rows they are read as saved."""
+    if db.store_read_only():
+        return themes_with_stats(live=not is_scanned())
+    if not is_scanned():
+        scan()
+    return themes_with_stats()
+
+
+def themes_with_stats(live: bool = False) -> tuple[list[dict], int]:
+    """Merge the code taxonomy with stored stats/answers, sorted by impact (n_jobs).
+    `live` counts the stats from the postings' gaps on this read instead of the stored scan."""
     with db.connect() as conn:
         ensure_table(conn)
         # SELECT * picks up user_sub/tenant_id in postgres; every read below is by column
@@ -425,16 +463,21 @@ def themes_with_stats() -> tuple[list[dict], int]:
         stored = {r["key"]: r
                   for r in conn.execute(f"SELECT * FROM {_themes_table()}").fetchall()}
         total = _gap_postings_count(conn)
+        tally = _tally(_gap_rows(conn)) if live else None
     out = []
     for t in THEMES:
         r = stored.get(t["key"])
-        nj = r["n_jobs"] if r else 0
+        if tally is not None:
+            nj, avg, found = _theme_stats(tally, t["key"])
+        else:
+            nj, avg = (r["n_jobs"] if r else 0), (r["avg_fit"] if r else 0)
+            found = json.loads(r["sample_gaps"]) if (r and r["sample_gaps"]) else []
         out.append({
             **t,
             "n_jobs": nj,
-            "avg_fit": (r["avg_fit"] if r else 0),
+            "avg_fit": avg,
             "pct": round(100.0 * nj / total, 1) if total else 0.0,
-            "samples": (json.loads(r["sample_gaps"]) if (r and r["sample_gaps"]) else []),
+            "samples": found,
             "status": (r["status"] if r else "open"),
             "response": (r["response"] if r else ""),
             # TIMESTAMPTZ in postgres, ISO text in sqlite — _iso() renders both as the

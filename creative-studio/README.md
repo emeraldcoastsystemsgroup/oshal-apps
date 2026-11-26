@@ -1,5 +1,7 @@
 # Creative Studio (creative-studio) — OSHAL app package
 
+1.5.2 delivers story production tool parity (`CREATE-TOOL-CREATIVE-STUDIO-01`..`-05`): replaces legacy CLI story tools with real route-backed `/api/creative-studio/stories/*` API tools (`creative-studio-library`, `creative_list`, `creative_produce_next`, `creative_produce`), adds **Make the next story**, a browsable **Story library** with `"Made"` / `"Not made yet"` badges and Choose/Produce actions, and a **Custom story** form (title, script, scene count `1..12`, shape `16:9`/`9:16`/`1:1`) on `/api/creative-studio/review`, and aligns every persona in `personas/` strictly to declared route-backed API tools.
+
 1.3.4 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
 

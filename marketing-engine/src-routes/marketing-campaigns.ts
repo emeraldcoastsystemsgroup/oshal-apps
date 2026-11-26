@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Campaign and content handlers for the marketing-engine API, moved verbatim out of marketing-routes.ts at the 800-line decomposition threshold: the board overview, campaign create/sanitized-import/patch with its applied budget-ledger rows, the three inline-bot surfaces (draft, ICP research, launch checklist), the content list, and the publish handler that runs the consent→cap→confirm→rail→run-ledger chain. Every query, gate order, status code and payload is unchanged.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: render email drafts through built-in HTML/plain-text templates (announcement, newsletter, launch) with mandatory compliance footer and persist template_id/html_body/text_body; record skipped_compliance ledger outcomes on compliance-refused email publishes.
  *
  * @module marketing-campaigns
  */
@@ -11,6 +12,11 @@
 import type { Request, Response } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { sanitizeCampaignImport } from './marketing-model';
+import {
+  MARKETING_TEMPLATE_IDS, parseEmailDraftCopy, renderMarketingTemplate,
+  type MarketingTemplateId,
+} from './marketing-templates';
+import { loadComplianceSettings } from './marketing-compliance';
 import {
   CAMPAIGN_DIRECTOR_ID, CAMPAIGN_STATUSES, CHANNELS, JSONB_COLS, LAUNCH_COORDINATOR_ID,
   MARKET_ANALYST_ID, UUID_RE, loadCampaign, recordRun, rows, safeRows, slugify, tooLarge,
@@ -228,11 +234,27 @@ export async function patchCampaign(ctx: AppContext, sub: string, req: Request, 
   res.json({ campaign: updated });
 }
 
-/** Insert one content item as a reviewable draft. */
+/** Insert one content item as a reviewable draft (with optional multipart email template columns). */
 async function insertContent(
   pool: QueryablePool, sub: string,
-  c: { campaignId: string | null; channel: string; title: string; body: string },
+  c: {
+    campaignId: string | null;
+    channel: string;
+    title: string;
+    body: string;
+    templateId?: string | null;
+    htmlBody?: string | null;
+    textBody?: string | null;
+  },
 ): Promise<any> {
+  if (c.templateId !== undefined || c.htmlBody !== undefined || c.textBody !== undefined) {
+    return (await rows(
+      pool,
+      `INSERT INTO oshal_marketing_content (user_sub, campaign_id, channel, title, body, status, template_id, html_body, text_body)
+       VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8) RETURNING *`,
+      [sub, c.campaignId, c.channel, c.title, c.body, c.templateId ?? null, c.htmlBody ?? null, c.textBody ?? null],
+    ))[0];
+  }
   return (await rows(
     pool,
     `INSERT INTO oshal_marketing_content (user_sub, campaign_id, channel, title, body, status)
@@ -241,8 +263,39 @@ async function insertContent(
   ))[0];
 }
 
+/** Validate optional email template id (defaults to 'announcement'). */
+function resolveEmailTemplateId(raw: unknown): MarketingTemplateId | null {
+  if (raw === undefined || raw === null || raw === '') return 'announcement';
+  const id = String(raw).trim();
+  return (MARKETING_TEMPLATE_IDS as readonly string[]).includes(id) ? (id as MarketingTemplateId) : null;
+}
+
+/** Persist a rendered email draft using one of the built-in compliance templates. */
+async function saveTemplatedEmailDraft(
+  pool: QueryablePool,
+  sub: string,
+  campaignId: string,
+  templateId: MarketingTemplateId,
+  input: Record<string, unknown>,
+  rawBody: string,
+): Promise<{ item: any; compliance: unknown; canApprove: boolean }> {
+  const { settings } = await loadComplianceSettings(pool, sub);
+  const rendered = renderMarketingTemplate({ ...input, templateId }, settings);
+  const item = await insertContent(pool, sub, {
+    campaignId,
+    channel: 'email',
+    title: rendered.subject.slice(0, 200),
+    body: rawBody,
+    templateId: rendered.templateId,
+    htmlBody: rendered.html,
+    textBody: rendered.text,
+  });
+  return { item, compliance: rendered.compliance, canApprove: rendered.canApprove };
+}
+
 /**
- * @description POST /drafts — campaign-director writes one channel draft; stored for human review.
+ * @description POST /drafts — campaign-director writes one channel draft (or stores an operator-authored
+ * templated email draft); email drafts always render through a built-in compliance template.
  * @param ctx - Framework app context.
  * @param sub - The caller's OIDC subject.
  * @param req - The Express request.
@@ -253,12 +306,46 @@ export async function createDraft(ctx: AppContext, sub: string, req: Request, re
   const b = (req.body ?? {}) as Record<string, unknown>;
   const channel = String(b.channel || '');
   if (!(CHANNELS as readonly string[]).includes(channel)) { res.status(400).json({ error: 'unknown_channel' }); return; }
-  const brief = typeof b.brief === 'string' ? b.brief.trim().slice(0, 2000) : '';
-  if (!brief) { res.status(400).json({ error: 'brief_required' }); return; }
+  const templateId = channel === 'email' ? resolveEmailTemplateId(b.templateId) : null;
+  if (channel === 'email' && !templateId) { res.status(400).json({ error: 'invalid_template_id' }); return; }
   const campaign = await loadCampaign(ctx.pool, sub, String(b.campaignId || ''));
   if (!campaign) { res.status(404).json({ error: 'campaign_not_found' }); return; }
+
+  const directBody = typeof b.body === 'string' ? b.body.trim().slice(0, 8000) : '';
+  if (channel === 'email' && directBody) {
+    try {
+      const saved = await saveTemplatedEmailDraft(ctx.pool, sub, String(campaign.campaign_id), templateId!, {
+        subject: b.subject ?? b.title ?? b.brief,
+        headline: b.headline ?? b.subject ?? b.title,
+        intro: b.intro,
+        body: directBody,
+        sections: b.sections,
+        highlights: b.highlights,
+        ctaLabel: b.ctaLabel,
+        ctaUrl: b.ctaUrl,
+        unsubscribeUrl: b.unsubscribeUrl,
+      }, directBody);
+      res.status(201).json(saved);
+    } catch (err) {
+      const e = err as Error & { code?: string };
+      res.status(400).json({ error: e.code || 'invalid_template_input', message: e.message });
+    }
+    return;
+  }
+
+  const brief = typeof b.brief === 'string' ? b.brief.trim().slice(0, 2000) : '';
+  if (!brief) { res.status(400).json({ error: 'brief_required' }); return; }
   await respondWithBot(res, async () => {
-    const text = await runMarketingBot(ctx, CAMPAIGN_DIRECTOR_ID, 'draft', String(campaign.slug), sub, draftPrompt(campaign, channel, brief));
+    const text = await runMarketingBot(ctx, CAMPAIGN_DIRECTOR_ID, 'draft', String(campaign.slug), sub, draftPrompt(campaign, channel, brief, templateId ?? undefined));
+    if (channel === 'email' && templateId) {
+      const parsed = parseEmailDraftCopy(text, brief.slice(0, 120));
+      const saved = await saveTemplatedEmailDraft(ctx.pool, sub, String(campaign.campaign_id), templateId, {
+        subject: parsed.subject, headline: parsed.headline, intro: parsed.intro, body: parsed.body,
+        ctaLabel: b.ctaLabel, ctaUrl: b.ctaUrl, unsubscribeUrl: b.unsubscribeUrl,
+      }, text);
+      res.status(201).json(saved);
+      return;
+    }
     const item = await insertContent(ctx.pool, sub, {
       campaignId: String(campaign.campaign_id), channel, title: brief.slice(0, 120), body: text,
     });
@@ -369,8 +456,17 @@ export async function publishContent(ctx: AppContext, sub: string, req: Request,
   }
   const rail = await runPublishRail(ctx, sub, item, (req.body ?? {}) as Record<string, unknown>);
   if (!rail.ok) {
-    await recordRun(ctx.pool, sub, channel, 'publish', 'error', { ...detailBase, error: rail.error ?? 'unknown' });
-    res.status(rail.status).json({ error: rail.error, ...(rail.hint ? { hint: rail.hint } : {}) });
+    const outcome = rail.outcome || 'error';
+    await recordRun(ctx.pool, sub, channel, 'publish', outcome, {
+      ...detailBase,
+      error: rail.error ?? 'unknown',
+      ...(rail.hint ? { reason: rail.hint } : {}),
+    });
+    res.status(rail.status).json({
+      error: rail.error,
+      ...(rail.hint ? { hint: rail.hint } : {}),
+      ...(rail.reasons ? { reasons: rail.reasons } : {}),
+    });
     return;
   }
   const updated = (await rows(

@@ -43,18 +43,18 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Feeds** | [`feeds/`](feeds/) | 1.2.6 | ready | Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. |
 | **Identity Hub** | [`identity/`](identity/) | 1.2.8 | ready | Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. |
 | **Intelligent Sports** | [`intelligent-sports/`](intelligent-sports/) | 1.0.4 | ready | One front door for sport. |
-| **Marketing Engine** | [`marketing-engine/`](marketing-engine/) | 0.6.1 | ready | Takes a built Open Swarm product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval. |
+| **Marketing Engine** | [`marketing-engine/`](marketing-engine/) | 0.6.10 | ready | Takes a built Open Swarm product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval. |
 | **Marketing** | [`marketing-suite/`](marketing-suite/) | 1.1.4 | ready | One front door for taking a product to market. |
 | **Orbit** | [`orbit-experience/`](orbit-experience/) | 1.1.8 | ready | Explore your admitted applications, relationships and recent work in the Orbit map. |
 | **Payments** | [`payments/`](payments/) | 1.1.5 | ready | Take payments through your own Stripe, Square or PayPal account — Stripe makes a hosted payment page from your own pasted key (test or clearly marked LIVE), Square runs a card charge, PayPal sends an invoice. |
 | **Phone & Device Control** | [`phone-control/`](phone-control/) | 1.20.4 | pending | Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays. |
-| **AI Office** | [`presentations/`](presentations/) | 2.20.12 | ready | Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge. |
+| **AI Office** | [`presentations/`](presentations/) | 2.20.14 | ready | Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge. |
 | **Program Instructions** | [`program-instructions/`](program-instructions/) | 0.1.8 | pending | Writes the instruction text Jarvis reads before it works inside a program on a person's computer, one program version at a time. |
 | **Shopping** | [`purchasing/`](purchasing/) | 1.5.1 | ready | Keeps your grocery and shopping list and makes the grocery order from it: add items by name, tick them off, and say "order the groceries" to get every item still to buy with its place at Walmart, where you add it to your cart and pay. |
 | **Social** | [`social/`](social/) | 1.7.4 | ready | Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). |
 | **Storage** | [`storage/`](storage/) | 1.4.4 | ready | Your storage hub: choose where Open Swarm saves generated code vs files (GitHub / Dropbox / Open Swarm local), upload files to your connected cloud storage (Dropbox, Google Drive, OneDrive, GitHub, or Open Swarm local), and browse your files. |
 | **Studio** | [`studio-experience/`](studio-experience/) | 1.1.8 | ready | Applications, recent work and conversations in your established Studio workspace. |
-| **Switchboard** | [`switchboard/`](switchboard/) | 0.7.1 | ready | Every line, one board. |
+| **Switchboard** | [`switchboard/`](switchboard/) | 0.7.2 | ready | Every line, one board. |
 | **System** | [`system/`](system/) | 1.0.2 | ready | One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts — each already its own app, gathered here so you don't have to hunt the full catalog. |
 
 ### AI Knowledge
@@ -62,7 +62,7 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
 | **Career Coaching** | [`career-coaching/`](career-coaching/) | 0.1.2 | pending | Share a summary of your job search with your career coach for a few days, and stop sharing whenever you like. |
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.75.0 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.76.6 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
 | **Classroom** | [`classroom-experience/`](classroom-experience/) | 1.0.6 | ready | Classwork, class schedules and personal learning through existing school roles and roster rules. |
 | **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.14 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, and your LinkedIn and Facebook presence — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.2.0 | ready | Choose which connected device Career and Jarvis use when applying to jobs. |
@@ -75,14 +75,14 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
 | **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.3.9 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
-| **Finance** | [`finance/`](finance/) | 1.8.4 | ready | Your household money in one place: bring in the statement files your bank lets you download (CSV, OFX or QFX) or link your banks and brokerages via Plaid, to see balances, net worth, bills coming due (found in your repeating payments or, when you turn it on, in your own Gmail), every payment that repeats with what it costs a year, spending by month against your own plan and your goals, with a plain-English brief. |
+| **Finance** | [`finance/`](finance/) | 1.8.5 | ready | Your household money in one place: bring in the statement files your bank lets you download (CSV, OFX or QFX) or link your banks and brokerages via Plaid, to see balances, net worth, bills coming due (found in your repeating payments or, when you turn it on, in your own Gmail), every payment that repeats with what it costs a year, spending by month against your own plan and your goals, with a plain-English brief. |
 | **Finance** | [`finance-experience/`](finance-experience/) | 1.0.1 | ready | Opens Finance as one application, with your money, trades, markets and world events and the work running on them. |
 | **Futures Research** | [`futures-research/`](futures-research/) | 1.2.0 | ready | Walk-forward CME and Micro futures study reviews, proposal review queue, and forward-call grading with explicit adoption in Intelligent Trades and zero order execution. |
 | **Intelligent Trades** | [`trading/`](trading/) | 1.62.4 | ready | Your stock portfolio and trading desk. |
 | **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.10.3 | ready | Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. |
 | **Payroll** | [`payroll/`](payroll/) | 2.4.0 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.12.4 | ready | Follow a team and really know its next game. |
-| **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.5.4 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
+| **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.5.7 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
 
 ### AI Creative
 
@@ -90,22 +90,22 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Animatronics** | [`animatronics/`](animatronics/) | 0.2.7 | ready | The motion layer for a Halloween prop or any servo animatronic. |
 | **Audio Studio** | [`audio/`](audio/) | 1.2.2 | pending | Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant. |
-| **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.4.2 | ready | Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing. |
+| **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.4.3 | ready | Edit and save brand briefs with an AI partner, render motion clips in your brand kit or the Open Swarm look, preview and download MP4s, and hand source into document and video editing. |
 | **Camera Ops** | [`camera/`](camera/) | 1.2.2 | ready | Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and drive it: start/stop recording, take photos, switch modes, change settings, and run a low-latency preview. |
-| **Create** | [`create/`](create/) | 1.20.4 | ready | Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace. |
-| **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.5.1 | ready | Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs. |
-| **Dungeon Master** | [`dnd/`](dnd/) | 0.22.5 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
+| **Create** | [`create/`](create/) | 1.20.5 | ready | Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace. |
+| **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.5.2 | ready | Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs. |
+| **Dungeon Master** | [`dnd/`](dnd/) | 0.22.10 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
 | **Game Show** | [`game-show/`](game-show/) | 0.13.3 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |
 | **Games** | [`games/`](games/) | 1.1.1 | ready | A focused cockpit toolbar with direct launchers for the AI Dungeon Master and Game Show. |
-| **LoRA Studio** | [`lora/`](lora/) | 1.10.5 | ready | Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training. |
-| **Motion Studio** | [`motion-studio/`](motion-studio/) | 0.4.3 | ready | Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos. |
-| **PDF Workbench** | [`pdf-workbench/`](pdf-workbench/) | 0.4.1 | pending | Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports. |
-| **Portrait Studio** | [`portrait-studio/`](portrait-studio/) | 1.17.9 | ready | Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. |
-| **Publishing Studio** | [`publishing-studio/`](publishing-studio/) | 0.5.5 | pending | Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history. |
+| **LoRA Studio** | [`lora/`](lora/) | 1.10.6 | ready | Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training. |
+| **Motion Studio** | [`motion-studio/`](motion-studio/) | 0.4.4 | ready | Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos. |
+| **PDF Workbench** | [`pdf-workbench/`](pdf-workbench/) | 0.4.2 | pending | Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports. |
+| **Portrait Studio** | [`portrait-studio/`](portrait-studio/) | 1.17.10 | ready | Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. |
+| **Publishing Studio** | [`publishing-studio/`](publishing-studio/) | 0.5.6 | pending | Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history. |
 | **Pumpkin** | [`pumpkin/`](pumpkin/) | 1.4.1 | ready | Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. |
 | **Scene Studio** | [`scene-studio/`](scene-studio/) | 0.4.5 | ready | Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects. |
-| **Video Studio** | [`video/`](video/) | 1.14.5 | ready | Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor. |
-| **Vids Studio** | [`vids/`](vids/) | 1.6.7 | ready | Saved editable video briefs with native AI source operations, recorded clip preview and handoff to the Video editor. |
+| **Video Studio** | [`video/`](video/) | 1.14.6 | ready | Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor. |
+| **Vids Studio** | [`vids/`](vids/) | 1.6.8 | ready | Saved editable video briefs with native AI source operations, recorded clip preview and handoff to the Video editor. |
 
 ### AI Home & Lifestyle
 
@@ -145,7 +145,7 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Embodied Swarm** | [`embodied/`](embodied/) | 0.20.6 | ready | Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. |
 | **Engineering shelf** | [`engineering-shelf/`](engineering-shelf/) | 1.0.0 | ready | One role for the engineering applications. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.2.5 | ready | The minimal working example — one route, one ribbon tile. |
-| **Intelligent Operations** | [`intelligent-operations/`](intelligent-operations/) | 1.9.7 | ready | Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. |
+| **Intelligent Operations** | [`intelligent-operations/`](intelligent-operations/) | 1.9.8 | ready | Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. |
 | **Intelligent Processing** | [`intelligent-processing/`](intelligent-processing/) | 1.1.0 | ready | A queue for self-monitoring alerts that need a root cause, run on Intelligent Operations' RCA pipeline. |
 | **Ocean Lab** | [`ocean-lab/`](ocean-lab/) | 1.3.6 | ready | Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. |
 | **Sat Ops** | [`sat-ops/`](sat-ops/) | 1.2.7 | ready | Satellite fleet plane - a 3D orbit console with fleet attitude telemetry (MEKF health, wheel momentum, ADCS mode), SGP4 ground tracks and pass windows, pairwise conjunction screening, and an approval-gated command console (point / detumble / desat / safe). |

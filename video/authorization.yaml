@@ -6,6 +6,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the dock concierge video-editor (c504b2de) and its route tools. Change 4 bound the studio bots but not the manual editor's concierge, so every turn to it was refused 'operation has no explicit permission binding' (live 2026-10-12, POST /api/swarm/bots/c504b2de-.../ask 403). It edits by hand and spends no provider money, so it binds editor.view and editor.read, not studio.generate; each video-* tool carries exactly the permissions of the HTTP route it calls. Owners can now delete their own editor projects and uploads: editor.delete (own scope only, rows stay issuer-and-subject scoped) joins the creator and editor roles instead of being admin-only.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Bind protected Writer-only Motion discovery and approved job import to existing own editor permissions; no role or scope widening.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Bind auto-captions (editor.view + editor.read), TTS voice synthesis (editor.view + upload admission), and CC0 sound-library browse/preview/import to existing own editor permissions.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: bind GET /editor/media, POST /editor/projects/:id/revisions/restore, and video-list-media / video-list-revisions / video-restore-revision to existing own editor permissions; no role or permission changes.
 version: 1
 resources:
   studio:
@@ -120,6 +121,7 @@ bindings:
     - { id: editor-permissions, method: GET, path: /editor/permissions, allOf: [editor.view] }
     # The route also requires create OR change before reading the body and again before publishing.
     - { id: editor-upload, method: POST, path: /editor/media, allOf: [editor.view] }
+    - { id: editor-media-list, method: GET, path: /editor/media, allOf: [editor.view, editor.read] }
     - { id: editor-media, method: GET, path: '/editor/media/:id', allOf: [editor.view, editor.read] }
     - { id: editor-media-cleanup, method: POST, path: /editor/media/cleanup, allOf: [editor.view, editor.delete] }
     - { id: editor-media-delete, method: DELETE, path: '/editor/media/:id', allOf: [editor.view, editor.delete] }
@@ -129,6 +131,7 @@ bindings:
     - { id: editor-project-delete, method: DELETE, path: '/editor/projects/:id', allOf: [editor.view, editor.delete] }
     - { id: editor-revisions, method: GET, path: '/editor/projects/:id/revisions', allOf: [editor.view, editor.read] }
     - { id: editor-revision-save, method: POST, path: '/editor/projects/:id/revisions', allOf: [editor.view, editor.change] }
+    - { id: editor-revision-restore, method: POST, path: '/editor/projects/:id/revisions/restore', allOf: [editor.view, editor.read, editor.change] }
     - { id: editor-revision, method: GET, path: '/editor/projects/:id/revisions/:revision', allOf: [editor.view, editor.read] }
     - { id: editor-export-create, method: POST, path: '/editor/projects/:id/exports', allOf: [editor.view, editor.read, editor.export] }
     - { id: editor-exports, method: GET, path: '/editor/projects/:id/exports', allOf: [editor.view, editor.read] }
@@ -160,3 +163,6 @@ bindings:
     - { id: video-list-renders, allOf: [editor.view, editor.read] }
     - { id: video-render-status, allOf: [editor.view, editor.read] }
     - { id: video-cancel-render, allOf: [editor.view, editor.export] }
+    - { id: video-list-media, allOf: [editor.view, editor.read] }
+    - { id: video-list-revisions, allOf: [editor.view, editor.read] }
+    - { id: video-restore-revision, allOf: [editor.view, editor.read, editor.change] }

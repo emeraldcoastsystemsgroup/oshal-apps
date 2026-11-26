@@ -20,6 +20,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the character-required-fields case expects "Hero image" (under a closed Advanced that a gap opens) and a Subject slug made from the Name; the workspace-foundation case covers the studio opening ready on New character step 1, Properties without a creation form, no inline Concierge, the phone's character list with one + New character, the stepper, and the training actions withheld without a GPU worker.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: register photo-upload unit/HTTP bounds and extend workspace-foundation with multi-photo crop and caption upload in Step 2 Dataset.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.10.5: register one-chat-window (every concierge entry on LoRA Studio, standalone and as Create's LoRA screen, opens LoRA Studio's own chat window bound to lora-director and closes cleanly) and restate workspace-foundation for LoRA Studio's closed-by-default concierge pane.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.10.6: register tool-parity covering CREATE-TOOL-LORA-01, -02, -05, and -13 (real compiled routes + Chromium desktop and phone UI).
 version: 1
 cases:
   - id: character-required-fields
@@ -435,4 +436,22 @@ cases:
       mode: disposable
       cleanup: Close the exact owned browser contexts and loopback fixture. Only synthetic data is used; no model is called.
     limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: tool-parity
+    name: LoRA Studio tool parity across models, characters, concierge actions, and single-version deletion
+    purpose: "Exercise CREATE-TOOL-LORA-01, -02, -05, and -13 against the real compiled routes and Chromium at desktop and phone viewports."
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/lora-tool-parity.test.mjs]}
+    expected:
+      - "GET /api/lora/models works with no subject (all owned versions newest first) and with ?subject= filtering."
+      - "GET /api/lora/characters returns datasetCount, activeModelVersion, and trainingState/activeRunState and the studio renders them on desktop and phone."
+      - "All read tools (lora-scorecard, lora-dataset) and approval-held action tools (create character, train, validate, improve, activate, overnight, delete character, dataset import, delete model) match authorization.yaml HTTP bindings using existing permissions only."
+      - "DELETE /api/lora/models/:subject/:version deletes only the target version, score, and thumbnails while preserving sibling versions and refusing foreign owners; the studio confirms inline with an active-version warning and no native confirm dialog."
+    prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, source:kernel-shared-ui]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the owned browser contexts and loopback fixture. Only synthetic data is used.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
     installation: never

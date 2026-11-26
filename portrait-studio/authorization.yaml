@@ -165,11 +165,26 @@ bindings:
     - { id: source-asset-read, method: GET, path: /source-assets/:id, allOf: [portrait.view, portrait.read] }
     - { id: source-asset-content, method: GET, path: /source-assets/:id/content, allOf: [portrait.view, portrait.read] }
     - { id: source-asset-delete, method: DELETE, path: /source-assets/:id, allOf: [portrait.view, portrait.read, portrait.delete] }
+    - { id: provider-status, method: GET, path: /provider-status, allOf: [portrait.view, portrait.read] }
+    - { id: read-portrait, method: GET, path: /portraits/:id, allOf: [portrait.view, portrait.read] }
+    - { id: rerun-portrait, method: POST, path: /portraits/:id/rerun, allOf: [portrait.view, portrait.create] }
+    - { id: export-portrait-link, method: GET, path: /portraits/:id/export-link, allOf: [portrait.view, portrait.read, portrait.export] }
+    - { id: handoff-portrait, method: POST, path: /portraits/:id/handoff, allOf: [portrait.view, portrait.read, portrait.export] }
   tools:
     - { id: portrait-studio-source-list, allOf: [portrait.view, portrait.read] }
     - { id: portrait-studio-source-read, allOf: [portrait.view, portrait.read] }
     - { id: portrait-studio-source-contract, allOf: [portrait.view, portrait.read] }
     - { id: portrait-studio-source-edits, allOf: [portrait.view, portrait.read, portrait.change] }
+    - { id: portrait-list, allOf: [portrait.view, portrait.read] }
+    - { id: portrait-read, allOf: [portrait.view, portrait.read] }
+    - { id: portrait-catalog, allOf: [portrait.view] }
+    - { id: portrait-provider-status, allOf: [portrait.view, portrait.read] }
+    - { id: portrait-create, allOf: [portrait.view, portrait.create] }
+    - { id: portrait-rerun, allOf: [portrait.view, portrait.create] }
+    - { id: portrait-rename, allOf: [portrait.view, portrait.change] }
+    - { id: portrait-delete, allOf: [portrait.view, portrait.delete] }
+    - { id: portrait-export, allOf: [portrait.view, portrait.read, portrait.export] }
+    - { id: portrait-handoff, allOf: [portrait.view, portrait.read, portrait.export] }
   bots:
     - id: b0100000-0000-0000-0000-000000000001
       allOf: [portrait.view]

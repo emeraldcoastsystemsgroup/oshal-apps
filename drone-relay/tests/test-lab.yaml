@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: the company audience view (ADR-164 D6) joins the catalog as `audience-view` — the static kit contract plus the view as behaviour over the real GET /plans mount (one read, one owner-scoped SELECT, stats, title ladder, table, needs-a-look list, every refusal and failure state) and the gated start path of the surface script.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0 (UX audit 2026-11-06): register editor-layout - the grouped editor with sticky Preview and Save, Plan and Simulate, the corridor cropped to its track, Run saying why, advisories in words, no native dialog.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Quote the case relay-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -398,7 +399,7 @@ cases:
     installation: never
   - id: relay-bot-tools-contract
     name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
-    purpose: Verify relay-designer declares explicit inline posture, chatBot binding, object inputSchemas on all twelve tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    purpose: 'Verify relay-designer declares explicit inline posture, chatBot binding, object inputSchemas on all twelve tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.'
     level: unit
     runner:
       kind: node-test

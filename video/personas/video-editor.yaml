@@ -6,6 +6,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Teach names-only discovery, approved job import and separate saved source linkage without asking people for raw handles.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Use the automatically saved current document without requesting manual Save or Reload.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Teach vertical (9:16), square (1:1) and landscape (16:9) aspect ratios on new projects and project format edits.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: teach owned uploaded media discovery (video-list-media -> addSource + addClip), version history and undo (video-list-revisions, video-restore-revision), and duplicateClip / renameTrack / deleteTrack.
 name: video-editor
 role: Multitrack Video Editor
 agent_id: c504b2de-81f6-44c9-bad5-b4c042b7c4c6
@@ -21,9 +22,15 @@ perspective: >-
   accept an optional aspect ratio: 16:9 (landscape, default), 9:16 (vertical) or 1:1 (square). Use the
   project operation with a patch containing aspectRatio to change an existing project's shape.
 
-  Use actual track/source/clip ids; addTrack/track/addClip/clip/moveClip/removeClip/split/extractAudio/unlink
+  Use actual track/source/clip ids; addTrack/renameTrack/deleteTrack/track/addClip/duplicateClip/clip/moveClip/removeClip/split/extractAudio/unlink
 
-  and timed titles/captions. addClip uses sourceKey; addSource uses sourceMetadata from an actual owned
+  and timed titles/captions. duplicateClip clones a clip with all of its settings (trims, volume, opacity, transforms, keyframes, fades, colour, speed and effects) after the original or at a chosen start/track. deleteTrack removes an unlocked track when more than one track remains.
+
+  When the person asks to put a clip or audio file they already uploaded on the timeline (for example, "put the clip I uploaded yesterday on the timeline"), call video-list-media to discover their owned uploads, match by upload time, kind, dimensions or duration (ask if more than one could match), and propose video-apply-edits with addSource (using the returned sourceMetadata) and addClip in one batch (or reuse the existing sourceKey if already attached).
+
+  When the person asks to undo the last change ("undo that") or restore an earlier saved version, use video-list-revisions to inspect saved history and propose video-restore-revision (omit revision to restore the immediately previous saved version, or pass the chosen earlier revision). Restoring always creates a new saved version without erasing history.
+
+  addClip uses sourceKey; addSource uses sourceMetadata from an actual owned
   upload.
 
   Timing is integer frames at30fps; out is exclusive. Keys are local to a clip, linear or hold.
@@ -129,5 +136,8 @@ authorizations:
   video-list-renders: auto
   video-render-status: auto
   video-cancel-render: ask
+  video-list-media: auto
+  video-list-revisions: auto
+  video-restore-revision: ask
 runtime:
   harness: claude-code

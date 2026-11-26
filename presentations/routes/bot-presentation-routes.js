@@ -25,6 +25,7 @@
  * 2026-11-03 21:30:00 | maintainer@emeraldcoastsystemsgroup.com | The Guide and the 2.15.0 design row meet: cleanBullet normalizes any #image: bullet that is not a short https URL to "#image: (attached)" on BOTH crossings (the draft state sent to the model and the model's returned slide actions), so image bytes never enter the prompt and a returned marker never lands in the outline; guidePrompt teaches the design directives (#layout:/#image:/#caption:, with the real layout ids) and that an attached image is the person's and survives the model's edits.
  * 2026-11-03 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | Office defaults to paper (Roger, on the phone demo: "Word excel PowerPoint... update the default background color"): STUDIO_DEFAULT_THEME = 'executive' is what /themes serves as defaultTheme and what a render that names no look (the demo seeds, automatic tool writes) gets — the pinned engine's midnight default is unchanged for its other callers, and an explicit theme or brand kit still wins everywhere.
  * 2026-11-21 08:40:00 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): preserve bounded per-slide speaker notes (`notes`, up to 4000 chars) in `previewOutline` (Edit & regenerate / reopen), topic drafts, and Guide `update_slide` / `add_slide` / `set_outline` actions while rejecting non-string `notes`.
+ * 2026-11-25 10:00:00 | maintainer@emeraldcoastsystemsgroup.com | 2.20.13 (CREATE-TOOL-PRESENTATIONS-04, -15, -20): persist bounded cover `subtitle` (up to 200 chars) in `previewOutline` / `GET /list` and office responses for Edit & regenerate reopen parity, accept Guide `set_subtitle` and `set_title.subtitle`, and include current cover subtitle in Guide prompts.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -226,18 +227,34 @@ async function ensurePresentationsSchema(pool) {
 }
 /** Maximum speaker-notes length per slide carried across saves, imports and Guide actions. */
 const MAX_NOTES_LENGTH = 4000;
+/** Maximum cover subtitle length carried across saves, reopens, exports and Guide actions. */
+const MAX_SUBTITLE_LENGTH = 200;
 /** Bound an optional string speaker-notes field; non-strings return undefined. */
 function cleanNotes(raw) {
     return typeof raw === 'string' ? raw.slice(0, MAX_NOTES_LENGTH) : undefined;
 }
+/** Bound an optional single-line cover subtitle string; non-strings return undefined (empty string allowed to clear). */
+function cleanSubtitle(raw) {
+    return typeof raw === 'string' ? raw.replace(/[\r\n]+/g, ' ').trim().slice(0, MAX_SUBTITLE_LENGTH) : undefined;
+}
+/** Extract the saved cover subtitle from a stored outline record (if present). */
+function savedSubtitle(outline) {
+    if (!Array.isArray(outline) || !outline.length)
+        return null;
+    const raw = outline[0]?.coverSubtitle;
+    const cleaned = cleanSubtitle(raw);
+    return cleaned ? cleaned : null;
+}
 /** Retain complete draft source for Edit & regenerate, not the old cropped preview. */
-function previewOutline(sections) {
-    return sections.map((s) => {
+function previewOutline(sections, subtitle) {
+    const coverSub = cleanSubtitle(subtitle);
+    return sections.map((s, idx) => {
         const notes = cleanNotes(s.notes);
         return {
             title: String(s.title || ''),
             bullets: String(s.content ?? '').split('\n'),
             ...(notes ? { notes } : {}),
+            ...(idx === 0 && coverSub ? { coverSubtitle: coverSub } : {}),
             sourceVersion: 2,
         };
     });
@@ -271,8 +288,15 @@ function cleanActions(raw) {
     for (const a of raw.slice(0, 30)) {
         const o = (a || {});
         const op = String(o.op || '');
-        if (op === 'set_title' && o.title)
-            out.push({ op, title: String(o.title).slice(0, 200) });
+        if (op === 'set_title' && o.title) {
+            if (o.subtitle !== undefined && typeof o.subtitle !== 'string')
+                continue;
+            const subtitle = cleanSubtitle(o.subtitle);
+            out.push({ op, title: String(o.title).slice(0, 200), ...(subtitle !== undefined ? { subtitle } : {}) });
+        }
+        else if (op === 'set_subtitle' && typeof o.subtitle === 'string') {
+            out.push({ op, subtitle: cleanSubtitle(o.subtitle) ?? '' });
+        }
         else if (op === 'set_theme' && (0, presentation_generation_1.isThemeId)(o.theme))
             out.push({ op, theme: o.theme });
         else if (op === 'update_cell' && Number.isInteger(Number(o.index)) && Number(o.index) >= 1 && Number(o.index) <= 30 && /^[A-Z]{1,2}[1-9][0-9]{0,2}$/.test(String(o.cell || '')) && o.value != null && !/[|\r\n]/.test(String(o.value)))
@@ -301,7 +325,7 @@ function cleanActions(raw) {
     return out;
 }
 /** Build the deck-builder turn: live editor state as context + the structured-output contract. */
-function guidePrompt(message, title, slides, history, theme, kind, selection) {
+function guidePrompt(message, title, slides, history, theme, kind, selection, subtitle = '') {
     const state = slides.length
         ? slides.map((s, i) => `${i + 1}. ${s.title}${s.bullets.length ? '\n   - ' + s.bullets.join('\n   - ') : ''}${s.notes ? '\n   Notes: ' + s.notes.replace(/\r?\n/g, ' ') : ''}`).join('\n')
         : '(empty)';
@@ -316,7 +340,8 @@ function guidePrompt(message, title, slides, history, theme, kind, selection) {
         'Respond with ONLY a JSON object (no prose, no code fences):',
         '{"reply":"<short conversational reply>","actions":[ ...zero or more... ]}',
         'Action types — include ONLY what the user asked for this turn (use [] when none):',
-        '- {"op":"set_title","title":"Deck title"}',
+        '- {"op":"set_title","title":"Deck title","subtitle":"optional cover subtitle"}',
+        '- {"op":"set_subtitle","subtitle":"Cover subtitle"}  // optional cover subtitle ("" clears it)',
         '- {"op":"set_outline","slides":[{"title":"Slide title","bullets":["one idea","one idea"],"notes":"optional speaker notes"}]}  // replaces the whole outline',
         '- {"op":"update_slide","index":2,"title":"New title","bullets":["..."],"notes":"optional speaker notes"}  // 1-based; include title, bullets and/or notes ("" clears notes)',
         '- {"op":"add_slide","title":"...","bullets":["..."],"notes":"optional speaker notes"}',
@@ -329,6 +354,7 @@ function guidePrompt(message, title, slides, history, theme, kind, selection) {
         'An "#image: (attached)" line is an image file the person added. Its data is not shown to you and your edits never remove it — the editor keeps it automatically. Never output an #image: line yourself unless the person gave an https image URL.',
         'Rules: one idea per bullet; never invent facts/metrics (mark placeholders); keep "reply" brief.',
         `Current deck title: ${title || '(none)'}`,
+        `Current cover subtitle: ${subtitle || '(none)'}`,
         `Current theme: ${theme || STUDIO_DEFAULT_THEME}`,
         `Current outline:\n${state}`,
         history ? `Recent conversation:\n${history}` : '',
@@ -473,7 +499,7 @@ function createBotPresentationRoutes(ctx) {
             // lowercased path basename — match regardless of case.
             const byName = new Map(rows.map((r) => [String(r.file_name).toLowerCase(), r]));
             const toDeck = (r, over) => ({
-                title: r.title, fileName: r.file_name, provider: r.provider,
+                title: r.title, subtitle: savedSubtitle(r.outline), fileName: r.file_name, provider: r.provider,
                 downloadUrl: over?.downloadUrl ?? r.download_url, url: over?.url ?? r.url, slides: r.slides,
                 outline: r.outline ?? null, outlineComplete: Array.isArray(r.outline) && r.outline.length > 0 && r.outline.every((s) => s?.sourceVersion === 2), theme: r.theme ?? null, format: r.format ?? 'pptx',
                 createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
@@ -535,7 +561,7 @@ function createBotPresentationRoutes(ctx) {
             const history = (Array.isArray(body.history) ? body.history : []).slice(-6)
                 .map((h) => `${h.role === 'guide' ? 'Guide' : 'You'}: ${String(h.text || '').slice(0, 500)}`).join('\n');
             const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, DECK_BUILDER_AGENT_ID, {
-                text: guidePrompt(message, String(body.title || ''), slides, history, String(body.theme || ''), kind, selection),
+                text: guidePrompt(message, String(body.title || ''), slides, history, String(body.theme || ''), kind, selection, cleanSubtitle(body.subtitle) ?? ''),
                 taskId: `deckguide-${sub}`, workspaceFolderId: `deckguide-${sub}`,
                 agentId: DECK_BUILDER_AGENT_ID, agenticMode: false, direct: true, userSub: sub,
             });
@@ -599,9 +625,10 @@ function createBotPresentationRoutes(ctx) {
                     res.status(400).json({ error: 'provide sections[] or topic' });
                     return;
                 }
+                const subtitle = cleanSubtitle(body.subtitle) || undefined;
                 const buf = await fmt.render(title, sections, {
                     theme: look,
-                    subtitle: body.subtitle ? String(body.subtitle).slice(0, 200) : undefined,
+                    subtitle,
                     byline: body.byline ? String(body.byline).slice(0, 120) : undefined,
                     autoLayout: body.autoLayout !== false,
                     slideNumbers: body.slideNumbers !== false,
@@ -623,7 +650,7 @@ function createBotPresentationRoutes(ctx) {
                     // the store scan in /list can match this row by name; the outline feeds the preview.
                     const savedName = (saved.location || '').split('/').pop() || fileName;
                     await ctx.pool.query(`INSERT INTO oshal_presentations (user_sub, title, file_name, provider, download_url, url, slides, outline, theme, format)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [sub, title, savedName, saved.provider, saved.downloadUrl ?? null, saved.url ?? null, sections.length, JSON.stringify(previewOutline(sections)), theme, kind]).catch((err) => logger.warn({ err: err?.message }, 'record office artifact failed'));
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [sub, title, savedName, saved.provider, saved.downloadUrl ?? null, saved.url ?? null, sections.length, JSON.stringify(previewOutline(sections, subtitle)), theme, kind]).catch((err) => logger.warn({ err: err?.message }, 'record office artifact failed'));
                     // A topic draft hands back the outline it wrote, so the studio can show the Title and Outline the file
                     // was built from (they stayed empty, and every connected action then had no work to hand on).
                     const outline = drafted ? sections.map((s) => {
@@ -631,7 +658,7 @@ function createBotPresentationRoutes(ctx) {
                         return { title: String(s.title || ''), content: String(s.content ?? ''), ...(notes ? { notes } : {}) };
                     }) : undefined;
                     const note = cutOff ? `The outline came back cut off, so this file has the ${sections.length} complete slides.` : undefined;
-                    res.json({ ok: true, format: kind, provider: saved.provider, savedTo: saved.location, slides: sections.length, theme, downloadUrl: saved.downloadUrl, url: saved.url, title, openUrl: `/cockpit/?app=presentations&open=${encodeURIComponent(savedName)}`, ...(outline ? { outline } : {}), ...(note ? { note } : {}) });
+                    res.json({ ok: true, format: kind, provider: saved.provider, savedTo: saved.location, slides: sections.length, theme, downloadUrl: saved.downloadUrl, url: saved.url, title, ...(subtitle ? { subtitle } : {}), openUrl: `/cockpit/?app=presentations&open=${encodeURIComponent(savedName)}`, ...(outline ? { outline } : {}), ...(note ? { note } : {}) });
                     return;
                 }
                 res.setHeader('Content-Type', fmt.mime);

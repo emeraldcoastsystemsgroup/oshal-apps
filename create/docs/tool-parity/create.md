@@ -12,20 +12,20 @@ How to read it:
 
 | # | Capability | Tier | Industry mobile | Industry desktop | Our UX control | Our concierge tool | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | New blank canvas with size and background | basic | n/c | Photoshop, Canva: yes [K] | `#newProject`, then canvas settings, `editor.html` | `create-new-project` (up to 4096 px; the editor allows 8192) | both |
+| 1 | New blank canvas with size and background | basic | n/c | Photoshop, Canva: yes [K] | `#newProject`, then canvas settings, `editor.html` (up to 8192 px, 32 MP) | `create-new-project` (up to 8192 px, 32 MP, matching the editor, 1.20.5) | both (1.20.5) |
 | 2 | List and open saved work | basic | n/c | yes [K] | `#openProjects`, `editor-projects.mjs` | `create-list-projects`, `create-read-project` | both |
 | 3 | Save, with autosave | basic | n/c | yes [K] | automatic saving with the Saved caption; Save automatically in the document menu brings back `#saveProject`, `editor.html` | `apply-edits`: each approved batch saves one revision | both |
-| 4 | Undo and redo | basic | n/c | yes [K] | `#undo`, `#redo`, Ctrl+Z/Y in `editor-interactions.mjs` | none | UX only |
-| 5 | Version history and restore | pro | n/c | Photoshop History panel [K] | My projects, Revisions, Restore, `editor-projects.mjs` | none (the revision routes exist in `src-routes/create-project-routes.ts`; no tool is declared) | UX only |
+| 4 | Undo and redo | basic | n/c | yes [K] | `#undo`, `#redo`, Ctrl+Z/Y in `editor-interactions.mjs` | `create-restore-revision` (omitting `revision` restores the immediately previous retained revision as a new immutable revision, 1.20.5) | both (1.20.5) |
+| 5 | Version history and restore | pro | n/c | Photoshop History panel [K] | My projects, Revisions, Restore, `editor-projects.mjs` | `create-list-revisions` and `create-restore-revision` (held for approval, creates a new immutable revision, 1.20.5) | both (1.20.5) |
 | 6 | Save a copy; delete a project | basic | n/c | yes [K] | `#saveCopy` and Delete image in the document menu, `editor.html`; Delete project in My projects, `editor-projects.mjs` | none | UX only |
 | 7 | Change canvas size, background, name | basic | n/c | yes [K] | Format with nothing selected (`editor-foundation-adapter.mjs`); `#projectName` in the document menu, `editor.html` | `apply-edits`: `project` | both |
 | 8 | Start from a template | basic | Canva: yes [C]; Express Free: yes [D] | Canva, Express: yes [D] | `#templateDialog`, `editor.html`; `tools/create-new.html` | none (a concierge can only rebuild a design layer by layer) | UX only |
-| 9 | Use brand colors, fonts, logo in a design | pro | n/c | Express: Premium [D]; Canva: limited Free, more on Pro [E] | `#brandPanel`, `#brandTemplates`, `editor.html`; `tools/create-brand.html` | none (persona says brand controls are not granted to it) | UX only |
+| 9 | Use brand colors, fonts, logo in a design | pro | n/c | Express: Premium [D]; Canva: limited Free, more on Pro [E] | `#brandPanel`, `#applyBrandBtn`, `#brandTemplates`, `editor.html`; `tools/create-brand.html` (1.20.5) | `create-read-brand-kit`, `create-update-brand-kit`, `create-apply-brand` (1.20.5) | both (1.20.5) |
 | 10 | Resize one design to many formats in one action | pro | n/c | Express: Premium [D]; Canva: Pro [E] | none (canvas width/height changes one project) | none | missing |
 | 11 | Stock photos and graphics | basic | Photoshop phone: free stock [A][B] | yes [K] | none | none | missing |
 | 12 | Add an image: device, paste, own files | basic | Photoshop phone: yes [K] | yes [K] | `#uploadImage`, `#chooseArtifact`, `editor.html`; paste listener, `editor-files.mjs` | none usable: `apply-edits` `add` takes only an already owned reference, and no tool uploads or lists assets | UX only |
 | 13 | Text: add, edit, font family, size, weight | basic | Photoshop phone: Type Layer [B] | yes [K] | `#addText`, `editor.html`; Format's Text, Font size, Weight (100 to 900) and Font, `editor-foundation-adapter.mjs` | `apply-edits`: `add`, `update` (weights 100 to 900) | both |
-| 14 | Text alignment | basic | n/c | yes [K] | none (the field exists in the model; no control in `editor.html`) | `apply-edits`: `update` patch `align` | concierge only |
+| 14 | Text alignment | basic | n/c | yes [K] | `#textAlignLeft`, `#textAlignCenter`, `#textAlignRight` segmented buttons in Format inspector (`editor.html`, `editor-view.mjs`, `editor.mjs`, 1.20.5) | `apply-edits`: `update` patch `align` | both (1.20.5) |
 | 15 | Text styling: italic, underline, spacing, outline, shadow; typing on the canvas | basic | n/c | yes [K]; Express text effects on Free [D] | Format Text controls (Italic, Underline, Line height, Letter spacing, Outline width/color), Shadow controls, and double-click `#inlineTextEditor` on `#artboard` (`editor-foundation-adapter.mjs`, `editor-interactions.mjs`, 1.20.4) | `apply-edits`: `add`, `update` (`italic`, `underline`, `lineHeight`, `letterSpacing`, `stroke`, `strokeWidth`, `shadow`, 1.20.4) | both (1.20.4) |
 | 16 | Font library and font upload | pro | Photoshop phone: paid, 20,000+ and import [A] | Express: 5,000+ Free, 30,000+ Premium [D] | three generic faces plus brand fonts only, `brand-editor.mjs` | none for upload; `update` accepts a family name | missing |
 | 17 | Rectangle and ellipse | basic | n/c | yes [K] | `#addRectangle`, `#addEllipse`, `editor.html` | `apply-edits`: `add` | both |
@@ -69,7 +69,7 @@ Ordered by what people hit first.
 
 - **CREATE-TOOL-CREATE-01: The concierge can add an image the person has.** Add tools to list owned images and to place an uploaded one on the canvas.
   Done when: a person uploads a photo, says "put my last photo on this canvas", approves the card, and the photo appears as a layer after the editor refreshes.
-- **CREATE-TOOL-CREATE-02: Text alignment control on screen.** Add left, center, right to the text properties.
+- **CREATE-TOOL-CREATE-02: Text alignment control on screen.** *(Delivered in `create` `1.20.5`: Left/Center/Right segmented alignment buttons `#textAlignLeft`, `#textAlignCenter`, `#textAlignRight` mounted in the Format inspector, synced with the selected text layer, persisted across save/reload, rendered in Canvas2D/PNG/SVG exports, and in sync with concierge `create-apply-edits` `align` patches.)*
   Done when: pressing Center moves the text, and a reload keeps it, with the same result as the concierge's `align` patch.
 - **CREATE-TOOL-CREATE-03: Flip horizontally and vertically, by button and by tool.** *(Delivered in `create` `1.20.3`: optional boolean `flipX`/`flipY` on paint and group layers, omitted when `false`, rendered in Canvas2D, PNG/JPEG and SVG exports, inverted accurately in hit-testing, region selection and group transforms; `#flipHorizontal` and `#flipVertical` toggle buttons in the Format inspector; concierge `create-apply-edits` `update` patch `{ flipX, flipY }` and read-only editor context.)*
   Done when: a person flips a photo with a button and asks the concierge to flip it back, and the exported PNG matches each state.
@@ -81,11 +81,11 @@ Ordered by what people hit first.
   Done when: "make me an event flyer from a template" produces an approval card and then an owned project with the same layers as the on-screen template.
 - **CREATE-TOOL-CREATE-07: Finished image export through the concierge.** A server or worker render to PNG and JPEG returned as a file.
   Done when: "export this as a PNG" returns a file link whose pixels match the editor's own PNG export.
-- **CREATE-TOOL-CREATE-08: Undo and restore through the concierge.** Tools to list revisions and to restore one as a new revision.
+- **CREATE-TOOL-CREATE-08: Undo and restore through the concierge.** *(Delivered in `create` `1.20.5`: `create-list-revisions` on `GET /api/create/projects/{input.id}/revisions` (`auto`) and approval-held `create-restore-revision` on `POST /api/create/projects/{input.id}/revisions/restore` (`ask`), restoring an explicit revision or defaulting to the immediately previous retained revision as a new immutable revision.)*
   Done when: after an approved edit, "undo that" produces a card, and approving it brings the earlier layers back as a new revision.
 - **CREATE-TOOL-CREATE-09: Generative region edit through the concierge.** Propose, check, accept and reject tools over the existing region-edit routes, with the same cost consent.
   Done when: with a region selected, "replace this cup with a plant" shows the cost in a card, then the before and after, and nothing changes in the project until the person accepts.
-- **CREATE-TOOL-CREATE-10: Brand kit for the concierge.** Read and change the kit; apply its colors and fonts to a project.
+- **CREATE-TOOL-CREATE-10: Brand kit for the concierge.** *(Delivered in `create` `1.20.5`: read-only `create-read-brand-kit` (`GET /api/create/brand-kit`), approval-held `create-update-brand-kit` (`PUT /api/create/brand-kit`), approval-held `create-apply-brand` (`POST /api/create/projects/{input.id}/apply-brand`), and on-screen `#applyBrandBtn` ("Apply my brand") sharing deterministic `applyBrandToProject` in `brand-kit.mjs` as one single undoable step / revision returning every layer change.)*
   Done when: "use my brand colors on this" produces a card listing each layer change, and the result matches the on-screen swatches.
 - **CREATE-TOOL-CREATE-11: Blend modes and layer effects.** Multiply, screen, overlay and the common set; drop shadow and glow.
   Done when: a fixture layer in Multiply matches a reference image within a stated tolerance, set by screen or by tool, and survives save and reopen.
@@ -123,7 +123,7 @@ Ordered by what people hit first.
   Done when: "mask the region I just drew" makes a mask matching the on-screen Mask from selected region result.
 - **CREATE-TOOL-CREATE-28: The assistant can see the picture.** A bounded, owner-only render of the current project passed to a vision model, with the person's consent.
   Done when: asked "is the headline readable over the photo?", the answer changes correctly between a legible and an illegible fixture.
-- **CREATE-TOOL-CREATE-29: Same size limit for the concierge.** `create-new-project` stops at 4096 px; the editor allows 8192.
+- **CREATE-TOOL-CREATE-29: Same size limit for the concierge.** *(Delivered in `create` `1.20.5`: aligned `create-new-project` schema `width`/`height` maximum to `8192` px matching the editor's `1..8192` px and `33554432` total pixel ceiling, and aligned `validateDocument` error detail so both editor and concierge accept identical sizes and refuse out-of-range sizes with identical words.)*
   Done when: the same canvas size is accepted by both, or both refuse with the same words.
 
 ## Sources

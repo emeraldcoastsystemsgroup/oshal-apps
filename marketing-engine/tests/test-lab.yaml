@@ -13,6 +13,14 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10: register phone-first-screen (lane mobilesweep1).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: register marketing-audience (unit + route-table parity) and marketing-audience-rls (enforcing-role disposable PostgreSQL RLS proof).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1: register marketing-audience-csv (RFC-4180 CSV import with consent attestation) and update marketing-audience (12 audience routes) and marketing-audience-rls (end-to-end PG 16 CSV import RLS proof).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.6.2: register marketing-templates-compliance (HTML email templates, compliance linter, approval and publish gates) and marketing-compliance-browser (desktop and phone Compliance pane browser contract), and extend marketing-audience-rls for migration 004.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.6.3: register marketing-double-optin (double opt-in sign-up forms, rate limiter, signed single-use confirmation tokens, honeypot, suppression immunity) and marketing-double-optin-browser (desktop and phone Sign-up forms card browser contract), and extend marketing-audience-rls for migration 005.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.6.4 (NAV-02): register marketing-nav-phone Chromium browser test verifying single-row phone (412x915, 390x844, 360x780) navigation and filter strips (.tabs, .chips, .stages) with 44px+/48px+ nowrap touch targets, More popover reachability, zero page-level overflow, and desktop (1440x900) cleanliness.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.6.5: register marketing-broadcast-unsub (one-click unsubscribe tokens, RFC 8058 headers, full broadcast send gate chain, preferences) and marketing-broadcast-browser (desktop and phone Broadcasts & One-Click Unsubscribe Compliance card), update marketing-audience (51 routes) and marketing-audience-rls (migration 006 FORCE RLS proof).
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6: register marketing-sequences (strict per-sequence standing authorization, step suppression/consent re-check, daily cap bounding, one-click disarm, welcome auto-enroll) and marketing-sequences-browser (desktop and phone Sequences & Standing Authorization Compliance card), update marketing-audience (59 routes) and marketing-audience-rls (migration 007 FORCE RLS proof).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.6.7: register marketing-launch-calendar (launch plans, dated milestones, starter checklist, deduplicated unified calendar, strictly grounded NO DATA/recorded-numbers retro) and marketing-launch-browser (desktop and phone Launch Plans & Unified Calendar cards), update marketing-audience (65 routes) and marketing-audience-rls (migration 008 FORCE RLS proof).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 0.6.8: register marketing-budget-p2 (P2 campaign-to-finance-project link, channel_allocation parser/applier, weekly review reallocation proposals, and atomic commit/rollback proof) and marketing-budget-p2-browser (desktop and phone Create budget in Finance hand-off and Approvals card), update marketing-audience (68 routes) and marketing-audience-rls (migration 009 FORCE RLS and PG 16 atomic rollback proof).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 0.6.10: register marketing-sms-p4 (P4 SMS TCPA/CTIA consent evidence, E.164 normalization, explicit vs area-code inferred timezone, DST-aware clock-controlled quiet-hours holding, STOP/HELP keyword handling, two-owner 404 isolation) and marketing-sms-browser (desktop and phone SMS Consent & Quiet Hours card in #pane-compliance), update marketing-audience (75 routes) and marketing-audience-rls (migration 011 FORCE RLS proof).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -275,7 +283,7 @@ cases:
     expected:
       - Email normalization and SHA-256 hashing are case- and whitespace-invariant; consent evidence preserves formText, recordedAt, ip, userAgent, utm, and tokenHash.
       - Segmentation filters contacts deterministically by list, tag, consentState, channel, purpose, suppressed, and search query.
-      - All 20 legacy routes remain registered alongside all 12 /audience/* routes; handlers enforce auth, refuse re-confirming suppressed addresses, export evidence before delete, and validate inputs.
+      - All 20 legacy routes remain registered alongside all 12 /audience/*, 5 compliance/template, 7 double opt-in, 7 broadcast/unsubscribe/preference, 8 sequence, 6 launch/calendar, and 3 P2 budget/reallocation routes; handlers enforce auth, refuse re-confirming suppressed addresses, export evidence before delete, and validate inputs.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -310,8 +318,8 @@ cases:
       maxMemoryMb: 256
     installation: never
   - id: marketing-audience-rls
-    name: Audience store enforcing-role PostgreSQL FORCE RLS, CSV import, and deletion proof
-    purpose: Apply migrations 001-003 as a NOSUPERUSER NOBYPASSRLS table-owning role in a disposable PostgreSQL 16 instance and prove cross-owner isolation, consent evidence export, CSV import consent attestation & suppression immunity, and zero-row deletion.
+    name: Audience, compliance, double opt-in, broadcast, sequences, launch plans, and finance link enforcing-role PostgreSQL FORCE RLS proof
+    purpose: Apply migrations 001-009 as a NOSUPERUSER NOBYPASSRLS table-owning role in a disposable PostgreSQL 16 instance and prove cross-owner isolation across all marketing-engine tables plus atomic channel_allocation commit and rollback against finance projects.
     level: integration
     runner:
       kind: node-test
@@ -319,9 +327,9 @@ cases:
       files:
         - tests/marketing-audience-rls.test.mjs
     expected:
-      - All five audience tables are owned by the enforcing role with ENABLE and FORCE ROW LEVEL SECURITY and an exact-owner policy carrying no operator bypass.
-      - A second owner, an unstamped connection, and a system/operator stamp read zero rows from every one of the five tables and cannot mutate another owner's rows.
-      - Consent export returns the exact evidence JSON recorded at sign-up, CSV import enforces consent attestation and suppression immunity under FORCE RLS with cross-owner isolation, and deleting a contact exports that evidence first and leaves zero rows behind.
+      - All five audience tables, compliance settings, double opt-in tables, broadcast tables, sequence tables, and launch plans (oshal_marketing_launch_plans) are owned by the enforcing role with ENABLE and FORCE ROW LEVEL SECURITY and an exact-owner policy carrying no operator bypass.
+      - A second owner, an unstamped connection, and a system/operator stamp read zero rows from every audience, compliance, double opt-in, broadcast, sequence, and launch plan table and cannot mutate another owner's rows.
+      - Consent export, CSV attestation, compliance approval, double opt-in single-use confirmation, broadcast dry-run and one-click unsubscribe, sequence strict standing auth with step suppression stop and welcome auto-enroll, launch plan unified calendar and recorded-numbers retro, and export-first contact deletion all pass under FORCE RLS.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -331,4 +339,378 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 512
+    installation: never
+  - id: marketing-templates-compliance
+    name: HTML email templates, compliance linter, approval and publish gates
+    purpose: Exercise compiled marketing-templates and marketing-compliance routes for announcement, newsletter, and launch templates, XSS/URL guards, compliance settings, approval refusals, and multipart email publishing.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-templates-compliance.test.mjs
+    expected:
+      - Built-in announcement, newsletter, and launch templates escape untrusted HTML, reject non-http(s) URLs, and inject sender identity, physical postal address, and unsubscribe link into both HTML and plain-text parts.
+      - Missing sender identity, postal address, text alternative, footer, or unsubscribe link fails compliance lint and refuses 422 on both approve and publish (recording skipped_compliance without calling Resend).
+      - Once compliance settings are saved, approval succeeds and email publish passes both HTML and plain-text parts to Resend with strict two-owner isolation.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-compliance-browser
+    name: Compliance pane desktop and phone browser contract
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: save compliance settings, preview sandboxed HTML and plain-text templates, add suppressions, and export/delete contacts."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-compliance-browser.test.mjs
+    expected:
+      - Desktop and phone Compliance views load with zero page errors and zero horizontal overflow (phone opens Compliance from the More menu keeping the bottom bar 5 tabs wide).
+      - Saving sender identity, postal address, unsubscribe URL, and SMS quiet hours flips readiness to Ready for email and renders a sandboxed HTML preview plus plain-text alternative with all compliance checks passing.
+      - Adding a suppression, exporting consent JSON, and export-first contact deletion via the in-page confirm modal work end-to-end without browser alert or confirm dialogs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-double-optin
+    name: Double opt-in sign-up forms, rate limiter, signed tokens, and confirmation flow
+    purpose: "Exercise compiled marketing-optin-model and marketing-optin routes: form validation, sliding-window per-IP and per-form rate limits, HMAC-SHA256 signed single-use confirmation tokens, honeypot zero-write screening, suppression immunity, UTM capture, embeddable HTML snippet, and two-owner isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-double-optin.test.mjs
+    expected:
+      - Valid confirmation tokens verify cleanly while tampered payloads, tampered signatures, and wrong form secrets refuse token_forged and expired tokens refuse token_expired.
+      - Sliding-window rate limiter enforces both per-IP and per-form hourly caps (429) and resets after the 1-hour window.
+      - Honeypot and suppressed submissions return the identical generic acknowledgement with zero DB writes; normal submissions record pending consent evidence with UTM tags, omit signing_secret from every response, confirm once (pending to confirmed), and refuse replays (409) and cross-owner actions.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-double-optin-browser
+    name: Sign-up forms and double opt-in desktop and phone browser contract
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: create a sign-up form, inspect the embeddable snippet, run pending to confirmed test double opt-in, and delete via in-page confirm modal."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-double-optin-browser.test.mjs
+    expected:
+      - Desktop and phone Compliance views render the Sign-up forms card with zero page errors and zero horizontal overflow.
+      - Creating a sign-up form displays the HTML-escaped embeddable snippet with the honeypot field and submit endpoint.
+      - Running Test double opt-in transitions pending to confirmed in-page, updates the confirmed count, and deletes cleanly via the in-page confirm modal without browser alert or confirm dialogs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-nav-phone
+    name: Phone (412x915) single-row scrollable navigation and filter strips
+    purpose: "Verify Marketing Engine phone (412x915, 390x844, 360x780) navigation and filter strips (.tabs, .chips, .stages) stay on 1 row with nowrap 44px+/48px+ targets, More popover access to Experiments and Compliance, zero page overflow, and clean 1440x900 desktop tabs."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-nav-phone.test.mjs
+    expected:
+      - "At 412x915, 390x844, and 360x780 (framed in Today and standalone with 2-digit counts), .tabs sits on 1 row with nowrap flex-shrink:0 >=48px buttons and horizontal overflow scrolling."
+      - "Tapping More opens #morePopover with >=44px single-line Experiments and Compliance items that activate each pane with zero page errors and zero page-level overflow."
+      - "Board #campStatusChips and expanded campaign .stages strips sit on 1 row with nowrap >=44px controls and document scrollWidth <= viewport width."
+      - "Desktop 1440x900 renders all 6 tabs on 1 row with single-line labels, zero page errors, and scrollWidth <= 1440."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-broadcast-unsub
+    name: One-click unsubscribe, RFC 8058 headers, broadcast send gates, and preferences
+    purpose: "Exercise compiled marketing-broadcast-model and marketing-broadcast routes: HMAC-SHA256 unsubscribe tokens and forgery refusal, RFC 8058 header builder, every broadcast send gate refusal (consent, cap, compliance, confirm), mixed-list per-recipient delivery ledger, one-click unsubscribe immediate suppression and next-run skip, recipient preferences, and two-owner isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-broadcast-unsub.test.mjs
+    expected:
+      - "Valid per-recipient/per-list unsubscribe tokens verify in constant time while tampered, wrong-owner, or wrong-secret tokens fail closed (unsubscribe_token_forged), and RFC 8058 headers reject CRLF and non-http(s) URLs."
+      - "Channel consent OFF (403 skipped_consent), daily cap 0 (403 skipped_cap), incomplete compliance postal address (422 skipped_compliance), and missing confirm: true on live send (428 confirmation_required) all refuse before sending and record ledger rows."
+      - "Mixed-list evaluation reaches only confirmed unsuppressed contacts within daily cap (recording skipped_unconfirmed, skipped_suppressed, and skipped_cap per recipient), one-click unsubscribe suppresses and revokes consent immediately so the next run skips that contact, and foreign owners get 404 or 400."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-broadcast-browser
+    name: Broadcasts and one-click unsubscribe desktop and phone browser contract
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: create a broadcast draft, run dry-run send gates showing per-recipient decisions, invoke one-click unsubscribe in-page, and confirm the next dry-run flips that recipient to skipped_suppressed with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-broadcast-browser.test.mjs
+    expected:
+      - "Desktop 1440x900 and phone 412x915 Compliance views render the Broadcasts and One-Click Unsubscribe card with zero page errors and zero horizontal overflow."
+      - "Creating a broadcast draft and clicking Dry-run gates displays the per-recipient decision ledger table distinguishing dry_run, skipped_unconfirmed, and skipped_suppressed."
+      - "Clicking Test one-click unsubscribe suppresses the confirmed recipient immediately and re-running dry-run flips that contact to skipped_suppressed without browser alert or confirm dialogs."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-sequences
+    name: Sequences with per-recipient state and strict per-sequence standing authorization
+    purpose: "Exercise compiled marketing-sequence-model and marketing-sequences routes: strict boolean-only standing authorization, step-by-step suppression and consent re-checks, daily cap bounding, one-click disarm, welcome-sequence auto-enrollment, and two-owner isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-sequences.test.mjs
+    expected:
+      - "Absent rows and garbage values ('true', 1, 'yes', {}, null) never arm standing authorization (400), arming without confirm: true refuses 428, dailyCap 0 refuses 400, and one-click POST .../disarm immediately blocks subsequent live sends (403)."
+      - "Step 1 advances confirmed unsuppressed contacts within dailyCap (deferring overflow as skipped_cap), and suppressing a contact between steps stops that contact as stopped_unsubscribed on Step 2 while still-consented contacts complete."
+      - "Confirming double opt-in on a sign-up form matching trigger_form_slug auto-enrolls the contact into the active welcome sequence, signing_secret is never returned, and foreign owners get 404."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-sequences-browser
+    name: Sequences and standing authorization desktop and phone browser contract
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: create a sequence (default OFF), add a step inline, arm via confirm modal, run dry-run tick, and one-click disarm with zero errors or overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-sequences-browser.test.mjs
+    expected:
+      - "Desktop 1440x900 and phone 412x915 Compliance views render the Sequences and Standing Authorization card with zero page errors and zero horizontal overflow."
+      - "Creating a sequence displays the OFF (disarmed) badge, arming through the in-page confirm modal flips the badge to Armed (cap N/day), and Run due steps (dry-run) renders per-enrollment outcomes."
+      - "Clicking Disarm flips the badge back to OFF (disarmed) in one click without any browser alert or confirm dialog."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-launch-calendar
+    name: Launch plans, unified marketing calendar, and grounded recorded-numbers retros
+    purpose: "Exercise compiled marketing-launch-model and marketing-launch routes: launch plan and milestone normalization, starter launch-coordinator checklist seeding, deduplicated chronological unified calendar across engine content, milestones, broadcasts, and optional Switchboard posts, strictly grounded NO DATA or recorded-numbers retros, and two-owner 404 isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-launch-calendar.test.mjs
+    expected:
+      - "Launch plan validation rejects invalid dates, UUIDs, and statuses while seeding the 5-item launch-coordinator starter checklist when omitted."
+      - "Unified calendar merges engine content, launch milestones, broadcasts, and optional Switchboard posts chronologically with zero (source, sourceId) duplicates, respects from/to date filters, and degrades cleanly when Switchboard is absent."
+      - "Campaign retro emits explicit NO DATA for every unrecorded metric source and cites only exact recorded DB counts for metrics, run ledger outcomes, broadcast deliveries, experiments, milestones, and checklist items; foreign owners receive 404."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-launch-browser
+    name: Launch plans and unified calendar desktop and phone browser contract
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: create a launch plan with dated milestones, verify milestones appear on the unified calendar alongside engine content and Switchboard posts, toggle checklist completion, and generate a grounded recorded-numbers retro with zero page errors and zero overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-launch-browser.test.mjs
+    expected:
+      - "Desktop 1440x900 and phone 412x915 Experiments views render Launch Plans and Unified Calendar cards with zero page errors and zero horizontal overflow."
+      - "Creating a launch plan displays its starter checklist and pins dated milestones onto the unified calendar alongside engine content and Switchboard items."
+      - "Toggling checklist items updates completion counts and clicking Generate recorded-numbers retro displays exact recorded figures and NO DATA badges without browser alert or confirm dialogs."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-budget-p2
+    name: Campaign-to-finance-project link, reallocation proposals, and atomic channel_allocation apply
+    purpose: "Exercise compiled marketing-budget-model, marketing-budget, marketing-measure, and marketing-ops-routes: integer-cent channel_allocation parsing, Finance project creation payload, campaign link and summary routes with two-owner 404 isolation, weekly review reallocation proposals from real channel costs, 428 confirm gate, and atomic commit plus rollback proof."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-budget-p2.test.mjs
+    expected:
+      - "parseChannelAllocationProposal accepts JSON allocations maps, transfers, and channel-cent pairs while rejecting negative, float, or malformed allocations; applyChannelAllocationMap and buildBudgetProjectPayload use exact integer cents."
+      - "POST /campaigns/:id/finance-project, GET /campaigns/:id/budget-summary, and POST /campaigns/:id/reallocation-proposals enforce owner scoping (foreign 404) and generate proposed channel_allocation rows from real channel spend and conversions."
+      - "Approving a channel_allocation proposal requires confirm: true (428 otherwise), updates campaign allocations, Finance project lines, and the budget ledger atomically in one transaction, and rolls back BOTH ledgers completely if a mid-transaction write throws."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-budget-p2-browser
+    name: Create budget in Finance hand-off and channel_allocation approvals browser contract
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful Marketing and Finance mock API: click Create budget in Finance, verify identical live Budget/Committed/Actual/Variance totals, approve a channel_allocation proposal via in-page confirm modal, and verify honest 404 fallback when Finance is absent."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-budget-p2-browser.test.mjs
+    expected:
+      - "Desktop 1440x900 and phone 412x915 expanded campaign detail cards link a Finance project via Create budget in Finance and display the exact Budget, Committed, Actual, and Variance totals from Finance with zero page errors and zero overflow."
+      - "Approvals tab renders human-readable channel_allocation shifts and applies them via the in-page confirm modal without browser alert or confirm dialogs."
+      - "When Finance returns 404, the campaign detail card displays an honest plain message without breaking Board."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-attribution-p5
+    name: "Attribution columns on ingest, first-touch UTM conversions, and per-campaign engagement"
+    purpose: "Exercise compiled marketing-attribution-model, marketing-attribution, marketing-ops-routes, and marketing-optin: URL and payload UTM extraction, campaign_slug and medium columns on oshal_marketing_events ingest INSERTs, automatic first-touch signup conversion capture and inheritance on purchase conversions, per-campaign delivery engagement with auto-suppression and explicit NO DATA on quiet campaigns, and two-owner 404 isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-attribution-p5.test.mjs
+    expected:
+      - "extractEventAttribution parses utm_campaign and utm_medium from direct fields, nested utm or meta objects, and URL queries while returning null when unattributed."
+      - "marketing-ops-routes daily ingest populates campaign_slug and medium on every oshal_marketing_events INSERT for attributed rows and NULL when unattributed."
+      - "UTM-tagged sign-up form submissions record a first-touch signup conversion and subsequent purchase conversions inherit the contact's first-touch campaign_slug and medium."
+      - "Delivery engagement events count delivered, clicked, unsubscribed, bounced, and complained per campaign (auto-suppressing on bounce, complaint, or unsubscribe), omit opens as unreliable, report explicit NO DATA for campaigns with zero sends, and enforce 404 isolation for foreign owners."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-attribution-browser
+    name: "Scorecard campaign attribution and engagement funnel desktop and phone browser contract"
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: open Scorecard, verify Campaign Attribution & Engagement Funnel displays attributed visits, sign-ups, purchases, revenue, delivery engagement counts, explicit NO DATA badges for quiet campaigns, and the opens-omitted note, and record a conversion inline with zero page errors and zero overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-attribution-browser.test.mjs
+    expected:
+      - "Desktop 1440x900 and phone 412x915 Scorecard views render the Campaign Attribution & Engagement Funnel table with real numbers, NO DATA badges, and the opens-omitted note with zero page errors and zero horizontal overflow."
+      - "Submitting the inline Record conversion form posts to /api/marketing/attribution/conversions and updates the campaign funnel live without browser alert or confirm dialogs."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: marketing-sms-p4
+    name: "SMS TCPA/CTIA consent evidence, recipient time zones, and quiet-hours holding"
+    purpose: "Exercise compiled marketing-sms-model and marketing-sms routes: E.164 normalization, NANP area-code timezone inference vs explicit IANA timezone, 7-field TCPA/CTIA prior express written consent enforcement, deterministic opt-in confirmation text, DST-aware clock-controlled 8 a.m. to 9 p.m. recipient-local quiet-hours holding, CTIA STOP/HELP keyword suppression and queue cancellation, and two-owner 404 isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-sms-p4.test.mjs
+    expected:
+      - "normalizePhoneE164 validates E.164 and US/CA inputs; inferTimezoneFromPhone marks area-code inferences inferred=true while explicit valid IANA zones return inferred=false."
+      - "Missing any of the 7 TCPA/CTIA consent evidence fields refuses 400 sms_consent_incomplete, and an unconsented contact is refused 403 sms_consent_required and never sent to."
+      - "Clock-controlled sends at 10 p.m. recipient-local in America/New_York and America/Los_Angeles hold (202 held_quiet_hours) until exact next 08:00 local across winter, summer, and DST transitions, while 10 a.m. local sends are ready (200)."
+      - "CTIA STOP family keywords suppress phone_hash, revoke SMS consent, cancel held queue items, and block subsequent sends (403 sms_suppressed); HELP returns support text without suppressing; foreign owners receive 404."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-sms-browser
+    name: "SMS Consent and Quiet Hours Compliance card desktop and phone browser contract"
+    purpose: "Run headless Chromium at 1440x900 and 412x915 against tools/marketing-engine.html over a stateful mock API: open Compliance, record TCPA/CTIA SMS opt-in with inferred timezone badge and generated confirmation text, and evaluate a 10 p.m. Pacific send displaying Held until 08:00 (America/Los_Angeles) with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-sms-browser.test.mjs
+    expected:
+      - "Desktop 1440x900 and phone 412x915 Compliance views render the SMS Consent and Quiet Hours card with zero page errors and zero horizontal overflow."
+      - "Recording SMS opt-in displays the inferred timezone badge and generated TCPA/CTIA opt-in confirmation message, and evaluating a 10 p.m. Pacific send renders Held until 08:00 (America/Los_Angeles) with exact releaseAt in the queue list without browser alert or confirm dialogs."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

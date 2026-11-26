@@ -17,6 +17,8 @@
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Include the immersive gameplay-rail controller immediately before final screen wiring.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Accept paced visible dice presentation while guarding the served tactical turn flow.
  * 2026-07-28 00:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Cover leads.js in served and inlined asset order — it was in UI_SCRIPTS but absent from table.html, so the served document silently lacked DnDLeads and every client-side nomination/walk feature was dead in production.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Cover spellcasting.js immediately before engine.js in served and inlined asset order.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Cover cutaway-beats.js and table-cutaway-beats.js in served and inlined asset order.
  */
 
 'use strict';
@@ -29,8 +31,8 @@ const { createDndRoutes } = require('../routes/dnd-routes');
 
 const root = path.join(__dirname, '..');
 const scripts = [
-  'engine.js', 'leads.js', 'table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js',
-  'table-outcomes.js', 'table-story.js', 'table-character-sheet.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-dock.js', 'table-screens.js',
+  'spellcasting.js', 'engine.js', 'leads.js', 'cutaway-beats.js', 'table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js',
+  'table-outcomes.js', 'table-cutaway-beats.js', 'table-story.js', 'table-character-sheet.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-dock.js', 'table-screens.js',
 ];
 
 /** @description Invoke a public asset route and wait for its callback response. */

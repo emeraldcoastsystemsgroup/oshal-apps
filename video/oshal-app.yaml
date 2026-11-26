@@ -53,6 +53,7 @@
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work): on a phone the editor's Concierge sheet holds the one Jarvis chat window, and the window's own Close now closes that sheet too, so the editor takes the next tap instead of the window. Presentation only: no route, tool, binding or permission change. Guard: tests/video-one-chat-window.test.mjs.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: claim Today's concierge entry synchronously when editor.html parses (editor-concierge-early.js under the existing editor/assets/:asset allowlist) and honor any Concierge press that arrives while Video's 15 ES modules are still loading, so switching to create-video inside Create never flashes Create's floating ball or collapses an early press into zero open windows. No permission, tool or catalog binding change. Guard: tests/video-one-chat-window.test.mjs.
 # 34 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): vertical (9:16), square (1:1) and landscape (16:9) projects on screen, in the concierge (video-new-project aspectRatio and video-apply-edits project patch), in preview canvas sizing and in real FFmpeg MP4 export across v1 and v2 timelines. No permission, role template, migration or authorization.yaml change. Guard: tests/editor-aspect-ratio.test.mjs.
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-04, -09, -12): owned media listing (GET /editor/media, video-list-media, Uploaded library panel), non-destructive version history and restore (POST /editor/projects/:id/revisions/restore, video-list-revisions, video-restore-revision, Version history sheet), and timeline management (duplicateClip, renameTrack, deleteTrack on screen and in video-apply-edits). Uses existing own editor permissions only. Guard: tests/video-tool-parity.test.mjs.
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -82,7 +83,7 @@ rating:
       degrade: disable
 displayName: Video Studio
 description: "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor."
-version: 1.14.5
+version: 1.14.6
 status: active
 lastingStorage: true
 chatBot: video-editor
@@ -528,8 +529,11 @@ tools:
                   - removeSource
                   - replaceMotionSource
                   - addTrack
+                  - renameTrack
+                  - deleteTrack
                   - track
                   - addClip
+                  - duplicateClip
                   - clip
                   - moveClip
                   - removeClip
@@ -767,6 +771,100 @@ tools:
     routingTags: [creative, editing, motion]
     skills: [creative-editing]
     tags: [route-backed]
+  - name: video-list-media
+    displayName: Video List Media
+    type: api
+    category: creative
+    description: List this person’s own uploaded video clips and audio files with ready sourceMetadata for the timeline.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/media
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: >-
+      Discover owned uploads before proposing addSource and addClip. Match a requested clip by upload time,
+      kind, dimensions or duration (ask if ambiguous), copy its sourceMetadata into addSource, and pair with
+      addClip in one video-apply-edits batch. Never invent an upload id or metadata.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-list-revisions
+    displayName: Video List Revisions
+    type: api
+    category: creative
+    description: List saved version history revisions for one owned video project.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/projects/{input.id}/revisions
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Inspect saved revisions (newest first) before restoring an earlier version. Never invent a project id or revision.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-restore-revision
+    displayName: Restore video revision
+    type: api
+    category: creative
+    description: Restore an earlier saved revision of an owned video project as a new immutable revision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/projects/{input.id}/revisions/restore
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Restores an earlier saved version of your video project as a new revision.
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100000
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Use when the person asks to undo the last edit or restore an earlier saved version. Omit revision to restore
+      the immediately previous retained revision, or pass a specific prior revision from video-list-revisions.
+      Always saves a new immutable revision without erasing prior history.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
   - name: video-import-motion-render-job
     displayName: Import owned Motion render
     type: api

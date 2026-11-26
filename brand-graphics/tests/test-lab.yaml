@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The design-standard browser case also measures the buttons (Roger F14, 2026-11-06): one-line labels they hug, 44px and 16px on a phone, a 36px toolbar and 15px on a desktop, icon buttons with no fill or edge, saved projects as list rows.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (open-work audit 2026-11-10, RP-BRG-01..07): the design-standard case asserts working Templates, Brand kit, Comment, Download, Resize, Schedule or post and Edit on canvas instead of greyed planned controls; the source-handoff case covers the three hand-offs; the durable-source case covers comment threads through real SQL; the contract case covers the comment operations.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: register product-name guard (tests/product-name.test.cjs) over the manifest, persona, routes, TypeScript route sources and tools.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: register tool-parity suite (tests/tool-parity.test.mjs) covering CREATE-TOOL-BRAND-04, -05, -06, -07.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -175,4 +176,34 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: tool-parity
+    name: Tool parity for API render, job status, brand kits, and MP4 preview
+    purpose: >-
+      Verify CREATE-TOOL-BRAND-04, -05, -06, and -07 across the manifest, authorization catalog, real ffmpeg
+      rendering with ffprobe checks, two-owner brand-kit isolation, no-worker refusal queuing nothing, and
+      real Chromium 1440x900 and 412x915 rendering of controls, inline video preview, and MP4 download.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/tool-parity.test.mjs
+    expected:
+      - "Manifest declares api brand_graphic (held for approval) and read-only brand-graphics-job-status with lastingStorage."
+      - "Without a renderer or worker, POST /api/brand-graphics/renders returns 503 worker_unavailable and queues nothing."
+      - "A 9x16 10-second render saves title, sourceLink, voiceover, and music and produces a valid 720x1280 MP4 verified by ffprobe."
+      - "Two owners with distinct brand kits produce distinct branded clips with strict per-owner isolation."
+      - "Real Chromium at 1440x900 and 412x915 renders all new controls, inline video preview, and Download MP4 with zero overflow."
+    prerequisites:
+      - runner:node
+      - browser:chromium
+      - runtime:canonical-store-toolchain
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser and loopback fixture and delete temporary data directories.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1536
     installation: never

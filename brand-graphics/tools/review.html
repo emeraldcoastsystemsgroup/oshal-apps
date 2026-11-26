@@ -98,6 +98,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .brief-doc{display:grid;gap:4px;align-content:start}.brief-doc label{margin-top:8px}.brief-choices{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .brief-kinds{display:flex;gap:8px}.brief-kinds [aria-checked=true]{background:var(--ink);border-color:var(--ink);color:var(--ds-page,var(--bg-primary))}
 .brief-kit{margin-top:8px}
+.brief-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px 12px;margin-top:8px}.brief-settings label{margin:0}
+.brand-preview-list{display:grid;gap:12px;margin-bottom:12px}
+.brand-preview-card{padding:12px;border:1px solid var(--border);border-radius:var(--ds-radius-m,10px);background:var(--ds-surface,var(--bg-secondary));display:grid;gap:8px}
+.brand-preview-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 12px}
+.brand-preview-meta{margin:0;font-size:12px;line-height:18px;color:var(--muted);overflow-wrap:anywhere}
+.brand-preview-video{width:100%;max-height:240px;border-radius:var(--ds-radius-m,10px);background:var(--ds-surface-2,var(--bg-tertiary))}
+.brand-preview-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.brand-preview-actions .brand-download{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
 .brief-state{margin:4px 0 0;font-size:12px;line-height:16px;color:var(--muted)}
 /* The app row: icons, Comment, Save source, the primary and ⋯ More in one row; Save source and Comment move into More on a phone. */
 .source-project-actions{display:flex;align-items:center;gap:8px;min-width:0}.source-spacer{flex:1}
@@ -144,7 +152,7 @@ main.ef-editor{max-width:none;padding:0;margin:0}.ef-editor .layout{display:cont
 @media(max-width:800px){.source-comments,.brand-templates,.brand-resize{width:100%;max-width:100%;margin:auto 0 0;border-radius:20px 20px 0 0}}
 @media(max-width:800px){.source-menu{left:0;right:0;bottom:0;top:auto;width:100%;min-width:0;max-height:70dvh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px))}
 .ef-editor input,.ef-editor textarea,.ef-editor select{font-size:16px}.source-wide{display:none}.source-phone{display:flex}.source-project-actions{gap:4px}.ef-editor .ef-header-slot>header{padding:2px 8px}.ef-editor .ef-viewport>.panel{padding:8px 16px 16px}}
-</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><a class="own-tab-all" href="/cockpit/" target="_top" data-ef-phone="brand">All apps</a><h1 data-ef-phone="brand">Brand Graphics</h1></header><div class="layout"><section class="panel" id="libraryPanel"><p id="metrics" class="brief-metrics" aria-label="Saved work"></p><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><div class="library-links"><button id="refresh" type="button">Refresh evidence</button><a href="/cockpit/?app=vids" target="_top">Open Vids Studio</a></div></section><section class="panel" id="briefPanel"><div class="brief-doc" data-ds-work><div class="brief-choices"><div class="brief-kinds" role="radiogroup" aria-label="Build"><button type="button" role="radio" aria-checked="true" data-mode="intro">Brand intro</button><button type="button" role="radio" aria-checked="false" data-mode="graphic">Graphic bumper</button></div><button type="button" id="templates">Templates</button></div><label>Title<input id="title" maxlength="120" placeholder="Name this brief"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="What should the intro say and show?"></textarea></label><div class="brief-kit"><button type="button" id="brandKit" hidden>Brand kit</button></div><p id="briefState" class="brief-state"></p><input id="sourceUrl" type="url" maxlength="2000" hidden><select id="mode" hidden aria-label="Build"><option value="intro">Brand intro</option><option value="graphic">Graphic bumper</option></select><p id="status" role="status" aria-live="polite"></p><p class="hint" id="renderHint">Render uses your Vids render computer and may use provider credits.</p></div></section></div><button id="render" class="primary" type="button">Render this brand brief</button></main><script type="module">
+</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><a class="own-tab-all" href="/cockpit/" target="_top" data-ef-phone="brand">All apps</a><h1 data-ef-phone="brand">Brand Graphics</h1></header><div class="layout"><section class="panel" id="libraryPanel"><p id="metrics" class="brief-metrics" aria-label="Saved work"></p><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><div class="library-links"><button id="refresh" type="button">Refresh evidence</button><a href="/cockpit/?app=vids" target="_top">Open Vids Studio</a></div></section><section class="panel" id="briefPanel"><div class="brief-doc" data-ds-work><div class="brief-choices"><div class="brief-kinds" role="radiogroup" aria-label="Build"><button type="button" role="radio" aria-checked="true" data-mode="intro">Brand intro</button><button type="button" role="radio" aria-checked="false" data-mode="graphic">Graphic bumper</button></div><button type="button" id="templates">Templates</button></div><label>Title<input id="title" maxlength="120" placeholder="Name this brief"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="What should the intro say and show?"></textarea></label><label>Voiceover line<input id="voiceover" maxlength="1000" placeholder="Optional spoken line for the clip"></label><div class="brief-settings"><label>Brand look<select id="brandStyle"><option value="my-brand">My brand kit</option><option value="oshal">Open Swarm look</option></select></label><label>Music<select id="music"><option value="broadcast-sting">Broadcast sting</option><option value="clean-pulse">Clean pulse</option><option value="warm-ambient">Warm ambient</option><option value="none">No music</option></select></label><label>Length (s)<input id="durationSec" type="number" min="5" max="60" step="1" value="10"></label><label>Aspect<select id="aspect"><option value="16:9">16:9 wide</option><option value="9:16">9:16 vertical</option><option value="1:1">1:1 square</option></select></label><label>Format<select id="format"><option value="mp4">MP4</option></select></label></div><div class="brief-kit"><button type="button" id="brandKit" hidden>Brand kit</button></div><p id="briefState" class="brief-state"></p><input id="sourceUrl" type="url" maxlength="2000" hidden><select id="mode" hidden aria-label="Build"><option value="intro">Brand intro</option><option value="graphic">Graphic bumper</option></select><p id="status" role="status" aria-live="polite"></p><p class="hint" id="renderHint">Render uses your Vids render computer and may use provider credits.</p></div></section></div><button id="render" class="primary" type="button">Render this brand brief</button></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {requestHandoff} from '/cockpit/js/app-workflows.js';
 // Audience view (ADR-164 D6): under a view this module mounts nothing, binds nothing and reads nothing; without an
@@ -213,6 +221,8 @@ document.querySelector('#templates').addEventListener('click',openTemplates);
 // Brand kit (RP-BRG-03): the person's own kit from Create, written into the brief the render reads. Create answers who may
 // read it; without Create the control is not shown, and without a saved kit it opens Create's Brand Kit page.
 const kitButton=document.querySelector('#brandKit');
+const voiceoverField=document.querySelector('#voiceover'),musicField=document.querySelector('#music'),brandStyleField=document.querySelector('#brandStyle'),durationField=document.querySelector('#durationSec'),aspectField=document.querySelector('#aspect'),formatField=document.querySelector('#format');
+let loadedCreateKit=null;
 function kitLine(answer){const kit=answer.kit,parts=['Brand kit: '+(kit.name||'my brand')+'.'];if(answer.words?.phrase)parts.push('Colors: '+answer.words.phrase+' ('+['primary','secondary','accent'].map(r=>kit.colors[r]).join(', ')+').');parts.push('Headings in '+kit.fonts.heading+', body text in '+kit.fonts.body+'.');if(kit.voice)parts.push('Voice: '+kit.voice+'.');if(kit.logo)parts.push('Show the brand logo.');return parts.join(' ');}
 function applyKit(answer){
  const line=kitLine(answer),kept=notes.value.split('\n').filter(row=>!row.startsWith('Brand kit:')).join('\n').trim(),next=(kept?kept+'\n\n':'')+line;
@@ -220,11 +230,11 @@ function applyKit(answer){
  notes.value=next;notes.dispatchEvent(new Event('input',{bubbles:true}));const named=['colors','fonts',...(answer.kit.voice?['voice']:[]),...(answer.kit.logo?['logo']:[])];status.textContent='Your brand kit\'s '+named.slice(0,-1).join(', ')+' and '+named.at(-1)+' are in the brief, which the render reads. Undo takes them out.';
 }
 async function loadKit(){
- let response;try{response=await fetch('/api/create/brand-kit',{credentials:'same-origin',cache:'no-store'});}catch{kitButton.hidden=true;return;}
- const answer=response.ok?await response.json().catch(()=>null):null;if(!answer){kitButton.hidden=true;return;}
+ let response;try{response=await fetch('/api/create/brand-kit',{credentials:'same-origin',cache:'no-store'});}catch{kitButton.hidden=true;loadedCreateKit=null;return;}
+ const answer=response.ok?await response.json().catch(()=>null):null;if(!answer){kitButton.hidden=true;loadedCreateKit=null;return;}
  kitButton.hidden=false;
- if(answer.kit){kitButton.textContent='Use my brand kit';kitButton.title='Adds your Create brand kit to the brief';kitButton.onclick=()=>applyKit(answer);}
- else{kitButton.textContent='Make a brand kit';kitButton.title='Opens Create\'s Brand Kit page';kitButton.onclick=()=>{window.top.location.href='/cockpit/?app=create&screen=create-brand';};}
+ if(answer.kit){loadedCreateKit=answer.kit;kitButton.textContent='Use my brand kit';kitButton.title='Adds your Create brand kit to the brief';kitButton.onclick=()=>applyKit(answer);}
+ else{loadedCreateKit=null;kitButton.textContent='Make a brand kit';kitButton.title='Opens Create\'s Brand Kit page';kitButton.onclick=()=>{window.top.location.href='/cockpit/?app=create&screen=create-brand';};}
 }
 // Resize (RP-BRG-02): a brand build renders on Google Vids' 16:9 canvas; Video Studio renders 9:16 and 1:1, so those go there.
 function openResize(){
@@ -297,23 +307,68 @@ const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{
 function meta(host,list){host.replaceChildren();const known=(list||[]).filter(m=>/^\d+$/.test(String(m.value).trim()));if(!known.length)return;const shown=known.every(m=>Number(m.value)===0)?['No brand builds yet.']:known.map(m=>m.value+' '+String(m.label).toLowerCase());shown.forEach((text,n)=>{if(n)host.append(' · ');const span=document.createElement('span');span.className='metric';span.textContent=text;host.append(span);});}
 /** @description The file Vids holds for one finished build, or why there is none ({file:url}|{none:detail}|null where Vids does not answer). */
 async function buildFile(jobId){try{const r=await fetch('/api/vids/jobs/'+encodeURIComponent(jobId)+'/artifact',{credentials:'same-origin',cache:'no-store'});if(!r.ok)return null;const j=await r.json();if(j.artifact?.previewUrl)return{file:j.artifact.previewUrl};return{none:j.attach?.available===false?(j.attach.detail||'Vids keeps no file here.'):'No file has been attached to this build in Vids Studio yet.'};}catch{return null;}}
-async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();meta(metrics,data.metrics);const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}
+function renderJobCard(job){
+ const card=document.createElement('article');card.className='brand-preview-card';card.dataset.renderId=job.id;
+ const head=document.createElement('div');head.className='brand-preview-head';
+ const strong=document.createElement('strong');strong.textContent=job.title||'Brand clip';
+ const badge=document.createElement('span');badge.className='brand-preview-meta';badge.textContent=[job.status,job.aspect,job.durationSec+'s',job.brandKit?.brandName||''].filter(Boolean).join(' · ');
+ head.append(strong,badge);
+ const metaLine=document.createElement('p');metaLine.className='brand-preview-meta';
+ const parts=['Music: '+(job.music||'none')];if(job.voiceover)parts.push('Voiceover: '+job.voiceover.slice(0,90));if(job.sourceLink)parts.push('Source: '+job.sourceLink);
+ metaLine.textContent=parts.join(' · ');
+ card.append(head,metaLine);
+ if(job.status==='done'&&job.previewUrl){
+  const video=document.createElement('video');video.className='brand-preview-video';video.controls=true;video.preload='metadata';video.src=job.previewUrl;video.setAttribute('aria-label','Preview '+(job.title||'brand clip'));
+  card.append(video);
+ }
+ const actions=document.createElement('div');actions.className='brand-preview-actions';
+ const useBtn=document.createElement('button');useBtn.type='button';useBtn.textContent='Use this evidence';
+ useBtn.addEventListener('click',()=>{
+  fill({title:job.title,notes:job.brief,sourceUrl:job.sourceLink||''});
+  if(voiceoverField)voiceoverField.value=job.voiceover||'';
+  if(musicField&&job.music)musicField.value=job.music;
+  if(brandStyleField&&job.brandStyle)brandStyleField.value=job.brandStyle;
+  if(durationField&&job.durationSec)durationField.value=String(job.durationSec);
+  if(aspectField&&job.aspect)aspectField.value=job.aspect;
+  status.textContent='Render settings loaded into the brief.';
+ });
+ actions.append(useBtn);
+ if(job.status==='done'&&job.downloadUrl){
+  const a=document.createElement('a');a.className='brand-download';a.href=job.downloadUrl;a.download=job.fileName||'brand-build.mp4';a.textContent='Download MP4';a.setAttribute('aria-label','Download '+(job.title||'brand clip'));
+  actions.append(a);
+ }
+ card.append(actions);return card;
+}
+async function loadLocalRenders(){
+ try{const r=await fetch('/api/'+app+'/renders',{credentials:'same-origin',cache:'no-store'});if(!r.ok)return null;return await r.json();}catch{return null;}
+}
+async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const [r,localData]=await Promise.all([fetch('/api/'+app+'/home-summary',{cache:'no-store'}),loadLocalRenders()]);const data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();const localJobs=Array.isArray(localData?.jobs)?localData.jobs:[];const metricList=Array.isArray(data.metrics)?data.metrics:[];meta(metrics,localJobs.length&&metricList.every(m=>Number(m.value)===0)?[{id:'local-renders',label:'Rendered clips',value:String(localJobs.length)}]:metricList);const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}
  sourceEditor?.showDownload(false);downloadLink.removeAttribute('href');let newest=null,why=null;
+ if(localJobs.length){const wrap=document.createElement('div');wrap.className='brand-preview-list';for(const job of localJobs.slice(0,5)){wrap.append(renderJobCard(job));if(!newest&&job.status==='done'&&job.downloadUrl)newest=job.downloadUrl;}list.append(wrap);}
  if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();
   for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context){const b=document.createElement('button');b.type='button';b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}
    if(item.status==='done'&&item.jobId){const found=await buildFile(item.jobId);if(found?.file){const a=document.createElement('a');a.className='brand-download';a.href=found.file;a.download='brand-build.mp4';a.textContent='Download';a.setAttribute('aria-label','Download '+item.text);c3.append(a);newest??=found.file;}else if(found?.none)why??=found.none;}}
   wrap.append(table);list.append(wrap);}
  if(newest){downloadLink.href=newest;sourceEditor?.showDownload(true);}else if(why)notes.unshift('Download: '+why);
  for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
-// Render needs a render computer: a registered Vids worker (POST /api/vids/brand answers 503 without one). Where Vids does
-// not answer this person, Render is withheld and Open episode workflow is the one primary (§1: no control that cannot work
-// here). Where Vids answers with no worker online, Render stays the primary and a press says why (the decision's item 6).
-let workerReady=null;
-async function checkWorker(){const hint=document.querySelector('#renderHint'),render=document.querySelector('#render');let answer=null;try{const r=await fetch('/api/vids/jobs',{cache:'no-store'});if(r.ok)answer=await r.json();}catch(e){answer=null;}
+// Render uses this package's own POST /api/brand-graphics/renders endpoint when available; in legacy fixtures without
+// /renders it falls back to /api/vids/jobs so existing stand-in fixtures stay consistent.
+let workerReady=null,rendersApiReady=false;
+async function checkWorker(){const hint=document.querySelector('#renderHint'),render=document.querySelector('#render');
+ const local=await loadLocalRenders();
+ if(local&&local.capabilities){rendersApiReady=true;render.hidden=false;episode.className='';episode.remove();workerReady=Boolean(local.capabilities.available);
+  if(hint)hint.textContent=workerReady?'Render builds an MP4 clip here in your chosen brand look, length, and aspect ratio.':'No render computer or local renderer is online. Your brief stays saved here.';return;}
+ rendersApiReady=false;let answer=null;try{const r=await fetch('/api/vids/jobs',{cache:'no-store'});if(r.ok)answer=await r.json();}catch(e){answer=null;}
  if(!answer||!Array.isArray(answer.workers)){render.hidden=true;workerReady=null;if(!primary.contains(episode)){episode.className='primary';primary.append(episode);}if(hint)hint.textContent='Edit the brief and its scenes here; Open episode workflow hands them to the video editor as an editable draft.';return;}
  render.hidden=false;episode.className='';episode.remove();workerReady=answer.workers.some(w=>w&&(w.status==='online'||w.healthy));
  if(hint)hint.textContent=workerReady?'Render uses your Vids render computer and may use provider credits.':'Render needs a Vids render computer online. Your brief stays saved here.';}
-document.querySelector('#refresh').addEventListener('click',()=>{refresh();checkWorker();});document.querySelector('#render').addEventListener('click',async()=>{const button=document.querySelector('#render');let brief;try{await briefEditor?.flushPending();brief=sourceEditor?.handoffNotes()??notes.value.trim();}catch(error){status.textContent=error.message;return;}if(!brief){status.textContent='Write a brief first.';return;}if(workerReady===false){status.textContent='No render computer is online, so nothing was rendered. Vids Studio lists the render computers; your brief stays saved here.';return;}button.disabled=true;try{const r=await fetch('/api/vids/brand',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,brandMode:document.querySelector('#mode').value,confirm:true})});const j=await r.json();if(!r.ok)throw Error(j.error||'Render could not start');status.textContent='Brand build queued. Its saved progress shows under Saved.';await refresh();}catch(e){status.textContent=e.message;}finally{button.disabled=false;}});
+function renderPayload(brief){
+ const payload={brief,title:title.value.trim()||brief.slice(0,80),brandMode:document.querySelector('#mode').value,voiceover:voiceoverField?.value.trim()||'',music:musicField?.value||'broadcast-sting',brandStyle:brandStyleField?.value||'my-brand',durationSec:Number(durationField?.value||10),aspect:aspectField?.value||'16:9',format:formatField?.value||'mp4'};
+ const link=sourceUrl.value.trim();if(link)payload.sourceLink=link;
+ if(payload.brandStyle==='my-brand'&&loadedCreateKit)payload.brandKit={brandName:loadedCreateKit.name||'',colors:loadedCreateKit.colors,logo:loadedCreateKit.logo||null};
+ return payload;
+}
+document.querySelector('#refresh').addEventListener('click',()=>{refresh();checkWorker();});document.querySelector('#render').addEventListener('click',async()=>{const button=document.querySelector('#render');let brief;try{await briefEditor?.flushPending();brief=sourceEditor?.handoffNotes()??notes.value.trim();}catch(error){status.textContent=error.message;return;}if(!brief){status.textContent='Write a brief first.';return;}if(workerReady===false){status.textContent='No render computer is online, so nothing was rendered. Vids Studio lists the render computers; your brief stays saved here.';return;}button.disabled=true;try{if(rendersApiReady){const r=await fetch('/api/'+app+'/renders',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(renderPayload(brief))});const j=await r.json();if(!r.ok)throw Error(j.message||j.error||'Render could not start');status.textContent='Brand clip rendered. Play or download it under Recorded work.';await refresh();}else{const r=await fetch('/api/vids/brand',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,brandMode:document.querySelector('#mode').value,confirm:true})});const j=await r.json();if(!r.ok)throw Error(j.error||'Render could not start');status.textContent='Brand build queued. Its saved progress shows under Saved.';await refresh();}}catch(e){status.textContent=e.message;}finally{button.disabled=false;}});
 await checkWorker();
 await loadKit();
 await refresh();

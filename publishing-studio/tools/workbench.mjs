@@ -9,13 +9,14 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: support multi-select and group selection/drag, nullable metadata cleanup in localApply, Liberation Sans and Liberation Mono font stacks, MP4 export download, and shell hooks for comments and timeline (RP-PUB-01..08).
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.2 (B8-06): sync .frame-handle disabled state in controls() so a frame whose Move handle was drawn while busy at open becomes enabled as soon as loading or saving completes.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.5: do not blur `<iframe class="jarvis-chat-frame">` during `prepareDocumentHandoff()`, keeping focus inside the shared concierge window so `jarvis-package-tools.js` retains waiting approval cards (`b45d1529`).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: support move-page, create-master, replace-image in localApply(), visual master canvas editing, Download page PNG, and parity UI hooks (CREATE-TOOL-PUBLISHING-STUDIO-06, -07, -15).
  */
 import {bindPublishingFoundation,publishingSelection} from './editor-foundation-adapter.mjs';
 let editorFoundation;
 const $=id=>document.getElementById(id),base='/api/publishing-studio',copy=value=>structuredClone(value),uid=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','');
-const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,selectedIds:new Set(),multiSelect:false,comments:[],assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,videoJob:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null,rendered:false,videoRendered:false,liveKey:null,newSize:null,documents:[],view:'editor',loaded:false};
+const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,editingMaster:null,masterItem:null,selectedIds:new Set(),multiSelect:false,comments:[],assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,videoJob:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null,rendered:false,videoRendered:false,liveKey:null,newSize:null,documents:[],view:'editor',loaded:false};
 // The page's own layers (publishing-shell.mjs): an in-page confirm and hooks after each paint/open. Until the shell is ready nothing is discarded.
-const ui={confirm:async()=>false,painted:()=>{},decorateBoard:null,onDocumentLoaded:null};
+const ui={confirm:async()=>false,painted:()=>{},decorateBoard:null,onDocumentLoaded:null,wirePageThumb:null,syncParity:null,syncParityDisabled:null};
 /** The blank page shown before anything is saved: US Letter with its margins (design standard §5.1). */
 const BLANK_PAGE={id:'blank',width:612,height:792,bleed:9,margin:54,guides:{x:[54,558],y:[54,738]},masterId:null,objects:[],frames:[]};
 
@@ -65,10 +66,10 @@ function groupMembers(p,itemId){
 }
 function selectPage(index,item=null,additive=false){
  const p=state.model?.pages[index],members=groupMembers(p,item),useMulti=Boolean(item&&(additive||state.multiSelect));
- if(!useMulti&&state.page===index&&state.item===item&&state.selectedIds.size===members.length&&members.every(id=>state.selectedIds.has(id)))return true;
+ if(!state.editingMaster&&!useMulti&&state.page===index&&state.item===item&&state.selectedIds.size===members.length&&members.every(id=>state.selectedIds.has(id)))return true;
  if(!guardFields())return false;
  if(state.page!==index)state.selectedIds.clear();
- state.page=index;state.liveKey=null;
+ state.page=index;state.liveKey=null;state.editingMaster=null;state.masterItem=null;
  if(!item){state.item=null;state.selectedIds.clear();state.multiSelect=false;}
  else if(useMulti){
   const hasAll=members.every(id=>state.selectedIds.has(id));
@@ -105,7 +106,17 @@ function value(id,v){$(id).value=v??'';rememberField($(id));}
 function number(id){const v=Number($(id).value);if(!Number.isFinite(v))throw new Error('Enter finite numeric geometry.');return v;}
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),hex=color=>'#'+color.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
 function assignLocal(target,values,nullable=[]){for(const[k,v]of Object.entries(values))if(v===null&&nullable.includes(k))delete target[k];else target[k]=copy(v);}
-function localApply(model,op){if(op.op==='replace-model')return copy(op.model);const m=copy(model),p=m.pages.find(p=>p.id===op.page);switch(op.op){case'set-frame':assignLocal(m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame),op.values,['groupId','animation']);break;case'set-link':m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame).nextFrame=op.nextFrame;break;case'replace-story':m.stories.find(s=>s.id===op.story).paragraphs=copy(op.paragraphs);break;case'set-character-style':m.characterStyles[op.name]=copy(op.values);break;case'set-paragraph-style':m.paragraphStyles[op.name]=copy(op.values);break;case'set-page':assignLocal(p,op.values,['duration']);break;case'set-object':assignLocal(p.objects.find(o=>o.id===op.object),op.values,['groupId','animation']);break;case'set-master':m.masters.find(x=>x.id===op.master).objects=copy(op.objects);break;case'set-view':m.pageView=op.pageView;break;case'replace-layout':for(const k of ['pages','masters','stories','assets'])m[k]=copy(op[k]);break;default:throw new Error('Unsupported draft operation');}return m;}
+function relinkLocalStories(m){
+ for(const s of m.stories){
+  const list=[];
+  m.pages.forEach((p,idx)=>p.frames.forEach(f=>{if(f.storyId===s.id)list.push({idx,f});}));
+  list.sort((a,b)=>a.idx-b.idx||a.f.y-b.f.y||a.f.x-b.f.x);
+  if(!list.length)continue;
+  s.firstFrame=list[0].f.id;
+  list.forEach((entry,k)=>{entry.f.nextFrame=list[k+1]?.f.id??null;});
+ }
+}
+function localApply(model,op){if(op.op==='replace-model')return copy(op.model);const m=copy(model),p=m.pages.find(p=>p.id===op.page);switch(op.op){case'set-frame':assignLocal(m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame),op.values,['groupId','animation']);break;case'set-link':m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame).nextFrame=op.nextFrame;break;case'replace-story':m.stories.find(s=>s.id===op.story).paragraphs=copy(op.paragraphs);break;case'set-character-style':m.characterStyles[op.name]=copy(op.values);break;case'set-paragraph-style':m.paragraphStyles[op.name]=copy(op.values);break;case'set-page':assignLocal(p,op.values,['duration']);break;case'set-object':assignLocal(p.objects.find(o=>o.id===op.object),op.values,['groupId','animation']);break;case'set-master':m.masters.find(x=>x.id===op.master).objects=copy(op.objects);break;case'set-view':m.pageView=op.pageView;break;case'replace-layout':for(const k of ['pages','masters','stories','assets'])m[k]=copy(op[k]);break;case'move-page':{const from=m.pages.findIndex(x=>x.id===op.page);if(from<0)throw new Error('Page not found');const [moved]=m.pages.splice(from,1);m.pages.splice(op.index,0,moved);relinkLocalStories(m);break;}case'create-master':m.masters.push({id:op.master,objects:copy(op.objects??[])});break;case'replace-image':{if(!m.assets.some(a=>a.id===op.asset.id))m.assets.push(copy(op.asset));p.objects.find(o=>o.id===op.object).assetId=op.asset.id;break;}default:throw new Error('Unsupported draft operation');}return m;}
 function rememberHistory(stack,model){stack.push({model});if(stack.length>100)stack.shift();}
 const modelJSON=model=>JSON.stringify(model,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
 function operationsFor(model){return modelJSON(model)===modelJSON(state.document.model)?[]:[{op:'replace-model',model:copy(model)}];}
@@ -138,7 +149,7 @@ async function loadDocument(id,revision,retained={}){
  editorFoundation?.discardPending();
  clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
  if(retained.keepHistory){if(modelJSON(state.model)!==modelJSON(result.document.model)){rememberHistory(state.undo,state.model);state.redo=[];}}else{state.undo=[];state.redo=[];}
- state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;state.liveKey=null;state.rendered=Boolean(result.rendered);state.videoRendered=Boolean(result.videoRendered);state.multiSelect=false;state.comments=[];state.view='editor';
+ state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;state.liveKey=null;state.rendered=Boolean(result.rendered);state.videoRendered=Boolean(result.videoRendered);state.multiSelect=false;state.editingMaster=null;state.masterItem=null;state.comments=[];state.view='editor';
  state.page=Math.max(0,state.model.pages.findIndex(page=>page.id===retained.pageId));
  state.item=[...state.model.pages[state.page].frames,...state.model.pages[state.page].objects].some(item=>item.id===retained.item)?retained.item:null;
  state.selectedIds=new Set(groupMembers(state.model.pages[state.page],state.item));
@@ -181,9 +192,59 @@ function boards(){
  if(held)queueMicrotask(()=>target.querySelector(`[data-item="${CSS.escape(held)}"]`)?.focus({preventScroll:true}));
  // Nothing saved yet: one blank Letter page with its margins, ready for Add text frame (design standard §5.1).
  if(!state.model){if(state.view==='editor')target.append(board(null,BLANK_PAGE,0,false));ui.painted();return;}
+ if(state.editingMaster){
+  const master=state.model.masters.find(x=>x.id===state.editingMaster);
+  if(master){target.append(masterBoard(state.model,master,page()));ui.painted();return;}
+  state.editingMaster=null;state.masterItem=null;
+ }
  const indexes=state.model.pageView==='facing'?[state.page-state.page%2,state.page-state.page%2+1].filter(i=>i<state.model.pages.length):[state.page];
  for(const i of indexes)target.append(board(state.model,state.model.pages[i],i,indexes.length>1));
  ui.painted();
+}
+function masterBoard(m,master,p){
+ const pad=p.bleed+12,section=document.createElement('div');let chosen=null;
+ section.className='page-board';section.dataset.masterId=master.id;
+ const canvas=svg('svg',{viewBox:`${-pad} ${-pad} ${p.width+2*pad} ${p.height+2*pad}`,role:'img','aria-label':`Master ${master.id}`});
+ canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'paper'}),svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'trim-line'}),svg('rect',{x:p.margin,y:p.margin,width:Math.max(0,p.width-2*p.margin),height:Math.max(0,p.height-2*p.margin),class:'margin-line'}));
+ for(const x of p.guides.x)canvas.append(svg('line',{x1:x,y1:0,x2:x,y2:p.height,class:'guide-line'}));
+ for(const y of p.guides.y)canvas.append(svg('line',{x1:0,y1:y,x2:p.width,y2:y,class:'guide-line'}));
+ for(const item of master.objects){const drawn=drawText(m,p,state.page,item);if(drawn)canvas.append(drawn);}
+ for(const item of master.objects){
+  const isSel=item.id===state.masterItem;
+  const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':isSel,'data-item':item.id,'data-master-item':'true',tabindex:0,'aria-label':'Master '+item.kind});
+  rect.addEventListener('keydown',action(e=>{if(e.key==='Enter'){state.masterItem=item.id;paint();}}));
+  rect.addEventListener('click',action(e=>{e.stopPropagation();state.masterItem=item.id;paint();}));
+  const grab=action(e=>dragMaster(e,canvas,rect,item,master,p));
+  rect.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')grab(e);});
+  if(isSel)chosen={item,rect};canvas.append(rect);
+ }
+ canvas.addEventListener('click',action(()=>{if(state.masterItem){state.masterItem=null;paint();}}));
+ section.append(canvas);const label=document.createElement('div');label.className='page-label';label.textContent=`Master: ${master.id}`;section.append(label);
+ if(chosen)section.append(masterMoveHandle(canvas,chosen,master,p));
+ return section;
+}
+function masterMoveHandle(canvas,{item,rect},master,p){
+ const pad=p.bleed+12,overlay=document.createElement('div'),handle=document.createElement('button');
+ overlay.className='page-overlay';overlay.style.aspectRatio=`${p.width+2*pad} / ${p.height+2*pad}`;
+ handle.type='button';handle.className='frame-handle';handle.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3 9 6m3-3 3 3m-3 15-3-3m3 3 3-3M3 12l3-3m-3 3 3 3m15-3-3-3m3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';handle.setAttribute('aria-label','Move master '+item.id);
+ placeHandle(handle,p,item.x,item.y);handle.disabled=state.busy||!state.document||state.document.revision!==state.document.currentRevision;
+ handle.addEventListener('pointerdown',action(e=>dragMaster(e,canvas,rect,item,master,p,(x,y)=>placeHandle(handle,p,x,y))));
+ overlay.append(handle);return overlay;
+}
+function dragMaster(event,canvas,rect,item,master,p,follow){
+ if(event.button!==0||state.busy)return;
+ editable();event.stopPropagation();if(!guardFields())return;
+ state.masterItem=item.id;
+ const view=viewSnapshot(),model=state.model;
+ const current=()=>sameView(view)&&state.model===model&&state.editingMaster===master.id&&!state.busy;
+ const point=e=>{const pt=canvas.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(canvas.getScreenCTM().inverse());};
+ const start=point(event),clamp=(v,lo,hi)=>Math.round(Math.max(lo,Math.min(hi,v))*10)/10;
+ let x=item.x,y=item.y;
+ const remove=()=>{rect.removeEventListener('pointermove',move);rect.removeEventListener('pointerup',finish);rect.removeEventListener('pointercancel',cancel);};
+ const cancel=()=>{remove();boards();};
+ const move=e=>{if(!current()||!canvas.isConnected){cancel();return;}const now=point(e);x=clamp(item.x+now.x-start.x,-p.bleed,p.width+p.bleed-item.width);y=clamp(item.y+now.y-start.y,-p.bleed,p.height+p.bleed-item.height);rect.setAttribute('x',x);rect.setAttribute('y',y);follow?.(x,y);};
+ const finish=action(()=>{remove();if(!current()){boards();return;}if(x!==item.x||y!==item.y){const objects=copy(master.objects);const target=objects.find(o=>o.id===item.id);if(target){target.x=x;target.y=y;}edit({op:'set-master',master:master.id,objects});}else boards();});
+ rect.setPointerCapture(event.pointerId);rect.addEventListener('pointermove',move);rect.addEventListener('pointerup',finish);rect.addEventListener('pointercancel',cancel);
 }
 const fontStack=font=>font==='Liberation Mono'?"'Liberation Mono',ui-monospace,monospace":font==='Liberation Sans'?"'Liberation Sans',system-ui,sans-serif":"'Libertinus Serif',Georgia,'Times New Roman',serif";
 const rgbCss=color=>`rgb(${color.map(v=>Math.round(v)).join(' ')})`;
@@ -226,7 +287,7 @@ function board(m,p,i,facing){
   const master=p.masterId?m.masters.find(x=>x.id===p.masterId)?.objects??[]:[];
   for(const item of [...master,...p.objects,...p.frames]){const drawn=drawText(m,p,i,item);if(drawn)canvas.append(drawn);}
  }
- for(const item of m?[...p.objects,...p.frames]:[]){
+ for(const item of m?[...p.frames,...p.objects]:[]){
   const isSel=i===state.page&&(item.id===state.item||state.selectedIds.has(item.id));
   const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':isSel,'data-multi-selected':i===state.page&&state.selectedIds.size>1&&state.selectedIds.has(item.id),'data-item':item.id,...(item.groupId?{'data-group-id':item.groupId}:{}),...(item.animation?{'data-anim-preset':item.animation.preset}:{}),tabindex:0,'aria-label':item.storyId?'Text frame':item.kind==='rect'?'Shape':item.kind==='image'?'Image':item.kind==='number'?'Page number':'Text'});
   rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id,e.shiftKey);}));
@@ -319,17 +380,18 @@ function controls(){
  // Render & preflight and Download PDF run on the current draft and save it first (they are never disabled by unsaved edits).
  $('render').disabled=blocked||!!state.job||state.renderStarting;
  $('cancel-render').disabled=state.busy||!state.job;
- $('export-pdf').disabled=state.busy||!d||!!state.job||state.renderStarting;$('export-layout').disabled=state.busy||!d;
+ $('export-pdf').disabled=state.busy||!d||!!state.job||state.renderStarting;$('export-layout').disabled=state.busy||!d;if($('export-png'))$('export-png').disabled=state.busy||!d||!!state.job||state.renderStarting;
  // The one primary follows the document: Add text frame on an empty page, Download PDF once there is content.
  $('export-pdf').hidden=!content||state.view!=='editor';$('add-first').hidden=content||state.view!=='editor'||(Boolean(d)&&readOnly);$('add-first').disabled=state.busy;
  // The caption says Saved; while there is something to save, Save revision itself says so (one row, §3.1).
  $('save-state').textContent=!d?'':state.busy?'Working…':readOnly?'Read-only':draft?($('save').hidden?'Unsaved changes':''):'Saved';
  $('discard-fields').disabled=state.busy||!pendingFields.size;$('discard-fields').hidden=!pendingFields.size;
  $('field-edits').textContent=pendingFields.size?'Some fields are changed but not applied. Apply their form, or discard them.':'';
+ ui.syncParityDisabled?.(blocked);
  editorFoundation?.refresh();
  const context=$('chat-context');if(context)context.textContent=d?`Saved revision ${d.revision} · page ${state.page+1}${draft?' · Your changes are saved before the concierge reads them.':''}`:'Ask for a layout idea, or add a text frame to start.';
 }
-function paint(){const d=state.document;$('document-title').textContent=d?.title??'Untitled publication';$('document-heading').textContent=d?.title??'';revisionText();if(state.model){state.page=Math.min(state.page,state.model.pages.length-1);value('page-view',state.model.pageView);$('page-rail').replaceChildren(...state.model.pages.map((p,i)=>{const b=document.createElement('button');b.type='button';b.className='pub-page-thumb';b.setAttribute('aria-current',String(i===state.page));b.setAttribute('aria-label',`Page ${i+1}`);const mini=document.createElement('span');mini.className='page-mini';mini.style.aspectRatio=`${p.width} / ${p.height}`;mini.setAttribute('aria-hidden','true');const words=document.createElement('span');words.className='pub-page-number';words.textContent=`Page ${i+1}`;b.append(mini,words);b.onclick=action(()=>selectPage(i));return b;}));inspect();}else $('page-rail').replaceChildren();boards();controls();}
+function paint(){const d=state.document;$('document-title').textContent=d?.title??'Untitled publication';$('document-heading').textContent=d?.title??'';revisionText();if(state.model){state.page=Math.min(state.page,state.model.pages.length-1);value('page-view',state.model.pageView);$('page-rail').replaceChildren(...state.model.pages.map((p,i)=>{const b=document.createElement('button');b.type='button';b.className='pub-page-thumb';b.setAttribute('aria-current',String(i===state.page));b.setAttribute('aria-label',`Page ${i+1}`);const mini=document.createElement('span');mini.className='page-mini';mini.style.aspectRatio=`${p.width} / ${p.height}`;mini.setAttribute('aria-hidden','true');const words=document.createElement('span');words.className='pub-page-number';words.textContent=`Page ${i+1}`;b.append(mini,words);b.onclick=action(()=>selectPage(i));ui.wirePageThumb?.(b,i,p.id);return b;}));inspect();}else $('page-rail').replaceChildren();ui.syncParity?.();boards();controls();}
 async function previews(view=viewSnapshot()){
  const d=state.document;if(!d||!sameView(view))return;
  await Promise.all(d.model.pages.map(async(_,i)=>{
@@ -389,6 +451,17 @@ async function downloadPdf(){
  if(!state.rendered){status('Rendering your PDF…');if(!await render())return;}
  await download('pdf');
 }
+/** Save and render when needed, then download the selected page as a rendered PNG. */
+async function downloadPagePng(){
+ requireDocument();requireAppliedFields();if(state.ops.length||editorFoundation?.hasPending())await save();
+ if(!state.rendered){status('Rendering page PNG…');if(!await render())return;}
+ const d=requireDocument(),pageNumber=state.page+1,view=viewSnapshot();
+ const blob=await request(`/documents/${d.id}/revisions/${d.revision}/content?format=preview&page=${pageNumber}`,{blob:true});
+ if(!sameView(view)||hasDraft())return;
+ if(!blob.type.startsWith('image/png'))throw new Error('Unexpected page PNG content');
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${d.title.replace(/[^A-Za-z0-9_-]/g,'_')}-page-${pageNumber}.png`;
+ a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status(`Downloaded page ${pageNumber} PNG (revision ${d.revision})`);
+}
 bind('new','submit',async()=>{
  if(state.busy)throw new Error('Wait for the current save or open to finish.');if(!await dirtyPrompt())return;
  // A size (Letter, A4) makes a blank publication of that size; the form alone still makes the brochure starter.
@@ -440,7 +513,7 @@ async function showList(){
  if(state.document&&hasDraft()){editable();requireAppliedFields();await save();}
  await refresh();state.view='list';editorFoundation?.discardPending();paint();
 }
-bind('refresh','click',refresh);bind('save','click',save);bind('render','click',render);bind('reopen','click',()=>open(requireDocument().id));bind('export-pdf','click',downloadPdf);bind('export-layout','click',()=>download('layout'));
+bind('refresh','click',refresh);bind('save','click',save);bind('render','click',render);bind('reopen','click',()=>open(requireDocument().id));bind('export-pdf','click',downloadPdf);bind('export-png','click',downloadPagePng);bind('export-layout','click',()=>download('layout'));
 bind('cancel-render','click',async()=>{
  requireDocument();const id=state.job,view=viewSnapshot(),generation=state.renderGeneration;if(!id)return;
  await request('/jobs/'+id+'/cancel',{method:'POST',body:{}});
@@ -465,7 +538,7 @@ bind('master','change',()=>{
  value('master-objects',JSON.stringify(state.model.masters.find(master=>master.id===next)?.objects??[],null,2));
  controls();
 });
-bind('apply-master','click',()=>{if(!$('master').value)throw new Error('Select a master first.');edit({op:'set-master',master:$('master').value,objects:JSON.parse($('master-objects').value)},fields.master);});
+bind('apply-master','click',()=>{const target=$('master-select')?.value||$('master').value;if(!target)throw new Error('Select a master first.');edit({op:'set-master',master:target,objects:JSON.parse($('master-objects').value)},fields.master);});
 bind('character-properties','submit',()=>edit({op:'set-character-style',name:$('character-style').value,values:{font:$('font').value,size:number('font-size'),weight:number('font-weight'),style:$('font-style').value,color:rgb($('font-color').value)}},fields.character));
 bind('paragraph-properties','submit',()=>edit({op:'set-paragraph-style',name:$('paragraph-style').value,values:{leading:number('leading'),spaceAfter:number('space-after'),indent:number('indent'),align:$('align').value}},fields.paragraph));
 bind('asset-upload','submit',async()=>{const file=$('asset-file').files[0];if(!file||file.size>4194304)throw new Error('Choose a PNG or JPEG up to 4 MiB.');const body=new FormData();body.append('file',file);body.append('title',$('asset-title').value);body.append('requestKey',crypto.randomUUID());const uploaded=await request('/assets/upload',{method:'POST',body});await refresh();
@@ -491,7 +564,7 @@ bind('delete-document','click',async()=>{
  await locked(async()=>{
   await request('/documents/'+d.id,{method:'DELETE',body:{}});
   clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
-  state.document=null;state.model=null;state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;state.rendered=false;state.item=null;
+  state.document=null;state.model=null;state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;state.rendered=false;state.item=null;state.editingMaster=null;state.masterItem=null;
   $('preflight').textContent='';await refresh();state.view=state.documents.length?'list':'editor';paint();
  });
 });
@@ -554,7 +627,7 @@ void import('/shared/ui/js/document-handoff.js').then(({registerDocumentSession}
 })).catch(error=>status('The concierge cannot synchronize this document: '+error.message,true));
 
 void bindPublishingFoundation({state,selected,page,hasDraft,requireAppliedFields,guardFields,edit,layout,request,locked,loadDocument,open,refresh,save,render,download,viewSnapshot,sameView,uid,copy,editable,requireDocument,untitled,prepare:prepareDocumentHandoff,refreshDocument:refreshDocumentHandoff,
- ui,hasContent,addItem,duplicateItem,duplicateDocument,newPublication,showList,downloadPdf,selectPage,paint,boards,controls,status,action,
+ ui,hasContent,addItem,duplicateItem,duplicateDocument,newPublication,showList,downloadPdf,downloadPagePng,selectPage,paint,boards,controls,status,action,
  run:key=>boundActions.get(key)(),fields,
  actions:{
  undo:()=>boundActions.get('undo:click')(),redo:()=>boundActions.get('redo:click')(),

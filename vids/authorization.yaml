@@ -202,6 +202,18 @@ bindings:
     allOf:
     - app.open
     - legacy.execute
+  - id: legacy-job-cancel
+    method: POST
+    path: /jobs/:id/cancel
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: legacy-job-retry
+    method: POST
+    path: /jobs/:id/retry
+    allOf:
+    - app.open
+    - legacy.execute
   tools:
   - id: vids-source-list
     allOf:
@@ -229,6 +241,34 @@ bindings:
     - app.open
     - legacy.execute
   - id: vids-brand-graphic
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: vids-generate-story
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: vids-export-status
+    allOf:
+    - app.open
+    - legacy.read
+  - id: vids-publish-export
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: vids-revoke-export
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: vids-remove-export
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: vids-cancel-job
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: vids-retry-job
     allOf:
     - app.open
     - legacy.execute

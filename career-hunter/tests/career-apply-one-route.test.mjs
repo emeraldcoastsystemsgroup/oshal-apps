@@ -7,6 +7,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | One route from a saved job to a sent application (judge's report 2026-11-11, change 6). The shipped tools/career-job-lists.html and tools/career-approvals.html in Chromium over fixture answers, at 1440x900 and at 412x915 with touch. To approve is not a stage. A job Career picked leads Saved, marked "Career picked this for you", with the same Prepare application button a saved job has; pressing it promotes the job and opens the one application page, and never calls the approve route that wrote documents with no guidance. A pick the person has already prepared is not shown, and a pick that is also saved is listed once. Remove declines a pick through the deny route and says so. ?view=approve opens Saved on those jobs, and says so when there are none; the old approvals address forwards there. Picks step aside while a search is typed.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 1: Career's picks lead the first page of Saved whatever the filters are. A typed search narrows the saved jobs and leaves the picks in the lead (it used to hide them, and the case that said so is rewritten); a filter the page remembered for a signed-in person and put back on a later visit does not hide them either (seen failing on the code as it was: the page showed "No jobs match these filters" and no pick); and page 2 of Saved shows no pick.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Remove picks through the existing owner board dismissal, retain application and native ticket history, and verify reload and refusal behavior.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25): the kernel's busy answer (409 career_run_in_progress, nothing ran) is no longer a refusal on these pages: the change waits and saves by itself (tools/career-pending-writes.js). The Remove refusal cases now use a refusal of the route's own (the job changed on another screen), so they still prove a refused Remove brings its row back; the phone Pass case proves a Pass answered busy waits, says so and lands once, with Undo then offered.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: the phone Pass that Career refuses while it is working says so in plain words ("Not passed: Career is working on your account. Try again when it finishes. … is back on top."), not the refusal's code, which is what this case used to wait for. It read the lead card's id from an attribute the card never had, so both reads were empty and equal; it reads the card's own id now, and checks that Undo has nothing to undo and that the Pass was sent once.
  */
 import { test, before, after } from 'node:test';
@@ -36,7 +37,8 @@ function board(state) {
     if (one) return state.jobs[one[1]] ? { json: { job: state.jobs[one[1]] } } : { status: 404, json: { error: 'not found' } };
     if (status && method === 'POST') {
       state.writes.push({ path: p, body });
-      if (state.denyFails && body?.status === 'dismissed') return { status: 409, json: { ok: false, error: 'career_run_in_progress' } };
+      if (state.busy && body?.status === 'dismissed') return { status: 409, json: { error: 'career_run_in_progress', runId: 'run-1' } };
+      if (state.denyFails && body?.status === 'dismissed') return { status: 409, json: { ok: false, error: 'this job changed on another screen' } };
       if (body?.status === 'dismissed') {
         const id = Number(status[1]);
         state.jobs[id] = { ...state.jobs[id], status: 'dismissed', favorite: false };
@@ -137,7 +139,7 @@ test('a Remove the route refuses leaves the pick where it was and says why', asy
   try {
     const remove = page.locator('.job-row[data-job-id="21"]').getByRole('button', { name: 'Remove', exact: true });
     await remove.click();
-    await page.getByText('Could not remove this job: career_run_in_progress. Try again.').waitFor();
+    await page.getByText('Could not remove this job: this job changed on another screen. Try again.').waitFor();
     assert.equal(await page.locator('.job-row[data-job-id="21"]').count(), 1);
     assert.equal(await remove.isEnabled(), true, 'the button can be pressed again');
   } finally { await context.close(); }
@@ -222,23 +224,28 @@ for(const [label,size]of [['desktop',DESKTOP],['phone',PHONE]])test(label+': Rem
  let release,arrived,writes=0;const received=new Promise(r=>arrived=r),held=new Promise(r=>release=r);
  try{
   await page.locator('.job-row[data-job-id="21"]').waitFor();
-  await context.route('**/api/career-hunter/jobs/21/status',async route=>{writes++;arrived();await held;await route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'career_run_in_progress'})});});
+  await context.route('**/api/career-hunter/jobs/21/status',async route=>{writes++;arrived();await held;await route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,error:'this job changed on another screen'})});});
   await page.locator('.job-row[data-job-id="21"]').getByRole('button',{name:'Remove',exact:true}).click();await received;
   await page.waitForFunction(()=>!document.querySelector('.job-row[data-job-id="21"]'),{},{timeout:500});
-  assert.equal(writes,1);release();await page.getByText('Could not remove this job: career_run_in_progress. Try again.').waitFor();
+  assert.equal(writes,1);release();await page.getByText('Could not remove this job: this job changed on another screen. Try again.').waitFor();
   assert.equal(await page.locator('.job-row[data-job-id="21"]').count(),1);
   assert.equal(await page.locator('.job-row[data-job-id="21"]').getByRole('button',{name:'Remove',exact:true}).isEnabled(),true);
  }finally{release?.();await context.close();}
 });
 
 
-test('phone Pass restores the removed card when the relationship command is refused',async()=>{
- const state=account({denyFails:true});const {page,context}=await openScreen(browser,'career-job-lists.html',board(state),PHONE,'?view=matches');
+test('phone Pass that Career answers busy waits, says so and lands once; Undo is offered after',async()=>{
+ const state=account({busy:true});const {page,context}=await openScreen(browser,'career-job-lists.html',board(state),PHONE,'?view=matches');
  try{await page.locator('.match-card.lead').waitFor();const id=await page.locator('.match-card.lead').getAttribute('data-deck-id');assert.match(id,/^\d+$/);
   await page.getByRole('button',{name:'Pass',exact:true}).click();
-  await page.locator('#actionState').getByText(/^Not passed: Career is working on your account\. Try again when it finishes\. .+ is back on top\.$/).waitFor();
-  assert.equal(await page.locator('.match-card.lead').getAttribute('data-deck-id'),id,'the refused job is the lead card again');
-  assert.equal(await page.getByRole('button',{name:'Undo',exact:true}).isDisabled(),true,'a Pass that was refused leaves nothing to undo');
-  assert.deepEqual(state.writes.map(write=>write.body),[{status:'dismissed'}],'one Pass was sent and it was not repeated');
+  await page.locator('.career-pending-writes').getByText(/^Saving — waiting for the résumé being written now\./).waitFor({timeout:5000});
+  assert.doesNotMatch(await page.locator('#actionState').innerText(),/Not passed|Career is working on your account/);
+  assert.notEqual(await page.locator('.match-card.lead').getAttribute('data-deck-id'),id,'the passed card stays away while it waits');
+  state.busy=false;
+  await page.locator('.career-pending-writes').getByText('Saved.',{exact:true}).waitFor({timeout:8000});
+  const taken=state.writes.filter(write=>write.path===`/api/career-hunter/jobs/${id}/status`);
+  assert.ok(taken.length>=2,'sent again by itself');assert.deepEqual(taken.at(-1).body,{status:'dismissed'});
+  assert.equal(state.jobs[id]?.status,'dismissed','the Pass landed');
+  assert.equal(await page.getByRole('button',{name:'Undo',exact:true}).isDisabled(),false,'the landed Pass can be undone');
  }finally{await context.close();}
 });

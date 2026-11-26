@@ -15,6 +15,41 @@
  *     writes zero rows, suppressed addresses stay suppressed, pending-by-default and documented
  *     prior consent evidence appear verbatim in consent-export, and Owner B's import is
  *     strictly isolated from Owner A's suppressions, contacts, consents, and lists.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: apply migration 004-marketing-compliance.sql
+ *     and prove enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_compliance_settings
+ *     plus end-to-end compliance-gated email draft approval.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.3: apply migration 005-marketing-double-optin.sql
+ *     and prove enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_signup_forms and
+ *     oshal_marketing_optin_tokens plus end-to-end honeypot, submit (pending), confirm (confirmed),
+ *     replay refusal (409), and cross-owner isolation.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.5: apply migration 006-marketing-broadcasts.sql
+ *     and prove enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_messages and
+ *     oshal_marketing_deliveries plus end-to-end dry-run gate audit, one-click unsubscribe
+ *     suppression + next-run skip, and cross-owner isolation.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.6: apply migration 007-marketing-sequences.sql
+ *     and prove enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_sequences,
+ *     oshal_marketing_sequence_steps, and oshal_marketing_enrollments plus strict standing
+ *     authorization, step re-checks after suppression, welcome auto-enroll, one-click disarm,
+ *     and cross-owner isolation.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.7: apply migration 008-marketing-launch-plans.sql
+ *     and prove enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_launch_plans,
+ *     cross-owner 404 isolation, unified calendar deduplication, and strictly grounded
+ *     recorded-numbers-only campaign retro generation.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.8: apply migration 009-marketing-finance-link.sql
+ *     alongside finance/migrations/007-finance-projects.sql on disposable PG 16 and prove
+ *     enforcing-role FORCE RLS isolation for finance_project_id & channel_allocations,
+ *     reallocation proposal generation, atomic channel_allocation commit across campaign +
+ *     oshal_finance_project_lines + oshal_marketing_budget_ledger, and real PG ROLLBACK on error.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.9: apply migration 010-marketing-attribution.sql
+ *     on disposable PG 16 and prove enforcing-role exact-owner FORCE RLS on
+ *     oshal_marketing_conversions (no operator bypass), UTM sign-up first-touch conversion
+ *     inheritance on purchase, delivery engagement events with auto-suppression, NO DATA on quiet
+ *     campaigns, and cross-owner 404/0-row isolation.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.10: apply migration 011-marketing-sms-consent.sql
+ *     on disposable PG 16 and prove enforcing-role exact-owner FORCE RLS on
+ *     oshal_marketing_sms_queue (no operator bypass), TCPA/CTIA opt-in persistence, unconsented
+ *     403 refusal, clock-controlled quiet-hours hold, STOP suppression + held-queue cancellation,
+ *     and cross-owner 404/0-row isolation.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,6 +75,14 @@ const MIGRATIONS = [
   'migrations/001-marketing-core.sql',
   'migrations/002-marketing-metrics.sql',
   'migrations/003-marketing-audience.sql',
+  'migrations/004-marketing-compliance.sql',
+  'migrations/005-marketing-double-optin.sql',
+  'migrations/006-marketing-broadcasts.sql',
+  'migrations/007-marketing-sequences.sql',
+  'migrations/008-marketing-launch-plans.sql',
+  'migrations/009-marketing-finance-link.sql',
+  'migrations/010-marketing-attribution.sql',
+  'migrations/011-marketing-sms-consent.sql',
 ];
 const OWNER_A = 'marketing-audience-owner-a';
 const OWNER_B = 'marketing-audience-owner-b';
@@ -521,4 +564,980 @@ test('CSV import enforces consent attestation, suppression immunity, documented 
   const suppAAfter = await invokeHandler(audience.listSuppressions, db.appPool, OWNER_A, {});
   assert.ok(suppAAfter.body.suppressions.some((s) => s.address_hash === blockedHash));
   assert.equal((await db.admin.query('SELECT 1 FROM oshal_marketing_contacts WHERE owner_sub = $1 AND email_hash = $2', [OWNER_A, blockedHash])).rows.length, 0);
+});
+
+/** Load compiled marketing-compliance or marketing-campaigns handlers with minimal non-DB stubs. */
+function loadRouteSubmodule(fileName) {
+  const full = join(pkgDir, 'routes', fileName);
+  const src = readFileSync(full, 'utf8');
+  const mod = { exports: {} };
+  const stubs = {
+    '@/shared/logger': { createChildLogger: () => ({ debug() {}, info() {}, warn() {}, error() {} }) },
+    '@/shared/services/database': { runRuntimeSchemaBootstrap: async () => {}, buildOwnerRlsPolicyStatements: () => [] },
+    '@/shared/security/explicit-write-confirmation': { hasExplicitWriteConfirmation: (b) => b?.confirm === true, confirmationRequiredPayload: () => ({ error: 'confirmation_required' }) },
+    '@/app/connectors/runtime': { loadConnectorSpec: () => null, resolveConnectorActionCreds: async () => null, runConnectorAction: async () => ({ status: 500, body: { ok: false } }) },
+    '@/app/routes/connectors-routes': { getValidAccessToken: async () => null },
+    '@/app/routes/connector-tenancy': { resolveConnectionRow: async () => null },
+    '@/app/routes/inline-bot-execution': { executeBotOrInline: async () => ({ success: false }) },
+    '@/features/agent-management': { BotNodeClient: class {}, createRegistryEndpointResolver: () => ({}) },
+  };
+  const cache = new Map();
+  const reqStub = (id) => {
+    if (id in stubs) return stubs[id];
+    if (id.startsWith('./')) {
+      const target = join(dirname(full), id.endsWith('.js') ? id : `${id}.js`);
+      if (!cache.has(target)) {
+        const subMod = { exports: {} };
+        const subSrc = readFileSync(target, 'utf8');
+        new Function('require', 'module', 'exports', '__filename', '__dirname', subSrc)(
+          reqStub, subMod, subMod.exports, target, dirname(target),
+        );
+        cache.set(target, subMod.exports);
+      }
+      return cache.get(target);
+    }
+    return require(id);
+  };
+  new Function('require', 'module', 'exports', '__filename', '__dirname', src)(
+    reqStub, mod, mod.exports, full, dirname(full),
+  );
+  return mod.exports;
+}
+
+test('oshal_marketing_compliance_settings enforces exact-owner FORCE RLS and gates email approval end-to-end', async () => {
+  const tbl = await db.appPool.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = 'oshal_marketing_compliance_settings'`,
+  );
+  assert.equal(tbl.rows.length, 1);
+  assert.equal(tbl.rows[0].owner, db.role);
+  assert.equal(tbl.rows[0].relrowsecurity, true);
+  assert.equal(tbl.rows[0].relforcerowsecurity, true);
+
+  const pol = await db.appPool.query(
+    `SELECT qual, with_check FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = 'oshal_marketing_compliance_settings'`,
+  );
+  assert.equal(pol.rows.length, 1);
+  assert.match(pol.rows[0].qual, /oshal\.current_sub/);
+  assert.doesNotMatch(pol.rows[0].qual, /is_operator/);
+  assert.doesNotMatch(pol.rows[0].with_check, /is_operator/);
+
+  const compliance = loadRouteSubmodule('marketing-compliance.js');
+  const campaigns = loadRouteSubmodule('marketing-campaigns.js');
+
+  const campRes = await invokeHandler(campaigns.createCampaign, db.appPool, OWNER_A, {
+    body: { product: 'Open Swarm', name: 'Compliance RLS Campaign', channels: ['email'] },
+  });
+  assert.equal(campRes.statusCode, 201);
+
+  const draftRes = await invokeHandler(campaigns.createDraft, db.appPool, OWNER_A, {
+    body: {
+      campaignId: campRes.body.campaign.campaign_id,
+      channel: 'email',
+      templateId: 'launch',
+      subject: 'Compliance Launch',
+      body: 'Ready to launch safely.',
+    },
+  });
+  assert.equal(draftRes.statusCode, 201);
+  assert.equal(draftRes.body.canApprove, false);
+  const itemId = draftRes.body.item.item_id;
+
+  // Refused 422 before compliance settings exist.
+  const blocked = await invokeHandler(compliance.approveContent, db.appPool, OWNER_A, { params: { id: itemId } });
+  assert.equal(blocked.statusCode, 422);
+  assert.equal(blocked.body.error, 'compliance_incomplete');
+
+  // Owner A saves compliance settings.
+  const putA = await invokeHandler(compliance.putCompliance, db.appPool, OWNER_A, {
+    body: {
+      senderName: 'Owner A Team',
+      senderEmail: 'owner-a@example.com',
+      postalAddress: '500 Coast Blvd, Suite 10, Pensacola, FL 32502',
+      unsubscribeBaseUrl: 'https://example.com/unsub-a',
+      smsQuietStartHour: 21,
+      smsQuietEndHour: 8,
+      smsDefaultTimezone: 'America/Chicago',
+    },
+  });
+  assert.equal(putA.statusCode, 200);
+  assert.equal(putA.body.readiness.readyForEmailSend, true);
+
+  // Owner B, unstamped connection, and operator stamp read ZERO rows from compliance settings.
+  for (const probe of [{ sub: OWNER_B }, null, { sub: '', operator: true }]) {
+    await asIdentity(db.appPool, probe, async (client) => {
+      const r = await client.query('SELECT * FROM oshal_marketing_compliance_settings');
+      assert.equal(r.rows.length, 0, `compliance_settings must return 0 rows for ${JSON.stringify(probe)}`);
+    });
+  }
+  await assert.rejects(
+    asIdentity(db.appPool, { sub: OWNER_B }, (client) => client.query(
+      "INSERT INTO oshal_marketing_compliance_settings (owner_sub, sender_name) VALUES ($1, 'Spoof')",
+      [OWNER_A],
+    )),
+    /row-level security policy/i,
+  );
+  const getB = await invokeHandler(compliance.getCompliance, db.appPool, OWNER_B, {});
+  assert.equal(getB.body.readiness.readyForEmailSend, false);
+
+  // Owner A can now approve the email draft and both HTML and text carry the postal address + unsubscribe URL.
+  const approved = await invokeHandler(compliance.approveContent, db.appPool, OWNER_A, { params: { id: itemId } });
+  assert.equal(approved.statusCode, 200);
+  assert.equal(approved.body.item.status, 'approved');
+  assert.ok(approved.body.item.html_body.includes('500 Coast Blvd, Suite 10, Pensacola, FL 32502'));
+  assert.ok(approved.body.item.text_body.includes('https://example.com/unsub-a'));
+});
+
+test('005-marketing-double-optin enforces exact-owner FORCE RLS and end-to-end pending -> confirmed single-use lifecycle', async () => {
+  const OPTIN_TABLES = ['oshal_marketing_signup_forms', 'oshal_marketing_optin_tokens'];
+  const tbls = await db.appPool.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) ORDER BY 1`,
+    [OPTIN_TABLES],
+  );
+  assert.deepEqual(tbls.rows.map((r) => r.relname), [...OPTIN_TABLES].sort());
+  for (const row of tbls.rows) {
+    assert.equal(row.owner, db.role);
+    assert.equal(row.relrowsecurity, true);
+    assert.equal(row.relforcerowsecurity, true);
+  }
+  const pols = await db.appPool.query(
+    `SELECT tablename, qual, with_check FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = ANY($1::text[]) ORDER BY tablename`,
+    [OPTIN_TABLES],
+  );
+  assert.deepEqual(pols.rows.map((r) => r.tablename), [...OPTIN_TABLES].sort());
+  for (const p of pols.rows) {
+    assert.match(p.qual, /oshal\.current_sub/);
+    assert.doesNotMatch(p.qual, /is_operator/);
+    assert.doesNotMatch(p.with_check, /is_operator/);
+  }
+
+  const optin = loadRouteSubmodule('marketing-optin.js');
+  const created = await invokeHandler(optin.createSignupForm, db.appPool, OWNER_A, {
+    body: {
+      name: 'RLS Double Opt-In Form',
+      slug: 'rls-optin',
+      consentText: 'I opt in to Open Swarm updates.',
+      rateLimitPerIpPerHour: 20,
+      rateLimitPerFormPerHour: 100,
+    },
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal('signing_secret' in created.body.form, false);
+
+  // Submit with preview link for Owner A -> creates pending consent & hashed token row.
+  const subA = await invokeHandler(optin.submitSignupForm, db.appPool, OWNER_A, {
+    params: { slug: 'rls-optin' },
+    body: {
+      email: 'optin-rls@example.com',
+      displayName: 'Opt-In RLS',
+      utm_source: 'pg-test',
+      utm_campaign: 'rls-check',
+      returnPreviewLink: true,
+    },
+  });
+  assert.equal(subA.statusCode, 200);
+  assert.ok(subA.body.preview?.token);
+
+  // Owner B, unstamped, and operator read ZERO rows from both double opt-in tables.
+  for (const probe of [{ sub: OWNER_B }, null, { sub: '', operator: true }]) {
+    await asIdentity(db.appPool, probe, async (client) => {
+      for (const table of OPTIN_TABLES) {
+        const r = await client.query(`SELECT * FROM ${table}`);
+        assert.equal(r.rows.length, 0, `${table} must return 0 rows for ${JSON.stringify(probe)}`);
+      }
+    });
+  }
+  await assert.rejects(
+    asIdentity(db.appPool, { sub: OWNER_B }, (client) => client.query(
+      "INSERT INTO oshal_marketing_signup_forms (owner_sub, slug, name, consent_text, signing_secret) VALUES ($1, 'spoof', 'Spoof', 'x', $2)",
+      [OWNER_A, 'f'.repeat(64)],
+    )),
+    /row-level security policy/i,
+  );
+
+  // Owner B cannot confirm Owner A's token or read Owner A's snippet.
+  assert.equal((await invokeHandler(optin.getSignupFormSnippet, db.appPool, OWNER_B, { params: { slug: 'rls-optin' } })).statusCode, 404);
+  assert.equal((await invokeHandler(optin.confirmOptIn, db.appPool, OWNER_B, { body: { token: subA.body.preview.token } })).statusCode, 400);
+
+  // Owner A confirms -> flips pending -> confirmed; replay refused 409.
+  const confA = await invokeHandler(optin.confirmOptIn, db.appPool, OWNER_A, { body: { token: subA.body.preview.token } });
+  assert.equal(confA.statusCode, 200);
+  assert.equal(confA.body.status, 'confirmed');
+  const replayA = await invokeHandler(optin.confirmOptIn, db.appPool, OWNER_A, { body: { token: subA.body.preview.token } });
+  assert.equal(replayA.statusCode, 409);
+  assert.equal(replayA.body.error, 'token_already_used');
+
+  // Verify consent export shows confirmed status + UTM + confirmedAt.
+  const exp = await invokeHandler(audience.exportContactConsent, db.appPool, OWNER_A, { params: { id: confA.body.contactId } });
+  assert.equal(exp.statusCode, 200);
+  assert.equal(exp.body.consentExport.consents[0].status, 'confirmed');
+  assert.equal(exp.body.consentExport.consents[0].evidence.utm.utm_source, 'pg-test');
+  assert.ok(exp.body.consentExport.consents[0].evidence.confirmedAt);
+});
+
+test('006-marketing-broadcasts enforces exact-owner FORCE RLS, full gate dry-run ledger, and one-click unsubscribe suppression', async () => {
+  const BC_TABLES = ['oshal_marketing_messages', 'oshal_marketing_deliveries'];
+  const tbls = await db.appPool.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) ORDER BY 1`,
+    [BC_TABLES],
+  );
+  assert.deepEqual(tbls.rows.map((r) => r.relname), [...BC_TABLES].sort());
+  for (const row of tbls.rows) {
+    assert.equal(row.owner, db.role);
+    assert.equal(row.relrowsecurity, true);
+    assert.equal(row.relforcerowsecurity, true);
+  }
+  const pols = await db.appPool.query(
+    `SELECT tablename, qual, with_check FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = ANY($1::text[]) ORDER BY tablename`,
+    [BC_TABLES],
+  );
+  assert.deepEqual(pols.rows.map((r) => r.tablename), [...BC_TABLES].sort());
+  for (const p of pols.rows) {
+    assert.match(p.qual, /oshal\.current_sub/);
+    assert.doesNotMatch(p.qual, /is_operator/);
+    assert.doesNotMatch(p.with_check, /is_operator/);
+  }
+
+  const broadcast = loadRouteSubmodule('marketing-broadcast.js');
+  const publishMod = loadRouteSubmodule('marketing-publish.js');
+
+  // Arm Owner A email channel (cap 5).
+  const armRes = await invokeHandler(publishMod.putChannel, db.appPool, OWNER_A, {
+    params: { channel: 'email' },
+    body: { enabled: true, dailyCap: 5 },
+  });
+  assert.equal(armRes.statusCode, 200);
+
+  // Create list with 1 confirmed, 1 pending, and 1 suppressed contact.
+  const listRes = await invokeHandler(audience.createList, db.appPool, OWNER_A, {
+    body: { name: 'Broadcast RLS List', slug: 'broadcast-rls-list' },
+  });
+  assert.equal(listRes.statusCode, 201);
+  const listId = listRes.body.list.list_id;
+
+  const cConfirmed = await invokeHandler(audience.upsertContact, db.appPool, OWNER_A, {
+    body: {
+      email: 'bc-confirmed@example.com', displayName: 'Confirmed Reader', listIds: [listId],
+      consent: { channel: 'email', purpose: 'marketing', status: 'confirmed', evidence: SIGNUP_EVIDENCE },
+    },
+  });
+  const cPending = await invokeHandler(audience.upsertContact, db.appPool, OWNER_A, {
+    body: {
+      email: 'bc-pending@example.com', displayName: 'Pending Reader', listIds: [listId],
+      consent: { channel: 'email', purpose: 'marketing', status: 'pending', evidence: SIGNUP_EVIDENCE },
+    },
+  });
+  const cSuppContact = await invokeHandler(audience.upsertContact, db.appPool, OWNER_A, {
+    body: {
+      email: 'bc-suppressed@example.com', displayName: 'Suppressed Reader', listIds: [listId],
+      consent: { channel: 'email', purpose: 'marketing', status: 'confirmed', evidence: SIGNUP_EVIDENCE },
+    },
+  });
+  assert.equal(cConfirmed.statusCode, 201);
+  assert.equal(cPending.statusCode, 201);
+  assert.equal(cSuppContact.statusCode, 201);
+  await invokeHandler(audience.createSuppression, db.appPool, OWNER_A, {
+    body: { email: 'bc-suppressed@example.com', channel: 'email', reason: 'unsubscribe' },
+  });
+
+  // Create broadcast draft (omits signing_secret).
+  const created = await invokeHandler(broadcast.createBroadcast, db.appPool, OWNER_A, {
+    body: {
+      listId, templateId: 'announcement', subject: 'RLS Broadcast Subject',
+      headline: 'RLS Broadcast', body: 'Delivery gate verification.',
+    },
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal('signing_secret' in created.body.broadcast, false);
+  const messageId = created.body.broadcast.message_id;
+
+  // Dry-run gates -> 1 dry_run, 1 skipped_unconfirmed, 1 skipped_suppressed.
+  const dry1 = await invokeHandler(broadcast.sendBroadcast, db.appPool, OWNER_A, {
+    params: { id: messageId },
+    body: { dryRun: true, includeUnsubscribePreviewTokens: true },
+  });
+  assert.equal(dry1.statusCode, 200);
+  assert.equal(dry1.body.stats.dryRun, 1);
+  assert.equal(dry1.body.stats.skippedUnconfirmed, 1);
+  assert.equal(dry1.body.stats.skippedSuppressed, 1);
+  assert.equal(dry1.body.deliveries.length, 3);
+  const unsubToken = dry1.body.previewTokens[0].unsubscribeToken;
+
+  // Owner B, unstamped, and operator read ZERO rows from both broadcast tables.
+  for (const probe of [{ sub: OWNER_B }, null, { sub: '', operator: true }]) {
+    await asIdentity(db.appPool, probe, async (client) => {
+      for (const table of BC_TABLES) {
+        const r = await client.query(`SELECT * FROM ${table}`);
+        assert.equal(r.rows.length, 0, `${table} must return 0 rows for ${JSON.stringify(probe)}`);
+      }
+    });
+  }
+  await assert.rejects(
+    asIdentity(db.appPool, { sub: OWNER_B }, (client) => client.query(
+      "INSERT INTO oshal_marketing_messages (owner_sub, list_id, template_id, subject, body, signing_secret) VALUES ($1,$2,'announcement','Spoof','x',$3)",
+      [OWNER_A, listId, 'f'.repeat(64)],
+    )),
+    /row-level security policy/i,
+  );
+  assert.equal((await invokeHandler(broadcast.getBroadcast, db.appPool, OWNER_B, { params: { id: messageId } })).statusCode, 404);
+  assert.equal((await invokeHandler(broadcast.unsubscribeOneClick, db.appPool, OWNER_B, { body: { token: unsubToken } })).statusCode, 400);
+
+  // Live send without confirm: true -> 428.
+  const unconfirmedLive = await invokeHandler(broadcast.sendBroadcast, db.appPool, OWNER_A, { params: { id: messageId }, body: {} });
+  assert.equal(unconfirmedLive.statusCode, 428);
+
+  // One-click unsubscribe suppresses confirmed contact immediately -> next dry-run skips it!
+  const unsub = await invokeHandler(broadcast.unsubscribeOneClick, db.appPool, OWNER_A, { body: { token: unsubToken } });
+  assert.equal(unsub.statusCode, 200);
+  assert.equal(unsub.body.suppressed, true);
+  assert.equal(unsub.body.revokedConsents, 1);
+
+  const dry2 = await invokeHandler(broadcast.sendBroadcast, db.appPool, OWNER_A, {
+    params: { id: messageId },
+    body: { dryRun: true },
+  });
+  assert.equal(dry2.statusCode, 200);
+  assert.equal(dry2.body.stats.dryRun, 0);
+  assert.equal(dry2.body.stats.skippedUnconfirmed, 1);
+  assert.equal(dry2.body.stats.skippedSuppressed, 2);
+});
+
+test('007-marketing-sequences enforces exact-owner FORCE RLS, strict standing auth, step suppression stop, welcome auto-enroll, and one-click disarm', async () => {
+  const SEQ_TABLES = [
+    'oshal_marketing_sequences',
+    'oshal_marketing_sequence_steps',
+    'oshal_marketing_enrollments',
+  ];
+  const tbls = await db.appPool.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) ORDER BY 1`,
+    [SEQ_TABLES],
+  );
+  assert.deepEqual(tbls.rows.map((r) => r.relname), [...SEQ_TABLES].sort());
+  for (const row of tbls.rows) {
+    assert.equal(row.owner, db.role);
+    assert.equal(row.relrowsecurity, true);
+    assert.equal(row.relforcerowsecurity, true);
+  }
+  const pols = await db.appPool.query(
+    `SELECT tablename, qual, with_check FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = ANY($1::text[]) ORDER BY tablename`,
+    [SEQ_TABLES],
+  );
+  assert.deepEqual(pols.rows.map((r) => r.tablename), [...SEQ_TABLES].sort());
+  for (const p of pols.rows) {
+    assert.match(p.qual, /oshal\.current_sub/);
+    assert.doesNotMatch(p.qual, /is_operator/);
+    assert.doesNotMatch(p.with_check, /is_operator/);
+  }
+
+  const sequences = loadRouteSubmodule('marketing-sequences.js');
+  const optin = loadRouteSubmodule('marketing-optin.js');
+
+  const created = await invokeHandler(sequences.createSequence, db.appPool, OWNER_A, {
+    body: {
+      name: 'RLS Welcome Sequence',
+      slug: 'rls-welcome',
+      triggerFormSlug: 'rls-welcome-form',
+      standingAuthorization: true,
+      dailyCap: 5,
+    },
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.body.sequence.standing_authorization, false);
+  assert.equal(created.body.sequence.armed, false);
+  assert.equal('signing_secret' in created.body.sequence, false);
+  const seqId = created.body.sequence.sequence_id;
+
+  assert.equal((await invokeHandler(sequences.addSequenceStep, db.appPool, OWNER_A, {
+    params: { id: seqId },
+    body: { stepOrder: 1, delayHours: 0, templateId: 'announcement', subject: 'RLS Step 1', body: 'Step 1 body.' },
+  })).statusCode, 201);
+  assert.equal((await invokeHandler(sequences.addSequenceStep, db.appPool, OWNER_A, {
+    params: { id: seqId },
+    body: { stepOrder: 2, delayHours: 12, templateId: 'newsletter', subject: 'RLS Step 2', body: 'Step 2 body.' },
+  })).statusCode, 201);
+
+  // Garbage value -> 400; arm without confirm -> 428; arm with confirm -> 200 armed.
+  assert.equal((await invokeHandler(sequences.updateSequenceAuthorization, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { standingAuthorization: 'true', confirm: true, dailyCap: 5 },
+  })).statusCode, 400);
+  assert.equal((await invokeHandler(sequences.updateSequenceAuthorization, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { standingAuthorization: true, dailyCap: 5 },
+  })).statusCode, 428);
+  const armed = await invokeHandler(sequences.updateSequenceAuthorization, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { standingAuthorization: true, confirm: true, dailyCap: 5 },
+  });
+  assert.equal(armed.statusCode, 200);
+  assert.equal(armed.body.sequence.armed, true);
+
+  // Enroll 2 confirmed contacts, plus verify welcome auto-enroll via double opt-in confirm!
+  const c1 = await invokeHandler(audience.upsertContact, db.appPool, OWNER_A, {
+    body: { email: 'seq-rls-1@example.com', consent: { channel: 'email', purpose: 'marketing', status: 'confirmed', evidence: SIGNUP_EVIDENCE } },
+  });
+  const c2 = await invokeHandler(audience.upsertContact, db.appPool, OWNER_A, {
+    body: { email: 'seq-rls-2@example.com', consent: { channel: 'email', purpose: 'marketing', status: 'confirmed', evidence: SIGNUP_EVIDENCE } },
+  });
+  assert.equal((await invokeHandler(sequences.enrollSequenceContact, db.appPool, OWNER_A, { params: { id: seqId }, body: { contactId: c1.body.contact.contact_id } })).statusCode, 201);
+  assert.equal((await invokeHandler(sequences.enrollSequenceContact, db.appPool, OWNER_A, { params: { id: seqId }, body: { contactId: c2.body.contact.contact_id } })).statusCode, 201);
+
+  // Owner B, unstamped, and operator read ZERO rows from all 3 sequence tables.
+  for (const probe of [{ sub: OWNER_B }, null, { sub: '', operator: true }]) {
+    await asIdentity(db.appPool, probe, async (client) => {
+      for (const table of SEQ_TABLES) {
+        const r = await client.query(`SELECT * FROM ${table}`);
+        assert.equal(r.rows.length, 0, `${table} must return 0 rows for ${JSON.stringify(probe)}`);
+      }
+    });
+  }
+  await assert.rejects(
+    asIdentity(db.appPool, { sub: OWNER_B }, (client) => client.query(
+      "INSERT INTO oshal_marketing_sequences (owner_sub, slug, name, signing_secret) VALUES ($1,'spoof','Spoof',$2)",
+      [OWNER_A, 'f'.repeat(64)],
+    )),
+    /row-level security policy/i,
+  );
+  assert.equal((await invokeHandler(sequences.getSequence, db.appPool, OWNER_B, { params: { id: seqId } })).statusCode, 404);
+  assert.equal((await invokeHandler(sequences.disarmSequence, db.appPool, OWNER_B, { params: { id: seqId } })).statusCode, 404);
+
+  // Step 1 dry-run tick advances both c1 and c2 to step 1!
+  const t1 = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { dryRun: true, nowIso: '2026-11-26T12:00:00.000Z' },
+  });
+  assert.equal(t1.statusCode, 200);
+  assert.equal(t1.body.stats.dryRun, 2);
+
+  // Suppress c2 between Step 1 and Step 2 -> Step 2 completes c1 and stops c2 (stopped_unsubscribed)!
+  await invokeHandler(audience.createSuppression, db.appPool, OWNER_A, {
+    body: { email: 'seq-rls-2@example.com', channel: 'email', reason: 'unsubscribe' },
+  });
+  const t2 = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { dryRun: true, nowIso: '2026-11-27T01:00:00.000Z' },
+  });
+  assert.equal(t2.statusCode, 200);
+  assert.equal(t2.body.stats.dryRun, 1);
+  assert.equal(t2.body.stats.completed, 1);
+  assert.equal(t2.body.stats.stoppedUnsubscribed, 1);
+
+  // Welcome sign-up form double opt-in confirm auto-enrolls confirmed contact into seqId!
+  assert.equal((await invokeHandler(optin.createSignupForm, db.appPool, OWNER_A, {
+    body: { name: 'RLS Welcome Form', slug: 'rls-welcome-form', consentText: 'Opt me in.' },
+  })).statusCode, 201);
+  const subW = await invokeHandler(optin.submitSignupForm, db.appPool, OWNER_A, {
+    params: { slug: 'rls-welcome-form' }, body: { email: 'welcome-rls@example.com', returnPreviewLink: true },
+  });
+  const confW = await invokeHandler(optin.confirmOptIn, db.appPool, OWNER_A, { body: { token: subW.body.preview.token } });
+  assert.equal(confW.statusCode, 200);
+  assert.deepEqual(confW.body.enrolledSequenceIds, [seqId]);
+
+  // One-click disarm -> subsequent live tick refused 403 sequence_disarmed.
+  const dis = await invokeHandler(sequences.disarmSequence, db.appPool, OWNER_A, { params: { id: seqId } });
+  assert.equal(dis.statusCode, 200);
+  assert.equal(dis.body.sequence.armed, false);
+  const postDisarm = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, { params: { id: seqId }, body: {} });
+  assert.equal(postDisarm.statusCode, 403);
+  assert.equal(postDisarm.body.error, 'sequence_disarmed');
+});
+
+test('008-marketing-launch-plans enforces exact-owner FORCE RLS, unified calendar, and grounded recorded-numbers retro', async () => {
+  const LP_TABLES = ['oshal_marketing_launch_plans'];
+  const tbls = await db.appPool.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) ORDER BY 1`,
+    [LP_TABLES],
+  );
+  assert.deepEqual(tbls.rows.map((r) => r.relname), LP_TABLES);
+  assert.equal(tbls.rows[0].owner, db.role);
+  assert.equal(tbls.rows[0].relrowsecurity, true);
+  assert.equal(tbls.rows[0].relforcerowsecurity, true);
+
+  const pols = await db.appPool.query(
+    `SELECT tablename, qual, with_check FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = ANY($1::text[]) ORDER BY tablename`,
+    [LP_TABLES],
+  );
+  assert.equal(pols.rows.length, 1);
+  assert.match(pols.rows[0].qual, /oshal\.current_sub/);
+  assert.doesNotMatch(pols.rows[0].qual, /is_operator/);
+  assert.doesNotMatch(pols.rows[0].with_check, /is_operator/);
+
+  const col = await db.appPool.query(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'oshal_marketing_content' AND column_name = 'scheduled_for'`,
+  );
+  assert.equal(col.rows.length, 1, 'oshal_marketing_content.scheduled_for exists');
+
+  const campaigns = loadRouteSubmodule('marketing-campaigns.js');
+  const launch = loadRouteSubmodule('marketing-launch.js');
+
+  // Create Owner A campaign and launch plan with 2 dated milestones + default starter checklist.
+  const camp = await invokeHandler(campaigns.createCampaign, db.appPool, OWNER_A, {
+    body: { product: 'Open Swarm', name: 'RLS Launch Plan Campaign', motion: 'adoption', channels: ['linkedin', 'email'] },
+  });
+  assert.equal(camp.statusCode, 201);
+  const campaignId = camp.body.campaign.campaign_id;
+  const slug = camp.body.campaign.slug;
+
+  const created = await invokeHandler(launch.createLaunchPlan, db.appPool, OWNER_A, {
+    body: {
+      campaignId,
+      title: 'RLS Q4 Public Launch',
+      launchDate: '2026-12-10',
+      milestones: [
+        { id: 'ms-t7', title: 'Landing page and UTM freeze', dueDate: '2026-12-03', ownerRole: 'human', status: 'done' },
+        { id: 'ms-day0', title: 'Show HN and launch email', dueDate: '2026-12-10', ownerRole: 'launch-coordinator', status: 'pending' },
+      ],
+    },
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.body.plan.checklist.length, 5, 'default launch-coordinator checklist seeded');
+  const planId = created.body.plan.plan_id;
+
+  // Owner B, unstamped, and operator read ZERO rows from oshal_marketing_launch_plans.
+  for (const probe of [{ sub: OWNER_B }, null, { sub: '', operator: true }]) {
+    await asIdentity(db.appPool, probe, async (client) => {
+      const r = await client.query('SELECT * FROM oshal_marketing_launch_plans');
+      assert.equal(r.rows.length, 0, `launch plans must return 0 rows for ${JSON.stringify(probe)}`);
+    });
+  }
+  await assert.rejects(
+    asIdentity(db.appPool, { sub: OWNER_B }, (client) => client.query(
+      "INSERT INTO oshal_marketing_launch_plans (owner_sub, campaign_id, title, launch_date) VALUES ($1,$2,'Spoof','2026-12-10'::date)",
+      [OWNER_A, campaignId],
+    )),
+    /row-level security policy/i,
+  );
+  assert.equal((await invokeHandler(launch.getLaunchPlan, db.appPool, OWNER_B, { params: { id: planId } })).statusCode, 404);
+  assert.equal((await invokeHandler(launch.patchLaunchPlan, db.appPool, OWNER_B, { params: { id: planId }, body: { status: 'ready' } })).statusCode, 404);
+  assert.equal((await invokeHandler(launch.generateLaunchRetro, db.appPool, OWNER_B, { params: { id: planId } })).statusCode, 404);
+
+  // Add scheduled content + one recorded metric row for gsc (leaving posthog and github unrecorded -> NO DATA).
+  await asIdentity(db.appPool, { sub: OWNER_A }, async (client) => {
+    await client.query(
+      `INSERT INTO oshal_marketing_content (user_sub, campaign_id, channel, title, body, status, scheduled_for)
+       VALUES ($1,$2,'linkedin','Launch thread','Body text','approved','2026-12-09T14:00:00Z'::timestamptz)`,
+      [OWNER_A, campaignId],
+    );
+    await client.query(
+      `INSERT INTO oshal_marketing_events (user_sub, ts, source, campaign_slug, medium, event, value, meta)
+       VALUES ($1,'2026-12-10T12:00:00Z'::timestamptz,'gsc',$2,'organic','clicks',42,'{}'::jsonb)`,
+      [OWNER_A, slug],
+    );
+    await client.query(
+      `INSERT INTO oshal_marketing_run_ledger (user_sub, channel, action, outcome, detail)
+       VALUES ($1,'linkedin','publish','published',$2::jsonb)`,
+      [OWNER_A, JSON.stringify({ campaignId })],
+    );
+  });
+
+  // Unified calendar returns milestones + scheduled content chronologically without duplicates and degrades cleanly when Switchboard table is absent.
+  const cal = await invokeHandler(launch.getUnifiedCalendar, db.appPool, OWNER_A, { query: { from: '2026-12-01', to: '2026-12-31' } });
+  assert.equal(cal.statusCode, 200);
+  assert.equal(cal.body.switchboardAvailable, false);
+  assert.equal(cal.body.counts.launch_milestone, 2);
+  assert.equal(cal.body.counts.engine_content, 1);
+  assert.equal(new Set(cal.body.items.map((i) => i.id)).size, cal.body.items.length);
+
+  // Grounded retro cites ONLY exact recorded figures (gsc = 42, posthog = NO DATA, github = NO DATA, published = 1, milestones 1/2).
+  const retroRes = await invokeHandler(launch.generateLaunchRetro, db.appPool, OWNER_A, { params: { id: planId } });
+  assert.equal(retroRes.statusCode, 200);
+  assert.equal(retroRes.body.plan.status, 'retro_complete');
+  assert.equal(retroRes.body.retro.milestonesCompleted, 1);
+  assert.equal(retroRes.body.retro.milestonesTotal, 2);
+  assert.equal(retroRes.body.retro.publishOutcomes.published, 1);
+  assert.equal(retroRes.body.retro.metricsBySource.gsc, 42);
+  assert.equal(retroRes.body.retro.metricsBySource.posthog, 'NO DATA');
+  assert.equal(retroRes.body.retro.metricsBySource.github, 'NO DATA');
+  assert.match(retroRes.body.retro.markdown, /\*\*gsc\*\*: 42/);
+  assert.match(retroRes.body.retro.markdown, /\*\*posthog\*\*: NO DATA/);
+  assert.match(retroRes.body.retro.markdown, /\*\*github\*\*: NO DATA/);
+});
+
+test('009-marketing-finance-link enforces PG 16 FORCE RLS, campaign-finance link, atomic channel_allocation commit, and atomic rollback on error', async () => {
+  const cols = await db.appPool.query(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'oshal_marketing_campaigns'
+        AND column_name IN ('finance_project_id', 'channel_allocations')
+      ORDER BY 1`,
+  );
+  assert.deepEqual(cols.rows.map((r) => r.column_name), ['channel_allocations', 'finance_project_id']);
+
+  // Apply finance/migrations/007-finance-projects.sql in the same disposable PG 16 DB to prove real cross-table atomic tx + FORCE RLS!
+  const finSqlPath = resolve(pkgDir, '..', 'finance', 'migrations', '007-finance-projects.sql');
+  const finSql = readFileSync(finSqlPath, 'utf8');
+  await db.appPool.query(finSql);
+  await db.appPool.query(finSql);
+
+  const campaigns = loadRouteSubmodule('marketing-campaigns.js');
+  const budget = loadRouteSubmodule('marketing-budget.js');
+  const measure = loadRouteSubmodule('marketing-measure.js');
+
+  const camp = await invokeHandler(campaigns.createCampaign, db.appPool, OWNER_A, {
+    body: { product: 'Open Swarm', name: 'RLS Finance Link Campaign', motion: 'revenue', channels: ['email', 'linkedin'] },
+  });
+  assert.equal(camp.statusCode, 201);
+  const campId = camp.body.campaign.campaign_id;
+
+  // Seed Owner A campaign allocations + matching Finance project, lines, and actuals under FORCE RLS.
+  let finProjId;
+  await asIdentity(db.appPool, { sub: OWNER_A }, async (client) => {
+    await client.query(
+      `UPDATE oshal_marketing_campaigns
+          SET status = 'active', budget_monthly_usd = 1000, channel_allocations = $1::jsonb
+        WHERE campaign_id = $2`,
+      [JSON.stringify({ email: 40000, linkedin: 60000 }), campId],
+    );
+    const p = (await client.query(
+      `INSERT INTO oshal_finance_projects (owner_sub, slug, name, currency, status, budget_cents, external_ref)
+       VALUES ($1,'rls-fin-link','RLS Finance Link Campaign','USD','active',100000,$2) RETURNING project_id`,
+      [OWNER_A, `marketing:campaign:${campId}`],
+    )).rows[0];
+    finProjId = p.project_id;
+    const lEmail = (await client.query(
+      `INSERT INTO oshal_finance_project_lines (owner_sub, project_id, name, channel, budget_cents, committed_cents)
+       VALUES ($1,$2,'Email budget','email',40000,0) RETURNING line_id`,
+      [OWNER_A, finProjId],
+    )).rows[0].line_id;
+    const lLi = (await client.query(
+      `INSERT INTO oshal_finance_project_lines (owner_sub, project_id, name, channel, budget_cents, committed_cents)
+       VALUES ($1,$2,'LinkedIn budget','linkedin',60000,0) RETURNING line_id`,
+      [OWNER_A, finProjId],
+    )).rows[0].line_id;
+    await client.query(
+      `INSERT INTO oshal_finance_project_actuals (owner_sub, project_id, line_id, source, amount_cents, occurred_on)
+       VALUES ($1,$2,$3,'email',15000,'2026-11-20'::date), ($1,$2,$4,'ads',45000,'2026-11-21'::date)`,
+      [OWNER_A, finProjId, lEmail, lLi],
+    );
+    await client.query(
+      `INSERT INTO oshal_marketing_events (user_sub, ts, source, campaign_slug, medium, event, value, meta)
+       VALUES ($1,'2026-11-22T12:00:00Z'::timestamptz,'posthog',$2,'email','conversion',30,'{}'::jsonb),
+              ($1,'2026-11-22T12:00:00Z'::timestamptz,'posthog',$2,'linkedin','conversion',2,'{}'::jsonb)`,
+      [OWNER_A, camp.body.campaign.slug],
+    );
+  });
+
+  // Owner B gets 404 on link & summary; Owner A links & reads live summary.
+  assert.equal((await invokeHandler(budget.linkCampaignFinanceProject, db.appPool, OWNER_B, { params: { id: campId }, body: { financeProjectId: finProjId } })).statusCode, 404);
+  assert.equal((await invokeHandler(budget.getCampaignBudgetSummary, db.appPool, OWNER_B, { params: { id: campId } })).statusCode, 404);
+
+  const linked = await invokeHandler(budget.linkCampaignFinanceProject, db.appPool, OWNER_A, {
+    params: { id: campId }, body: { financeProjectId: finProjId },
+  });
+  assert.equal(linked.statusCode, 200);
+  const sum = await invokeHandler(budget.getCampaignBudgetSummary, db.appPool, OWNER_A, { params: { id: campId } });
+  assert.equal(sum.statusCode, 200);
+  assert.equal(sum.body.linkedSummary.totalBudgetCents, 100000);
+  assert.equal(sum.body.linkedSummary.totalActualCents, 60000);
+  assert.equal(sum.body.linkedSummary.totalVarianceCents, 40000);
+
+  // Generate reallocation proposal from real Finance actuals + marketing conversions.
+  const propRes = await invokeHandler(budget.generateCampaignReallocationProposals, db.appPool, OWNER_A, {
+    params: { id: campId }, body: {},
+  });
+  assert.equal(propRes.statusCode, 201);
+  const entryId = propRes.body.proposals[0].entry_id;
+
+  // Real PG 16 atomic rollback proof: inject a hook failure mid-transaction and prove BOTH ledgers stay untouched!
+  const rollbackRes = { statusCode: 200, body: undefined, status(c) { this.statusCode = c; return this; }, json(p) { this.body = p; return this; } };
+  await assert.rejects(
+    measure.decideBudgetProposal(
+      {
+        pool: makeStampedPool(db.appPool, OWNER_A),
+        applyFinanceAllocationLines: async () => { throw new Error('forced_tx_failure'); },
+      },
+      OWNER_A,
+      { params: { id: entryId }, body: { decision: 'approve', confirm: true } },
+      rollbackRes,
+    ),
+    /forced_tx_failure/,
+  );
+  await asIdentity(db.appPool, { sub: OWNER_A }, async (client) => {
+    const pRow = (await client.query('SELECT status FROM oshal_marketing_budget_ledger WHERE entry_id = $1', [entryId])).rows[0];
+    const cRow = (await client.query('SELECT channel_allocations FROM oshal_marketing_campaigns WHERE campaign_id = $1', [campId])).rows[0];
+    assert.equal(pRow.status, 'proposed', 'PG ROLLBACK keeps budget ledger proposed');
+    assert.deepEqual(cRow.channel_allocations, { email: 40000, linkedin: 60000 }, 'PG ROLLBACK keeps campaign allocations unchanged');
+  });
+
+  // Real PG 16 atomic commit proof: approving updates campaign, oshal_finance_project_lines, and budget ledger in one tx!
+  const committed = await invokeHandler(measure.decideBudgetProposal, db.appPool, OWNER_A, {
+    params: { id: entryId }, body: { decision: 'approve', confirm: true },
+  });
+  assert.equal(committed.statusCode, 200);
+  assert.equal(committed.body.proposal.status, 'applied');
+  assert.equal(committed.body.financeSynced, true);
+  assert.deepEqual(committed.body.allocations, { email: 52000, linkedin: 48000 });
+
+  await asIdentity(db.appPool, { sub: OWNER_A }, async (client) => {
+    const lines = (await client.query('SELECT channel, budget_cents FROM oshal_finance_project_lines WHERE project_id = $1 ORDER BY channel', [finProjId])).rows;
+    assert.deepEqual(lines.map((r) => [r.channel, Number(r.budget_cents)]), [['email', 52000], ['linkedin', 48000]]);
+  });
+});
+
+test('0.6.9 P5 attribution: enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_conversions, first-touch sign-up -> purchase inheritance, delivery engagement & NO DATA', { timeout: 60000 }, async () => {
+  const campaigns = loadRouteSubmodule('marketing-campaigns.js');
+  const optin = loadRouteSubmodule('marketing-optin.js');
+  const broadcast = loadRouteSubmodule('marketing-broadcast.js');
+  const attribution = loadRouteSubmodule('marketing-attribution.js');
+
+  // Verify ENABLE + FORCE ROW LEVEL SECURITY on oshal_marketing_conversions.
+  const rlsMeta = (await db.admin.query(
+    `SELECT relrowsecurity, relforcerowsecurity
+       FROM pg_class
+      WHERE relname = 'oshal_marketing_conversions' AND relnamespace = 'public'::regnamespace`,
+  )).rows[0];
+  assert.equal(rlsMeta.relrowsecurity, true, 'oshal_marketing_conversions ENABLE RLS');
+  assert.equal(rlsMeta.relforcerowsecurity, true, 'oshal_marketing_conversions FORCE RLS');
+
+  // Owner A creates two campaigns: launch-alpha and quiet-beta.
+  const alphaRes = await invokeHandler(campaigns.createCampaign, db.appPool, OWNER_A, {
+    body: { product: 'Open Swarm', name: 'Launch Alpha', slug: 'launch-alpha', motion: 'revenue', channels: ['email'] },
+  });
+  const betaRes = await invokeHandler(campaigns.createCampaign, db.appPool, OWNER_A, {
+    body: { product: 'Open Swarm', name: 'Quiet Beta', slug: 'quiet-beta', motion: 'adoption', channels: [] },
+  });
+  assert.equal(alphaRes.statusCode, 201);
+  assert.equal(betaRes.statusCode, 201);
+  const alphaId = alphaRes.body.campaign.campaign_id;
+
+  // Create sign-up form and submit a contact with UTM params -> automatic first-touch signup conversion.
+  const formRes = await invokeHandler(optin.createSignupForm, db.appPool, OWNER_A, {
+    body: { slug: 'p5-rls-waitlist', name: 'P5 RLS Waitlist', consentText: 'Yes, send updates.' },
+  });
+  assert.equal(formRes.statusCode, 201);
+  const submitRes = await invokeHandler(optin.submitSignupForm, db.appPool, OWNER_A, {
+    params: { slug: 'p5-rls-waitlist' },
+    body: {
+      email: 'p5-rls-buyer@example.com',
+      displayName: 'P5 Buyer',
+      utm_campaign: 'launch-alpha',
+      utm_medium: 'email',
+      utm_source: 'newsletter',
+      returnPreviewLink: true,
+    },
+  });
+  assert.equal(submitRes.statusCode, 200);
+  const contactId = submitRes.body.preview.contactId;
+
+  // Confirm opt-in -> must NOT create a duplicate signup conversion row.
+  const confRes = await invokeHandler(optin.confirmOptIn, db.appPool, OWNER_A, {
+    body: { token: submitRes.body.preview.token },
+  });
+  assert.equal(confRes.statusCode, 200);
+
+  // Record a purchase conversion for contactId WITHOUT explicit campaignSlug -> inherits launch-alpha!
+  const purchRes = await invokeHandler(attribution.recordConversion, db.appPool, OWNER_A, {
+    body: { kind: 'purchase', contactId, amountCents: 4900, referenceId: 'rls-ord-49' },
+  });
+  assert.equal(purchRes.statusCode, 201);
+  assert.equal(purchRes.body.firstTouchApplied, true);
+  assert.equal(purchRes.body.conversion.campaign_slug, 'launch-alpha');
+  assert.equal(purchRes.body.conversion.medium, 'email');
+  assert.equal(Number(purchRes.body.conversion.amount_cents), 4900);
+
+  // Seed attributed event + one sent delivery under launch-alpha, then fire clicked + bounced events.
+  let deliveryId;
+  await asIdentity(db.appPool, { sub: OWNER_A }, async (client) => {
+    await client.query(
+      `INSERT INTO oshal_marketing_events (user_sub, ts, source, campaign_slug, medium, event, value, meta)
+       VALUES ($1, now(), 'gsc', 'launch-alpha', 'organic', 'clicks', 33, '{}'::jsonb)`,
+      [OWNER_A],
+    );
+    const listId = (await client.query(
+      `INSERT INTO oshal_marketing_lists (owner_sub, slug, name)
+       VALUES ($1, 'p5-rls-list', 'P5 RLS List') RETURNING list_id`,
+      [OWNER_A],
+    )).rows[0].list_id;
+    const msgId = (await client.query(
+      `INSERT INTO oshal_marketing_messages
+         (owner_sub, campaign_id, list_id, template_id, subject, body, status, signing_secret)
+       VALUES ($1, $2, $3, 'launch', 'Launch Alpha', 'Now live', 'sent', '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')
+       RETURNING message_id`,
+      [OWNER_A, alphaId, listId],
+    )).rows[0].message_id;
+    deliveryId = (await client.query(
+      `INSERT INTO oshal_marketing_deliveries
+         (owner_sub, message_id, contact_id, email_hash, status, gate_reason)
+       VALUES ($1, $2, $3, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'sent', 'sent')
+       RETURNING delivery_id`,
+      [OWNER_A, msgId, contactId],
+    )).rows[0].delivery_id;
+  });
+
+  // Owner B cannot read conversions (even with operator=on!), cannot record on Owner A's contact, cannot post delivery event!
+  await asIdentity(db.appPool, { sub: OWNER_B, operator: true }, async (client) => {
+    const leaked = (await client.query('SELECT * FROM oshal_marketing_conversions')).rows;
+    assert.equal(leaked.length, 0, 'exact-owner FORCE RLS blocks Owner B and operator bypass on conversions');
+  });
+  await asIdentity(db.appPool, null, async (client) => {
+    const leakedUnset = (await client.query('SELECT * FROM oshal_marketing_conversions')).rows;
+    assert.equal(leakedUnset.length, 0, 'unset oshal.current_sub sees zero conversions');
+  });
+  assert.equal((await invokeHandler(attribution.recordConversion, db.appPool, OWNER_B, { body: { kind: 'purchase', contactId, amountCents: 100 } })).statusCode, 404);
+  assert.equal((await invokeHandler(attribution.recordDeliveryEvent, db.appPool, OWNER_B, { params: { deliveryId }, body: { event: 'clicked' } })).statusCode, 404);
+
+  // Owner A records clicked + bounced delivery events -> bounce auto-creates suppression!
+  const clickRes = await invokeHandler(attribution.recordDeliveryEvent, db.appPool, OWNER_A, {
+    params: { deliveryId }, body: { event: 'clicked' },
+  });
+  assert.equal(clickRes.statusCode, 200);
+  assert.equal(clickRes.body.suppressed, false);
+
+  const bounceRes = await invokeHandler(attribution.recordDeliveryEvent, db.appPool, OWNER_A, {
+    params: { deliveryId }, body: { event: 'bounced', reason: '550_unknown_user' },
+  });
+  assert.equal(bounceRes.statusCode, 200);
+  assert.equal(bounceRes.body.suppressed, true);
+
+  // Verify Owner A funnel counts and Owner B funnel isolation.
+  const funnelA = await invokeHandler(attribution.getAttributionFunnel, db.appPool, OWNER_A, { query: {} });
+  assert.equal(funnelA.statusCode, 200);
+  const alpha = funnelA.body.campaigns.find((c) => c.campaignSlug === 'launch-alpha');
+  const beta = funnelA.body.campaigns.find((c) => c.campaignSlug === 'quiet-beta');
+  assert.equal(alpha.traffic.visits, 33);
+  assert.equal(alpha.conversions.signups, 1);
+  assert.equal(alpha.conversions.purchases, 1);
+  assert.equal(alpha.conversions.revenueCents, 4900);
+  assert.equal(alpha.engagement.status, 'ok');
+  assert.equal(alpha.engagement.delivered, 1);
+  assert.equal(alpha.engagement.clicked, 1);
+  assert.equal(alpha.engagement.bounced, 1);
+  assert.equal(beta.engagement.status, 'NO DATA');
+
+  const funnelB = await invokeHandler(attribution.getAttributionFunnel, db.appPool, OWNER_B, { query: {} });
+  assert.equal(funnelB.statusCode, 200);
+  assert.equal(funnelB.body.campaigns.length, 0);
+  assert.equal(funnelB.body.totals.revenueCents, 0);
+  assert.ok(broadcast);
+});
+
+test('0.6.10 P4 SMS consent & quiet hours: enforcing-role PG 16 exact-owner FORCE RLS on oshal_marketing_sms_queue, unconsented 403 refusal, quiet-hours hold, STOP suppression & cross-owner isolation', { timeout: 60000 }, async () => {
+  const sms = loadRouteSubmodule('marketing-sms.js');
+
+  const rlsMeta = (await db.admin.query(
+    `SELECT relrowsecurity, relforcerowsecurity, pg_get_userbyid(relowner) AS owner
+       FROM pg_class
+      WHERE relname = 'oshal_marketing_sms_queue' AND relnamespace = 'public'::regnamespace`,
+  )).rows[0];
+  assert.equal(rlsMeta.owner, db.role, 'oshal_marketing_sms_queue owned by enforcing role');
+  assert.equal(rlsMeta.relrowsecurity, true, 'oshal_marketing_sms_queue ENABLE RLS');
+  assert.equal(rlsMeta.relforcerowsecurity, true, 'oshal_marketing_sms_queue FORCE RLS');
+
+  const pol = (await db.appPool.query(
+    `SELECT qual, with_check FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = 'oshal_marketing_sms_queue'`,
+  )).rows;
+  assert.equal(pol.length, 1);
+  assert.match(pol[0].qual, /oshal\.current_sub/);
+  assert.doesNotMatch(pol[0].qual, /is_operator/);
+  assert.doesNotMatch(pol[0].with_check, /is_operator/);
+
+  // Unconsented contact is REFUSED 403 sms_consent_required and writes a refused_consent audit row.
+  const bareContact = await invokeHandler(audience.upsertContact, db.appPool, OWNER_A, {
+    body: { email: 'sms-unconsented@example.com', displayName: 'No SMS Consent' },
+  });
+  assert.equal(bareContact.statusCode, 201);
+  const bareId = bareContact.body.contact.contact_id;
+  const refused = await invokeHandler(sms.scheduleSmsMessage, db.appPool, OWNER_A, {
+    body: { contactId: bareId, body: 'Should never send', nowIso: '2026-11-26T18:00:00Z' },
+  });
+  assert.equal(refused.statusCode, 403);
+  assert.equal(refused.body.error, 'sms_consent_required');
+
+  // Record complete TCPA/CTIA SMS opt-in with NANP 415 area code (inferred America/Los_Angeles).
+  const optIn = await invokeHandler(sms.recordSmsOptIn, db.appPool, OWNER_A, {
+    body: {
+      email: 'sms-rls@example.com',
+      displayName: 'SMS RLS Contact',
+      phoneE164: '+14155550199',
+      programName: 'Open Swarm Alerts',
+      disclosureText: 'I agree to receive recurring Open Swarm SMS alerts. Consent not required to buy.',
+      frequency: 'Up to 4 msgs/month',
+      helpText: 'Reply HELP for support',
+      stopText: 'Reply STOP to cancel',
+      feeDisclosure: 'Msg & data rates may apply',
+      recordedAt: '2026-11-25T18:00:00Z',
+    },
+  });
+  assert.equal(optIn.statusCode, 201);
+  assert.equal(optIn.body.timezone, 'America/Los_Angeles');
+  assert.equal(optIn.body.timezoneInferred, true);
+  assert.match(optIn.body.confirmationText, /Open Swarm Alerts/);
+  assert.match(optIn.body.confirmationText, /HELP/);
+  assert.match(optIn.body.confirmationText, /STOP/);
+  const smsContactId = optIn.body.contact.contact_id;
+
+  // 10:00 p.m. Pacific (2026-11-26T06:00:00Z) -> HELD until next 08:00 Pacific (2026-11-26T16:00:00.000Z).
+  const held = await invokeHandler(sms.scheduleSmsMessage, db.appPool, OWNER_A, {
+    body: { contactId: smsContactId, body: 'Late-night launch text', nowIso: '2026-11-26T06:00:00Z' },
+  });
+  assert.equal(held.statusCode, 202);
+  assert.equal(held.body.status, 'held_quiet_hours');
+  assert.equal(held.body.releaseAt, '2026-11-26T16:00:00.000Z');
+  assert.equal(held.body.recipientTimezone, 'America/Los_Angeles');
+  assert.equal(held.body.timezoneInferred, true);
+
+  // 10:00 a.m. Pacific (2026-11-26T18:00:00Z) -> READY (200).
+  const ready = await invokeHandler(sms.scheduleSmsMessage, db.appPool, OWNER_A, {
+    body: { contactId: smsContactId, body: 'Daytime launch text', nowIso: '2026-11-26T18:00:00Z' },
+  });
+  assert.equal(ready.statusCode, 200);
+  assert.equal(ready.body.status, 'ready');
+
+  // Exact-owner FORCE RLS: Owner B, operator=on, and unstamped connections read ZERO rows from oshal_marketing_sms_queue!
+  for (const probe of [{ sub: OWNER_B }, { sub: OWNER_B, operator: true }, { sub: '', operator: true }, null]) {
+    await asIdentity(db.appPool, probe, async (client) => {
+      const leaked = (await client.query('SELECT * FROM oshal_marketing_sms_queue')).rows;
+      assert.equal(leaked.length, 0, `oshal_marketing_sms_queue must return 0 rows for ${JSON.stringify(probe)}`);
+    });
+  }
+  await assert.rejects(
+    asIdentity(db.appPool, { sub: OWNER_B }, (client) => client.query(
+      `INSERT INTO oshal_marketing_sms_queue
+         (owner_sub, contact_id, phone_hash, body, recipient_timezone, status, scheduled_for)
+       VALUES ($1,$2,'0000000000000000000000000000000000000000000000000000000000000000','spoof','America/New_York','ready',now())`,
+      [OWNER_A, smsContactId],
+    )),
+    /row-level security policy/i,
+  );
+  assert.equal((await invokeHandler(sms.listSmsQueue, db.appPool, OWNER_B, {})).body.items.length, 0);
+  assert.equal((await invokeHandler(sms.scheduleSmsMessage, db.appPool, OWNER_B, { body: { contactId: smsContactId, body: 'Hijack' } })).statusCode, 404);
+  assert.equal((await invokeHandler(sms.processSmsKeyword, db.appPool, OWNER_B, { body: { contactId: smsContactId, body: 'STOP' } })).statusCode, 404);
+
+  // STOP suppresses phone hash, revokes SMS consent, cancels held queue item, and blocks subsequent sends (403).
+  const stopRes = await invokeHandler(sms.processSmsKeyword, db.appPool, OWNER_A, {
+    body: { contactId: smsContactId, body: '  stop  ' },
+  });
+  assert.equal(stopRes.statusCode, 200);
+  assert.equal(stopRes.body.action, 'stop');
+  assert.equal(stopRes.body.suppressed, true);
+  assert.equal(stopRes.body.revokedConsents, 1);
+  assert.equal(stopRes.body.cancelledQueueItems, 1);
+
+  const afterStop = await invokeHandler(sms.scheduleSmsMessage, db.appPool, OWNER_A, {
+    body: { contactId: smsContactId, body: 'After STOP', nowIso: '2026-11-26T18:00:00Z' },
+  });
+  assert.equal(afterStop.statusCode, 403);
+  assert.equal(afterStop.body.error, 'sms_suppressed');
+
+  // Re-opting in a suppressed phone is refused 409!
+  const reOpt = await invokeHandler(sms.recordSmsOptIn, db.appPool, OWNER_A, {
+    body: {
+      email: 'sms-rls@example.com', phoneE164: '+14155550199',
+      programName: 'Open Swarm Alerts', disclosureText: 'Re-opt attempt',
+      frequency: 'Up to 4 msgs/month', helpText: 'Reply HELP', stopText: 'Reply STOP',
+      feeDisclosure: 'Msg & data rates may apply', recordedAt: '2026-11-26T19:00:00Z',
+    },
+  });
+  assert.equal(reOpt.statusCode, 409);
+  assert.equal(reOpt.body.error, 'sms_suppressed');
 });

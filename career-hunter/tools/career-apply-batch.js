@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25): the panel's advance is batch work (careerBatch through CareerSubmit.request's {batch:true}) and keeps its own waiting while Career is busy; the person's own presses wait to save like any change (tools/career-pending-writes.js). Guard: tests/career-concurrent-writes.test.mjs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH, store gate: a job in the queue reads In line before it starts and Waiting for you while the run waits for him (Needs you is a retired stage name, tests/career-words.test.mjs); the counts say N waiting for you and N in line. A queue read that fails while the panel moves the queue on is tried again on the next tick and no longer written into the page's status line, where it replaced what the page had just said (New matches' Saved: after a swipe); only a press says its error.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH (Roger, 2026-11-21: "i really need to be able to post 200 resumes by monday ... these local jobs will fill up fast"): Fill in several on my Chrome, on My jobs and on a job's page. The approval sheet lists each selected job with its company, title, files (the résumé for upload forms is the one uploaded), site and engine, says How Career fills it in and what it does in his name once for the whole batch, says in words that one batch holds at most 50 jobs, and says how many selected jobs still need documents with Prepare them; Approve and start approves each job's own packet (POST /apply-batch, a few at a time) and starts the first. The queue panel shows each job's state and one line (In line, Filling in, Waiting for you, Ready for you, Submitted, Skipped, Failed), the counts, and Next job, Skip this job, Pause the queue, Go on, Stop the queue, Approve again and Clear; it moves the queue on (POST /apply-batch/advance) every few seconds while it runs, hands what he kept on a question card to Career, and stops the job on his computer through the kernel's own confirmed ticket cancel before Skip, Next job or Stop, which leaves its Chrome tab open.
  */
@@ -7,7 +8,7 @@
  const WORD={waiting:'In line',filling:'Filling in','needs-you':'Waiting for you',ready:'Ready for you',submitted:'Submitted',skipped:'Skipped',failed:'Failed'};
  const DOCUMENT={'resume-docx':'Résumé for upload forms (Word), uploaded','resume-pdf':'Résumé (PDF)','cover-pdf':'Cover letter (PDF)'};
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const request=(path,body)=>window.CareerSubmit.request(path,body);
+ const request=(path,body,options)=>window.CareerSubmit.request(path,body,options);
  const plural=(n,one,many)=>n+' '+(n===1?one:many);
  /** @description Whether his Job Apply computer can fill in forms (it reports browser-apply). @param {object|null} availability CareerSubmit.workers(). @returns {{ready:boolean,name:string}} */
  const device=availability=>window.CareerApplyAssist?CareerApplyAssist.device(availability):{ready:false,name:''};
@@ -79,7 +80,7 @@
    const answer=await request('/apply-batch',{jobs:ok.slice(at,at+CHUNK).map(({packet})=>({postingId:packet.postingId,packetDigest:packet.packetDigest})),approved:true});
    refused.push(...answer.refused);queue=answer.queue;
   }
-  if(queue)queue=(await request('/apply-batch/advance',{})).queue||queue;
+  if(queue)queue=(await request('/apply-batch/advance',{},{batch:true})).queue||queue;
   return {queue,refused};
  }
  /**
@@ -160,7 +161,7 @@
   async function tick(){
    clearTimeout(timer);if(busy)return;busy=true;
    // A read that fails is tried again on the next tick and never written over the page's own status line.
-   try{if(!moving())queue=await read();if(moving())queue=(await request('/apply-batch/advance',{})).queue;if(moving()&&queue.current)await handCards();}
+   try{if(!moving())queue=await read();if(moving())queue=(await request('/apply-batch/advance',{},{batch:true})).queue;if(moving()&&queue.current)await handCards();}
    catch(error){console.warn('career: fill-in queue unread',error.message);}
    finally{busy=false;}
    draw();if(moving())timer=setTimeout(tick,EVERY);

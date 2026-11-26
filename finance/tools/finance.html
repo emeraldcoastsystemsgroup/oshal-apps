@@ -41,6 +41,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: spending categories read as words ("Transfers out", "Loan payments") in the bank page and the household and company views, never the bank's codes (judge defect 11).
   7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: Request analysis may be answered at once while the analyst works after the press (Roger, 2026-11-14: "yes background analysis"). The panel then says the analyst is working, above the earlier analysis, which stays until the new one is saved; the page asks every five seconds and shows the new analysis when it is saved, or the reason in words when nothing was. Opening the page while a request is working shows the same, and a request that failed after the saved analysis says so once the page opens. A server that answers with the analysis itself is shown as before.
   8 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: show a direct Reconnect in Bank connections link when Sync reports plaid_reconnect_needed while keeping the saved snapshot visible, and show Last synced freshness and expired-login reconnect guidance on ?view=banks.
+  9 | maintainer@emeraldcoastsystemsgroup.com | 1.8.5: add the owner-scoped Finance Projects pane (budget, allocation lines, multi-source actuals, and variance rollups) powered by /api/finance/p/static/finance-projects.js with responsive desktop/phone layout and zero horizontal overflow.
 -->
 
 <script>try{if(window.parent!==window)document.documentElement.classList.add('in-shell');}catch(_){document.documentElement.classList.add('in-shell');}</script>
@@ -245,6 +246,24 @@ function financeTransactionCoverage(a) {
   th .ks-sort { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px; min-height:44px; font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; }
   th[aria-sort] .ks-sort { color:var(--accent); }
   .cols { display:block; }
+  .proj-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .proj-head h2 { margin:0; }
+  .proj-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-bottom:12px; }
+  .proj-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .proj-field label { font-size:12px; line-height:16px; color:var(--muted); font-weight:600; }
+  .proj-field input, .proj-field select { width:100%; min-width:0; min-height:44px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); color:var(--text); font:inherit; }
+  .proj-list { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+  .proj-pill { border:1px solid var(--line); background:var(--panel2); color:var(--text); border-radius:10px; padding:8px 12px; min-height:44px; cursor:pointer; font:inherit; font-size:14px; display:inline-flex; align-items:center; gap:8px; max-width:100%; }
+  .proj-pill[aria-pressed="true"] { border-color:var(--accent); }
+  .proj-badge { display:inline-flex; align-items:center; border-radius:12px; padding:2px 8px; font-size:12px; line-height:16px; font-weight:600; background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .proj-badge.over { border-color:var(--danger); color:var(--danger); }
+  .proj-subpanel { border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:12px; background:var(--panel2); min-width:0; }
+  .proj-subpanel h3 { font-size:15px; line-height:22px; margin:0 0 10px; }
+  .proj-table-wrap { width:100%; overflow-x:auto; max-width:100%; }
+  .proj-actual-list { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .proj-actual-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+  .proj-actual-meta { font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
+  .proj-actions-inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   @media (min-width:1040px) {
     .page { max-width:1200px; }
     .cols { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; align-items:start; }
@@ -265,7 +284,9 @@ function financeTransactionCoverage(a) {
     table.accounts .acct-inst-line { display:block; color:var(--muted); font-size:12px; line-height:16px; }
     table.accounts td.num { white-space:nowrap; }
     /* Inputs: keep font-size >= 16px to prevent iOS zoom */
-    input { font-size:16px !important; }
+    input, select { font-size:16px !important; }
+    .proj-grid { grid-template-columns:1fr; }
+    .proj-table-wrap table { min-width:0; }
     .sub { font-size:14px; }
   }
 </style>
@@ -293,6 +314,69 @@ function financeTransactionCoverage(a) {
   </section>
   <section class="panel connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
   <div id="main" data-ds-work><div class="spin"><span class="dot"></span> Loading…</div></div>
+  <section class="panel" id="projectsPanel" aria-label="Finance projects">
+    <div class="proj-head">
+      <div>
+        <h2>Projects</h2>
+        <div class="sub" style="margin:0">Track project budgets, channel allocations, and actual spend across sources.</div>
+      </div>
+      <span class="proj-badge" id="projectsCountBadge">0 projects</span>
+    </div>
+    <form id="projectForm" novalidate>
+      <div class="proj-grid">
+        <div class="proj-field"><label for="projectName">Project name</label><input id="projectName" name="name" maxlength="120" placeholder="Q4 Launch Budget" required /></div>
+        <div class="proj-field"><label for="projectBudget">Budget (USD)</label><input id="projectBudget" name="budget" inputmode="decimal" placeholder="1000.00" /></div>
+        <div class="proj-field"><label for="projectExternalRef">External reference (optional)</label><input id="projectExternalRef" name="externalRef" maxlength="200" placeholder="marketing:campaign:id" /></div>
+      </div>
+      <div class="proj-actions-inline">
+        <button class="btn primary" id="projectSubmitBtn" type="submit">Create project</button>
+        <span id="projectFormStatus" class="sub" role="status" aria-live="polite" style="margin:0"></span>
+      </div>
+    </form>
+    <div id="projectList" class="proj-list" role="region" aria-label="Saved finance projects"></div>
+    <div id="projectDetail" hidden>
+      <div class="proj-head" style="margin-top:8px">
+        <div>
+          <h3 id="projectDetailTitle" style="margin:0;font-size:17px"></h3>
+          <div id="projectDetailMeta" class="proj-actual-meta"></div>
+        </div>
+        <span id="projectOverBadge" class="proj-badge over" hidden>Over budget</span>
+      </div>
+      <div class="stats" id="projectSummaryCards"></div>
+      <div class="proj-subpanel">
+        <h3>Budget allocation lines</h3>
+        <form id="projectLineForm" novalidate>
+          <div class="proj-grid">
+            <div class="proj-field"><label for="lineName">Line name</label><input id="lineName" name="name" maxlength="120" placeholder="Email outreach" required /></div>
+            <div class="proj-field"><label for="lineChannel">Channel</label><input id="lineChannel" name="channel" maxlength="40" placeholder="email" value="general" /></div>
+            <div class="proj-field"><label for="lineBudget">Budget (USD)</label><input id="lineBudget" name="budget" inputmode="decimal" placeholder="400.00" /></div>
+            <div class="proj-field"><label for="lineCommitted">Committed (USD)</label><input id="lineCommitted" name="committed" inputmode="decimal" placeholder="0.00" /></div>
+          </div>
+          <button class="btn ghost" id="lineSubmitBtn" type="submit">Add allocation line</button>
+        </form>
+        <div class="proj-table-wrap" style="margin-top:10px">
+          <table id="projectLinesTable">
+            <thead><tr><th>Line</th><th>Channel</th><th class="num">Budget</th><th class="num">Committed</th><th class="num">Actual</th><th class="num">Variance</th></tr></thead>
+            <tbody id="projectLinesBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="proj-subpanel">
+        <h3>Record actual spend</h3>
+        <form id="projectActualForm" novalidate>
+          <div class="proj-grid">
+            <div class="proj-field"><label for="actualLine">Allocation line</label><select id="actualLine" name="lineId"></select></div>
+            <div class="proj-field"><label for="actualSource">Source</label><select id="actualSource" name="source"><option value="manual">Manual</option><option value="plaid">Plaid</option><option value="ads">Ads</option><option value="sms">SMS</option><option value="email">Email</option><option value="invoice">Invoice</option></select></div>
+            <div class="proj-field"><label for="actualAmount">Amount (USD)</label><input id="actualAmount" name="amount" inputmode="decimal" placeholder="125.00" required /></div>
+            <div class="proj-field"><label for="actualDate">Date</label><input id="actualDate" name="occurredOn" type="date" /></div>
+            <div class="proj-field"><label for="actualNote">Note</label><input id="actualNote" name="note" maxlength="200" placeholder="Campaign spend or invoice ref" /></div>
+          </div>
+          <button class="btn ghost" id="actualSubmitBtn" type="submit">Record actual</button>
+        </form>
+        <ul id="projectActualsList" class="proj-actual-list"></ul>
+      </div>
+    </div>
+  </section>
 </div>
 
 <!-- Plaid Link (loaded lazily only when the user clicks Connect a bank). -->
@@ -707,5 +791,6 @@ function settleHandOnNotice(status,d){
 /* hand-on-notice:end */
 ['reviewTitle','reviewNotes'].forEach(id=>field(id).addEventListener('input',()=>settleHandOnNotice(element.querySelector('[role="status"]'),draft())));
 </script>
+<script src="/api/finance/p/static/finance-projects.js" defer></script>
 </body>
 </html>

@@ -8,7 +8,7 @@ The requested editable CAD/SOLIDWORKS workflow is specified in the
 without relabeling the current scan meshes as parametric CAD. CAD-01 owns the
 cross-studio acceptance for B4; the remaining scan input/print rows stay here.
 
-## B1 — Depth-image upload lane (real LiDAR / ToF range images)
+## B1 — Depth-image upload lane (real LiDAR / ToF range images) — DONE (0.10.2)
 
 `carveDepth` and the `DepthMap` contract are shipped and exercised with the simulated sensor. What
 is missing is an **input** for a real device's range image.
@@ -46,7 +46,7 @@ As built:
 Evidence: `tests/engine-depth-upload.test.js` (5 cases: decoding, refusals),
 `tests/depth.core.test.js` (3 HTTP cases, framework-coupled; see B8 for the cavity over HTTP), and `tests/quick-wins-b1-b4-b9-b11-b13.test.js` (UI controls and upload wiring).
 
-## B2 — Perspective range images → canonical orthographic view
+## B2 — Perspective range images → canonical orthographic view — DONE (engine)
 
 Phone depth cameras deliver perspective range images. The engine's contract is orthographic in a
 canonical view.
@@ -80,7 +80,7 @@ march step). Both depth kinds pass, and a mislabelled depth kind fails that agre
 500 pixels. The spec also covers view selection, dropped-and-counted samples, determinism and
 RangeError refusals. Registered as `engine-depth-reproject`.
 
-## B3 — ArUco / known-size fiducial for automatic scale
+## B3 — ArUco / known-size fiducial for automatic scale — DONE in 0.10.4 (measurement reconciliation open)
 
 Today the person enters ruler measurements. A printed fiducial of known size in the frame would
 set the scale without typing.
@@ -127,7 +127,7 @@ review. A contradictory multi-axis fixture must expose the mismatch without a
 manufacturing accuracy claim; CAD-04 separately proves an explicit editable resize
 by independent reimport of the intended 80 x 40 x 30 mm geometry.
 
-## B4 — Artifact exchange as a SOURCE
+## B4 — Artifact exchange as a SOURCE — DONE in 0.10.2
 
 The package accepts images via "Send to…". It does not yet offer its STL / SVG / OBJ to the
 picker.
@@ -144,7 +144,7 @@ jobs only, excluding drafts and other owners' jobs.
 
 Evidence: `tests/quick-wins-b1-b4-b9-b11-b13.test.js` and `tests/catalog-bindings.test.js`.
 
-## B5 — Print progress read-back
+## B5 — Print progress read-back — DONE in 0.10.3
 
 Submission rows record the host's answer at upload time only.
 
@@ -167,7 +167,7 @@ Evidence: `tests/wave-c2-b5-b7-b12.test.js` (4 B5 cases covering unit adapter ex
 OctoPrint/Moonraker/Bambu route read-back, bounded timeout/offline/failed-row guards, and surface
 `printing 43 %` rendering) and `tests/catalog-bindings.test.js`.
 
-## B6 — Store-side execution of the framework-coupled route suite
+## B6 — Store-side execution of the framework-coupled route suite — DONE in 0.10.5
 
 `tests/routes.core.test.js` needs a core checkout and is excluded from the store-CI wildcard.
 
@@ -193,7 +193,7 @@ fails a PR.
   pass 8/8 cases and were red-verified to exit non-zero on a failing assertion in
   `tests/routes.core.test.js`.
 
-## B7 — Base sealing for one-sided point-cloud scans
+## B7 — Base sealing for one-sided point-cloud scans — DONE in 0.4.0 (hardened in 0.10.3)
 
 A phone LiDAR scan of an object on a table has no underside, so the flood fill leaks and the lane
 reports `closed: false`. The object rests on the bed plane, which is a fact the engine can use.
@@ -216,7 +216,7 @@ the base face is an assumption, and `tools/scan-to-print.html` exposes `#pointcl
 Cases: `engine-depth-lidar` (three), `routes-core` (one), and `wave-c2-b5-b7-b12` (three), all
 registered in `tests/test-lab.yaml`.
 
-## B8 — Hull + depth fusion in one job
+## B8 — Hull + depth fusion in one job — DONE
 
 `refineWithDepth` exists but nothing calls it from a job: the photo hull and a depth map cannot yet
 meet on the same grid.
@@ -241,7 +241,7 @@ Evidence:
   π·14²·45 mm³, over float32 and again over a real 16-bit PNG, which carves the identical volume.
   Refusals and another owner's 404 are covered too.
 
-## B9 — Orientation cube: automatic view assignment
+## B9 — Orientation cube: automatic view assignment — DONE (updated in 0.10.2)
 
 Assigning each photo a view is the last manual step of the photo lane. A printed paper cube with a
 distinct marker on each face, placed beside the object, tells the camera which canonical view it
@@ -291,7 +291,7 @@ Evidence:
   with their reasons. Video frames showing a marker stay unassigned.
 - `tests/quick-wins-b1-b4-b9-b11-b13.test.js` and `tests/catalog-bindings.test.js`: 6-face SVG sheet, single-face SVG sizing, invalid query refusals, and UI link.
 
-## B10 — Consistency solve for registration
+## B10 — Consistency solve for registration — DONE (engine)
 
 Extents propagate greedily from the known dimension through the views; a view whose two axis
 estimates disagree gets their mean. A least-squares fit over all views at once would use every
@@ -330,7 +330,7 @@ What least squares can and cannot do (measured, not assumed):
 Evidence: `tests/engine-registration.test.js`, 5 cases. Registered as `engine-registration`. The
 existing `engine-reconstruction` skewed-view case still passes unchanged.
 
-## B11 — Symmetry completion (opt-in, flagged)
+## B11 — Symmetry completion (opt-in, flagged) — DONE (0.10.2)
 
 Many printed parts are symmetric. When the person asserts a symmetry plane, the visible half can
 be mirrored to complete a view that could not be photographed.
@@ -360,7 +360,7 @@ now accept and persist `symmetry: 'x' | 'y'` (or clear with `'none'`/`null`), `/
 publishes `symmetryAxes: ['x', 'y']`, and `#symmetry` in 3 · Model exposes the Mirror X / Mirror Y
 choice. Evidence: `tests/quick-wins-b1-b4-b9-b11-b13.test.js`.
 
-## B12 — Video: automatic square-on frame suggestion
+## B12 — Video: automatic square-on frame suggestion — DONE (updated in 0.10.3)
 
 Video frames are sampled at a fixed rate and the person picks the square-on ones by eye.
 
@@ -407,7 +407,7 @@ Evidence:
   auto-assigning any view, and `uploadVideo` automatically surfaces the ranked suggestions for
   one-click confirmation (`tests/wave-c2-b5-b7-b12.test.js`, 2 B12 route + surface cases).
 
-## B13 — Printability pre-check beyond topology
+## B13 — Printability pre-check beyond topology — DONE (0.10.2)
 
 `printable` is a topological verdict. A part can be watertight and still have a wall thinner than
 the nozzle or an unsupported overhang.

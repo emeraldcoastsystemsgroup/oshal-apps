@@ -1,5 +1,7 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Bind transient Word model export to existing own document view, read and export permissions without new grants or roles.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind presentations-create-workbook and presentations-send-slack to existing document.view and legacy.access permissions without new grants or roles.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Bind Meeting Recap HTTP routes (/api/presentations/recap/*) strictly under existing document.* and legacy.access permissions without changing resources, permissions, or roles.
 # Original-owned structured Office editing; exact mount paths avoid legacy/editor operation ambiguity.
 version: 1
 resources:
@@ -305,6 +307,46 @@ bindings:
       method: DELETE
       path: /api/presentations/editor/documents/:id/shares/:shareId
       allOf: [document.view, document.read, document.change]
+    - id: recap-app
+      method: GET
+      path: /api/presentations/recap/app
+      allOf: [document.view]
+    - id: recap-assets
+      method: GET
+      path: /api/presentations/recap/assets/:name
+      allOf: [document.view]
+    - id: recap-jobs-list
+      method: GET
+      path: /api/presentations/recap/jobs
+      allOf: [document.view, document.read]
+    - id: recap-jobs-create
+      method: POST
+      path: /api/presentations/recap/jobs
+      allOf: [document.view, document.create, legacy.access]
+    - id: recap-jobs-chunk
+      method: POST
+      path: /api/presentations/recap/jobs/:id/chunk
+      allOf: [document.view, document.change, legacy.access]
+    - id: recap-jobs-run
+      method: POST
+      path: /api/presentations/recap/jobs/:id/run
+      allOf: [document.view, document.change, legacy.access]
+    - id: recap-jobs-read
+      method: GET
+      path: /api/presentations/recap/jobs/:id
+      allOf: [document.view, document.read]
+    - id: recap-jobs-artifact
+      method: GET
+      path: /api/presentations/recap/jobs/:id/artifacts/:name
+      allOf: [document.view, document.read, document.export]
+    - id: recap-jobs-save
+      method: POST
+      path: /api/presentations/recap/jobs/:id/save
+      allOf: [document.view, document.export, legacy.access]
+    - id: recap-jobs-delete
+      method: DELETE
+      path: /api/presentations/recap/jobs/:id
+      allOf: [document.view, document.delete]
   tools:
     - id: presentations-list
       allOf:
@@ -315,6 +357,14 @@ bindings:
         - document.view
         - legacy.access
     - id: presentations-create-document
+      allOf:
+        - document.view
+        - legacy.access
+    - id: presentations-create-workbook
+      allOf:
+        - document.view
+        - legacy.access
+    - id: presentations-send-slack
       allOf:
         - document.view
         - legacy.access

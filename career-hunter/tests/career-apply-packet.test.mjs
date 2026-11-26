@@ -3,6 +3,8 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: a job's location, as Work history saves it on the record, reaches the employer's form in the packet's Word résumé (the parse résumé's Location line under the job's Company, which Workday's Autofill with Resume reads), and a job with none gets no Location line; the work-history rows Career types stay in the closed shape the kernel reads (its Role refuses an unknown key and a Roles group takes only title, employer, current, start, end and description), so no location is typed into one until the kernel takes it.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3: a start the kernel refused for want of a Job Apply computer fails the run's ticket there; Go on binds a fresh ticket and starts the same approved bytes on it, once.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the packet's Word résumé (resume-docx) is the parse résumé: the packet's own Resume_Parse.docx byte for byte, else the real docx_resume.py export-packet --kind parse render with the same digest every time; an executive Resume_ATS.docx beside it is not what is uploaded. Every site's rules upload it (document docx), so Workday's Autofill with Resume and the other sites' résumé fields get the résumé laid out for their parser, the PDF only where a field refuses Word. Red before: the packet carried Resume_ATS.docx and Greenhouse, Lever and Ashby uploaded the PDF.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): a site Career names no engine for is no longer refused; it is the generic site (proved in career-apply-sites.test.mjs), so the refusal case for it and the installation-host case's unnamed host and unknown engine move to that.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the kernel finds the terms box only through a site rule naming slot attest.terms (lane C1): the Workday profile names it on Voluntary Disclosures' terms check box (agreementCheckbox), each one-page site on its terms box; no packet fact is an attest key, since the kernel refuses one and task.attest is the only source.
@@ -17,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { applyHarness, ROLES } from './helpers/career-apply-fixture.mjs';
 
 const require = createRequire(import.meta.url);
@@ -100,6 +103,46 @@ test('only the roles on this job’s résumé are in it, with recorded dates (a 
     { school: 'Example State University', degree: 'MBA', field: null, start: null, end: '2011' },
     { school: 'Sample College', degree: 'BS', field: 'Accounting', start: '2001', end: '2005' }]);
   assert.deepEqual(body.answers, [], 'nothing saved yet, nothing offered');
+});
+
+/** The paragraphs of a Word file as a plain reader sees them (tests/helpers/resume_line_parser.py). */
+function wordLines(bytes, dir) {
+  const file = path.join(dir, 'packet-word.docx'); fs.writeFileSync(file, bytes);
+  const helpers = fileURLToPath(new URL('./helpers', import.meta.url));
+  return JSON.parse(execFileSync(process.env.JOBHUNTER_PYTHON || 'python3', ['-c',
+    'import json,sys; sys.path.insert(0,sys.argv[1]); import resume_line_parser as r; print(json.dumps([l for l in r.docx_lines(sys.argv[2]) if l]))', helpers, file], { encoding: 'utf8' }));
+}
+/** The closed shape the kernel reads a typed work-history row in (crates/oshald/src/node_work/apply_input.rs: Role is
+ * deny_unknown_fields; group_keys names a Roles group's keys). A key outside it refuses the whole approved input. */
+const KERNEL_ROLE = ['current', 'deliverables', 'employer', 'end', 'start', 'title'];
+const KERNEL_ROLE_GROUP = ['current', 'description', 'employer', 'end', 'start', 'title'];
+
+test('a job’s location reaches the form in the packet’s Word résumé, from the record; the rows Career types stay in the kernel’s shape', async () => {
+  // Work history saved where two of her jobs were before this job's documents were made, so its profile snapshot holds them.
+  // (A save after that makes the documents out of date: Fill it in refuses until they are made again.)
+  const dana = h.person('dana-location', { word: null, locations: { r1: 'Springfield, IL', r2: 'Peoria, IL' } });
+  const review = await h.call('GET', '/apply-review/7', null, dana.sub);
+  assert.equal(review.code, 200, JSON.stringify(review.body));
+  const approved = await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: review.body.packetDigest, approved: true }, dana.sub);
+  const input = frozen(dana, approved.body.run.id), lines = wordLines(Buffer.from(input.task.documents[0].base64, 'base64'), dana.dir);
+  const head = (title) => { const n = lines.indexOf('Job Title: ' + title); return lines.slice(n, lines.findIndex((line, i) => i > n && line.startsWith('• '))); };
+  assert.deepEqual(head('Office Manager'), ['Job Title: Office Manager', 'Company: Example Freight Co', 'Location: Springfield, IL', 'Start Date: 04/2019', 'End Date: Present'],
+    'Workday’s Autofill with Resume reads each job’s location from the uploaded résumé');
+  assert.deepEqual(head('Operations Coordinator').slice(2, 3), ['Location: Peoria, IL']);
+  assert.deepEqual(head('Administrative Assistant'), ['Job Title: Administrative Assistant', 'Company: Northwind Traders', 'Start Date: 2012', 'End Date: 2015'], 'a job with none recorded gets no location');
+  for (const role of input.task.roles) assert.ok(Object.keys(role).every((key) => KERNEL_ROLE.includes(key)), 'a typed row holds only the keys the kernel reads: ' + Object.keys(role));
+  assert.equal(JSON.stringify(input.task.roles).includes('Springfield'), false, 'the location is not typed into a work-history row the kernel would refuse');
+  for (const site of fs.readdirSync(new URL('../lib/apply-profiles/', import.meta.url)).filter((name) => name.endsWith('.json'))) {
+    const rules = JSON.parse(fs.readFileSync(new URL('../lib/apply-profiles/' + site, import.meta.url), 'utf8'));
+    for (const group of (rules.groups || []).filter((item) => item.facts === 'roles'))
+      assert.deepEqual(Object.values(group.fields).filter((key) => !KERNEL_ROLE_GROUP.includes(key)), [], site + ': a work-history field maps only keys the kernel accepts');
+  }
+  const later = h.person('dana-location-later', { word: null });
+  const saved = JSON.parse(fs.readFileSync(path.join(later.dir, 'career_db.json'), 'utf8'));
+  saved.roles[0].location = 'Springfield, IL';   // saved on Work history after this job's documents were made
+  fs.writeFileSync(path.join(later.dir, 'career_db.json'), JSON.stringify(saved, null, 2));
+  const outdated = await h.call('GET', '/apply-review/7', null, later.sub);
+  assert.deepEqual([outdated.code, outdated.body.code], [409, 'documents_outdated'], 'documents made before the location was saved are made again before any form is filled');
 });
 
 test('another person, no person, a changed packet and extra fields are refused', async () => {
@@ -228,4 +271,28 @@ test('the terms box is reached only through the site rules’ attest.terms slot;
   }
   const dana = h.person('dana-attest-slots'), { body } = await h.call('GET', '/apply-review/7', null, dana.sub);
   assert.equal(body.facts.some((fact) => fact.slot.startsWith('attest.')), false, 'the kernel refuses an attest fact; task.attest is the only source');
+});
+
+test('a start refused for want of a Job Apply computer fails the ticket; Go on then binds a fresh ticket and starts the same bytes once', async () => {
+  const dana = h.person('dana-refused-device');
+  const { body } = await h.call('GET', '/apply-review/7', null, dana.sub);
+  const { body: { run } } = await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: body.packetDigest, approved: true }, dana.sub);
+  const first = (await h.call('POST', `/apply-runs/${run.id}/bind`, {}, dana.sub)).body.run.nativeTicketId;
+  h.port.refuseStart = Object.assign(Error('Choose your Job Apply computer in Career first.'), { code: 'apply_device_unavailable' });
+  const refused = await h.call('POST', `/apply-runs/${run.id}/start`, {}, dana.sub);
+  h.port.refuseStart = null;
+  assert.equal(refused.body.code, 'apply_device_unavailable');
+  h.port.ticketStatus.set(first, 'failed');
+  const created = h.port.created.length, startedBefore = h.port.started.length;
+  const goOn = await h.call('POST', `/apply-runs/${run.id}/go-on`, {}, dana.sub);
+  assert.equal(goOn.code, 200, JSON.stringify(goOn.body));
+  assert.equal(goOn.body.run.status, 'queued');
+  assert.equal(h.port.created.length, created + 1, 'one fresh ticket');
+  assert.notEqual(goOn.body.run.nativeTicketId, first, 'the run is bound to the fresh ticket');
+  assert.equal(h.port.started.length, startedBefore + 1, 'started once');
+  assert.equal(h.port.started.at(-1).ticketId, goOn.body.run.nativeTicketId);
+  assert.deepEqual(JSON.parse(Buffer.from(h.port.started.at(-1).input.files[0].bytes).toString()), frozen(dana, run.id), 'the same approved input');
+  const again = await h.call('POST', `/apply-runs/${run.id}/go-on`, {}, dana.sub);
+  assert.equal(h.port.started.length, startedBefore + 1, 'a second Go on starts nothing more');
+  assert.notEqual(again.code, 500);
 });

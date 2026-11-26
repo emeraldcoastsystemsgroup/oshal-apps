@@ -30,6 +30,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard immutable/concurrently idempotent FX persistence, exact foreign-quote binding, owner-bound quote references, atomic quote writes, and scenario micro-price storage.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard owner-bound rebaseline policy/run writes, slot idempotency, exact cost evidence, and migration/runtime schema agreement.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard that ensureVentureSchema hands the kernel bootstrap the package-owned advisory-lock key (1.5.1), a positive 32-bit key outside the kernel's 4711xxxx block; the disposable-PostgreSQL proof of the deadlock it prevents is tests/venture-schema-postgres.test.mjs.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: expect 14 tables and migration 006-venture-quote-inbox.sql with forced RLS.
  */
 'use strict';
 
@@ -760,7 +761,7 @@ test('coverageOf counts what is actually in the ledger', () => {
 test('every table the DDL creates is in the frozen VENTURE_TABLES list', () => {
   assert.deepEqual([...schema.tablesInSchemaSql()].sort(), [...schema.VENTURE_TABLES].sort(),
     'a table created but not listed would get neither RLS nor a readiness check');
-  assert.equal(schema.VENTURE_TABLES.length, 13);
+  assert.equal(schema.VENTURE_TABLES.length, 14);
 });
 
 test('ensureVentureSchema applies an RLS policy for EVERY owned table', async () => {
@@ -797,6 +798,7 @@ test('the migrations create exactly the same tables, each with FORCEd RLS', () =
   assert.deepEqual(files, [
     '001-venture-core.sql', '002-venture-supply-chain.sql',
     '003-venture-outputs.sql', '004-venture-fx.sql', '005-venture-rebaseline.sql',
+    '006-venture-quote-inbox.sql',
   ]);
   const sql = files.map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
   const created = [...sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z_]+)/g)].map((m) => m[1]).sort();

@@ -10,7 +10,7 @@ AI Office keeps one text outline (a title plus lines of light markup per section
 
 How to read them:
 
-- **Concierge has two levels here, and they are very different.** A `tools:` entry works from Jarvis and needs no open editor; there are exactly three: `presentations-list`, `presentations-create-deck`, `presentations-create-document`. None edits a saved file, and none makes a spreadsheet. A **Guide op** (`set_title`, `set_theme`, `set_outline`, `update_slide`, `add_slide`, `update_cell`) is not a `tools:` entry. It is a proposal validated by `cleanActions()` in `src-routes/bot-presentation-routes.ts`, offered only from the rail inside the open studio, and applied only when the person presses Apply changes (`tools/office-assistant.mjs`). I count it toward Status because a validator accepts it and it does change the draft; every such cell says `Guide:`. The final counts also give the number that rests on a Guide op alone.
+- **Concierge has two levels here, and they are very different.** A `tools:` entry works from Jarvis and needs no open editor; for the standalone generator/delivery routes there are now `presentations-list`, `presentations-create-deck`, `presentations-create-document`, `presentations-create-workbook`, and `presentations-send-slack` (alongside the structured editor `office-*` tools). A **Guide op** (`set_title`, `set_subtitle`, `set_theme`, `set_outline`, `update_slide`, `add_slide`, `update_cell`) is not a `tools:` entry. It is a proposal validated by `cleanActions()` in `src-routes/bot-presentation-routes.ts`, offered only from the rail inside the open studio, and applied only when the person presses Apply changes (`tools/office-assistant.mjs`). I count it toward Status because a validator accepts it and it does change the draft; every such cell says `Guide:`. The final counts also give the number that rests on a Guide op alone.
 - **typed** means no button: the person types the markup (`| a | b |`, `Q3: 240`) in a text box. The markup is listed on screen under "Slide syntax + the 20 layouts". Status counts it as a UX control.
 - **Guide limits.** `cleanSlides()` keeps 30 sections and 12 lines of 300 characters per section, both ways, so the Guide neither sees nor can rewrite more than that.
 - **Engine** means `crates/host-process/native-runtime/core-sources/src/features/presentation-generation/services/` in `oshal-kernel`, the kernel skill the package calls. Read in code, not run.
@@ -39,9 +39,9 @@ How to read them:
 | Tables | basic | PPT: yes [M1]. Slides: not confirmed | yes [M1] | typed `\| a \| b \|` in Slide text; exports a real table | same lines in `content`; Guide: `update_slide` | both |
 | Charts | pro on mobile | PPT: chart elements paid [M2]; older table says no [M1]. Slides: not confirmed | PPT: yes [M1] | typed `Q3: 240`; exports a native chart. No chart editor | same lines in `content`; Guide: `update_slide` | both |
 | Timeline, process, KPI, comparison graphics | pro on mobile | PPT: SmartArt paid on Android [M2]. Slides: not confirmed | PPT: yes [M1] | typed `::` and `##` lines, or Layout picker | same lines in `content`; Guide: `update_slide` | both |
-| Speaker notes | basic | PPT: yes [M1]. Slides: yes [G7] | PPT: yes [M1]. Slides: yes [G7] | none. `parseOutline` carries title and content only | `sections[].notes` on `presentations-create-deck`; no Guide op | concierge only |
+| Speaker notes | basic | PPT: yes [M1]. Slides: yes [G7] | PPT: yes [M1]. Slides: yes [G7] | Speaker notes box under each slide (`#slide-notes-panel`, `.office-slide-notes-input`), exported to `ppt/notesSlides/notesSlideN.xml` and preserved on open / Edit & regenerate (2.20.12) | `sections[].notes` on `presentations-create-deck`; `page` patch `{notes}`; Guide: `update_slide` / `add_slide` / `set_outline` `notes` (2.20.12) | both |
 | Slide numbers on or off | basic | unchecked | unchecked | `#slideNumbers` | none. `slideNumbers` not in the tool's `inputSchema` | UX only |
-| Cover subtitle | basic | unchecked | unchecked | none | `subtitle` on `presentations-create-deck` | concierge only |
+| Cover subtitle | basic | unchecked | unchecked | `#subtitleInput` beside title, sent to `/sections/pptx`, `/sections/docx`, `/sections/xlsx` and restored on Edit & regenerate (2.20.13) | `subtitle` on `presentations-create-deck`, `presentations-create-document`, `presentations-create-workbook`; Guide: `set_subtitle` and `set_title` `subtitle` (2.20.13) | both |
 | Cover byline | basic | unchecked | unchecked | `#byline` | none. Not in `inputSchema` | UX only |
 | Transitions | basic | PPT: yes [M1]; Morph paid [M2]. Slides: no, computer only [G8] | PPT: yes [M1]. Slides: yes [G8] | none | none | missing |
 | Animations | basic | PPT: yes [M1]. Slides: no, computer only [G8] | PPT: yes [M1]. Slides: yes [G8] | none | none | missing |
@@ -52,7 +52,7 @@ How to read them:
 | Share a link, edit together | basic | PPT: yes [M1]. Slides: yes [G10] | PPT: yes [M1] | none | none | missing |
 | Export to PDF | basic | Slides: yes [G9]. PPT: unchecked | yes, unchecked | none. "pdf" appears nowhere in the studio files | none | missing |
 | Email the file | basic | unchecked | unchecked | `#emailBtn`, `#emailSend` | none | UX only |
-| Post the file to Slack | not an industry row | not applicable | not applicable | none. No button in `tools/presentations.html` | none. Route `POST /sections/slack` exists with no `tools:` entry | missing |
+| Post the file to Slack | not an industry row | not applicable | not applicable | `#slackBtn` / `#slackRow` (and `#fSlack` in My files) with channel input and explicit confirmation checkbox posting to `POST /sections/slack` (2.20.13) | `presentations-send-slack` (`requiresApproval: true`, `defaultAuthMode: ask`, `confirm: true`) backed by `POST /api/presentations/sections/slack` (2.20.13) | both |
 | Choose where it saves | basic | unchecked | unchecked | `#saveTo`, `#destChip` | none. `saveTo` not in `inputSchema` | UX only |
 | Video and audio | pro on mobile | PPT: iOS yes, Android no [M1]. Slides: video [G5] | PPT: yes [M1] | none | none | missing |
 | Edit the slide master | pro | PPT: not confirmed [M1]. Slides: not confirmed | PPT: yes on PC and Mac [M1] | none. Masters are generated | none | missing |
@@ -114,7 +114,7 @@ How to read them:
 
 | Capability | Tier | Industry mobile | Industry desktop | Our UX control | Our concierge tool | Status |
 |---|---|---|---|---|---|---|
-| Make a new workbook | basic | Excel: yes, free [M2]. Sheets: yes [G18] | yes, unchecked | Format = Spreadsheet, Add sheet, `#genBtn` (`tools/sheet-workspace.mjs`) | none. `POST /sections/xlsx` has no `tools:` entry; Guide: `set_outline` fills an open draft but no tool makes the file | UX only |
+| Make a new workbook | basic | Excel: yes, free [M2]. Sheets: yes [G18] | yes, unchecked | Format = Spreadsheet, Add sheet, `#genBtn` (`tools/sheet-workspace.mjs`) | `presentations-create-workbook` backed by `POST /api/presentations/sections/xlsx` (2.20.13); Guide: `set_outline` fills an open draft | both |
 | Open an existing .xlsx | basic | Excel: yes [M7]. Sheets: yes [G18] | yes, unchecked | `#openBtn`. `xlsxTableLines()` keeps 30 data rows and 8 columns, adding "(+N more rows)"; formulas become their stored result | none | UX only |
 | Type into a cell | basic | yes, unchecked | yes, unchecked | Grid plus `.sheet-value` and Apply | Guide: `update_cell` (rows to 999, no pipe character or line breaks) | both |
 | Formulas that calculate | basic | Excel: yes, some newer functions missing [M5]. Sheets: not confirmed on the page read | Excel: yes, also on web [M10] | none. On-screen notice says formulas save as text; `cellValue()` in `xlsx-renderer.ts` writes the string | none. Same | missing |
@@ -164,16 +164,16 @@ Every entry must end with a control on screen and a concierge operation, per the
   Done when: a 500-row, 12-column workbook opens with all rows; a Word paragraph of 1,000 characters is whole; a deck's pictures and speaker notes are still there after open and Generate. Add a concierge `presentations-open-file` tool that does the same from an artifact handle.
 - **CREATE-TOOL-PRESENTATIONS-03.** Spreadsheet formulas calculate on screen and export live.
   Done when: typing `=SUM(A2:A4)` in the grid shows the sum, the downloaded cell holds a formula that recalculates in Excel, and `update_cell` writes the same.
-- **CREATE-TOOL-PRESENTATIONS-04.** `presentations-create-workbook` tool, matching the deck and document tools.
-  Done when: "make a budget spreadsheet" from Jarvis saves a real .xlsx and answers with its link and `openUrl`.
+- **CREATE-TOOL-PRESENTATIONS-04.** `presentations-create-workbook` tool, matching the deck and document tools. — **Delivered in `2.20.13`**.
+  Done when: "make a budget spreadsheet" from Jarvis saves a real .xlsx and answers with its link and `openUrl`. (Delivered: `presentations-create-workbook` declared in `presentations/oshal-app.yaml` on `POST /api/presentations/sections/xlsx`, bound in `presentations/authorization.yaml` under `[document.view, legacy.access]`, documented in `personas/deck-builder.yaml`, and verified with real OOXML `.xlsx` inspection.)
 - **CREATE-TOOL-PRESENTATIONS-05.** Concierge edits a saved file. Add `presentations-read-file` and `presentations-apply-edits` tools, with the Guide ops as their operations and no 30-section or 12-line limit. Today edit works only as a proposal inside an open studio.
   Done when: from Jarvis, "change slide 3's title in my Q3 deck" shows an approval card and the saved file changes as a new version, with no studio open.
 - **CREATE-TOOL-PRESENTATIONS-06.** Text formatting: bold, italic, font, size, colour, numbered lists, hyperlinks, for decks and documents. Add to the outline model and to the Guide ops.
   Done when: a person selects a word, presses Bold and sees it bold on screen and in the exported file; the concierge does the same on a named word.
 - **CREATE-TOOL-PRESENTATIONS-07.** Spreadsheet basics: sort, filter, number and date formats, cell fill and font, merge, wrap, column width, freeze, insert and delete rows and columns, find and replace, drag fill. Each as a button and an operation.
   Done when: a person sorts a column, formats it as currency and inserts a row in the middle with no typed markup, and all of it is in Excel after download; the concierge does each by a named operation.
-- **CREATE-TOOL-PRESENTATIONS-08.** Speaker notes on screen.
-  Done when: a person types notes under a slide, they export to the .pptx notes page, and they survive open and Edit & regenerate. `update_slide` accepts `notes`.
+- **CREATE-TOOL-PRESENTATIONS-08.** Speaker notes on screen. — **Delivered in `2.20.12`**.
+  Done when: a person types notes under a slide, they export to the .pptx notes page, and they survive open and Edit & regenerate. `update_slide` accepts `notes`. (Delivered in `2.20.12`: `#slide-notes-panel` / `.office-slide-notes-input`, native `ppt/notesSlides/notesSlideN.xml` export/import, Edit & regenerate persistence, `page` patch `{notes}` and Guide `update_slide` / `add_slide` / `set_outline` `notes`.)
 - **CREATE-TOOL-PRESENTATIONS-09.** Export to PDF in all three formats.
   Done when: a PDF button exists next to Generate and a tool makes the same file; the PDF matches the export's pages.
 - **CREATE-TOOL-PRESENTATIONS-10.** Present a deck full screen, phone and desktop, with notes for the presenter.
@@ -186,8 +186,8 @@ Every entry must end with a control on screen and a concierge operation, per the
   Done when: each is a control in the Document view and a named operation, and each appears in Word; a table of contents updates when a heading changes.
 - **CREATE-TOOL-PRESENTATIONS-14.** Concierge reach for what only the screen can do: delete a file, email, use a starter, byline, slide numbers, save location, brand look, document image from a file. Fix image order when `set_outline` moves a slide.
   Done when: each works from a tool under approval where it sends or deletes; after moving slide 2 to slide 5 by the Guide, its picture is on slide 5.
-- **CREATE-TOOL-PRESENTATIONS-15.** UX reach for what only the concierge can do: a cover subtitle field.
-  Done when: Subtitle is on screen and in the exported cover.
+- **CREATE-TOOL-PRESENTATIONS-15.** UX reach for what only the concierge can do: a cover subtitle field. — **Delivered in `2.20.13`**.
+  Done when: Subtitle is on screen and in the exported cover. (Delivered: `#subtitleInput` on screen at desktop and phone widths, wired into `POST /sections/pptx`, `/sections/docx`, `/sections/xlsx` cover exports, persisted in saved outline records and restored via Edit & regenerate / reopen, with Guide `set_subtitle` and `set_title` `subtitle` ops.)
 - **CREATE-TOOL-PRESENTATIONS-16.** Comments and tracked changes.
   Done when: a person comments on a slide, section or cell and reads it back; Word opens tracked changes as tracked; the concierge reads and adds comments.
 - **CREATE-TOOL-PRESENTATIONS-17.** Share a link, edit together, version history.
@@ -196,8 +196,8 @@ Every entry must end with a control on screen and a concierge operation, per the
   Done when: chosen transitions and build animations are in the .pptx and play in PowerPoint, by control and operation.
 - **CREATE-TOOL-PRESENTATIONS-19.** Conditional formatting, dropdowns, pivot tables.
   Done when: each is built on screen, by operation, and works in Excel.
-- **CREATE-TOOL-PRESENTATIONS-20.** Slack delivery reachable: a button and a `presentations-send-slack` tool for the route that exists.
-  Done when: a person sends the file to a channel from the studio and the concierge does so under the route's explicit confirmation.
+- **CREATE-TOOL-PRESENTATIONS-20.** Slack delivery reachable: a button and a `presentations-send-slack` tool for the route that exists. — **Delivered in `2.20.13`**.
+  Done when: a person sends the file to a channel from the studio and the concierge does so under the route's explicit confirmation. (Delivered: `#slackBtn` / `#slackRow` and My files `#fSlack` controls with explicit channel and confirmation checkbox plus `textContent`-escaped status, paired with `presentations-send-slack` (`requiresApproval: true`, `defaultAuthMode: ask`, `confirm: true`) bound in `authorization.yaml`.)
 - **CREATE-TOOL-PRESENTATIONS-21.** Pro desktop tools: slide master editing, video and audio, recording, compare, mail merge, citations, macros or scripts, Goal Seek and Solver.
   Done when: each has its own entry split out, with its control and operation, before any is built; none is treated as finished under this umbrella.
 

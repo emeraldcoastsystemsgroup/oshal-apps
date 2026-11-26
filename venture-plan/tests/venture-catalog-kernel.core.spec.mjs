@@ -4,6 +4,8 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The 1.5.0 catalog through the kernel's real boundary (tests/helpers/venture-kernel-harness.cjs): the package activates in enforce mode from its real manifest and registers its resource adapter; the kernel's own matcher binds every enumerated route exactly as the bare guard's mirror does; a signed-in person with no role is refused every route before package code while a member is served; the HTTP tick refuses every person; a swarm administrator's system activation of rebaseline-policy-tick is admitted over the kernel's HTTP route and grants the application service principal exactly venture.rebaseline, while a non-administrator is refused with nothing written; the scheduled tick skips until activated, runs the package's compiled handler under the service principal once activated, is denied and suspended when the grant is gone, and skips again after deactivation; a system-activated tick cannot spend as a policy owner, because the kernel's bot gate refuses an owner-pinned call under the service principal and the package's cost gate then stops every later call; and the same package without its catalog is refused 409 authorization_service_catalog_required.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: update expected enumerated route count from 50 to 51 for GET /ventures/:id/scenarios/compare.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: update expected enumerated route count from 51 to 55 for Saved-quote inbox routes.
  */
 
 import { after, before, test } from 'node:test';
@@ -57,7 +59,7 @@ test("over every literal route under every mount, the kernel's own matcher binds
   const registration = { app: APP, source: summary.source, version: summary.version, catalog: summary.catalog,
     mode: 'enforce', mountPaths, catalogRevision: summary.catalogRevision };
   const rows = bindings.resolvedRoutes(mountPaths, summary.catalog.bindings.http);
-  assert.equal(rows.length, 50);
+  assert.equal(rows.length, 55);
   for (const row of rows) {
     const kernel = h.core.authorization.resolveOperationPermissions(registration, { app: APP, kind: 'http', method: row.method, path: row.relative });
     assert.ok(Array.isArray(kernel) && kernel.length > 0, `${row.method} ${row.request} is bound by the kernel`);

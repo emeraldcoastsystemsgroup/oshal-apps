@@ -11,6 +11,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: align editingContract sourceVersion with the manifest version.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: document flipX and flipY in editingContract and align sourceVersion with the manifest version.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: document text styling fields (italic, underline, lineHeight, letterSpacing, stroke, strokeWidth, shadow) in editingContract and align sourceVersion to 1.20.4.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: document 8192 px canvas size parity, text align, revision history/restore tools, and brand kit read/update/apply tools; align sourceVersion to 1.20.5.
  */
 import { applyOperation, createProject, validateProject } from './model.mjs';
 import { COMMON, FIELDS } from './model-validation.mjs';
@@ -82,12 +83,15 @@ export function applyAgentOperations(value, operations) {
   return validateProject(next, { assetMode: 'reference' });
 }
 export function editingContract() {
-  return { editor: 'create', version: 1, sourceVersion: '1.20.4', maxOperations: 16, maxInputBytes: 16384,
+  return { editor: 'create', version: 1, sourceVersion: '1.20.5', maxOperations: 16, maxInputBytes: 16384,
     operations: forms, operationSchema,
     conventions: { drawing: 'Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.',
+      canvas: 'Width and height are 1..8192 pixels (at most 33554432 pixels total), matching the editor.',
       coordinates: 'Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.',
       flip: 'Every paint layer and group accepts optional boolean flipX (horizontal mirror) and flipY (vertical mirror) in add or update patch. Set flipX/flipY to false to flip back; false values are omitted from normalized JSON. Adjustment layers cannot be flipped.',
-      textStyling: 'Text layers accept optional italic (boolean), underline (boolean), lineHeight (0.8..3, default 1.2), letterSpacing (-10..100 px, default 0), outline stroke (six-digit hex or null to clear) and strokeWidth (0..32 px, default 0), plus shadow (from appearance). Defaults are omitted from normalized JSON.',
+      textStyling: 'Text layers accept align (left|center|right) and optional italic (boolean), underline (boolean), lineHeight (0.8..3, default 1.2), letterSpacing (-10..100 px, default 0), outline stroke (six-digit hex or null to clear) and strokeWidth (0..32 px, default 0), plus shadow (from appearance). Defaults are omitted from normalized JSON.',
+      revisions: 'Use create-list-revisions to inspect saved revisions newest first and create-restore-revision (held for approval) to restore an earlier revision or undo the latest edit as a new immutable revision.',
+      brand: 'Use create-read-brand-kit to inspect the personal brand kit, create-update-brand-kit (held) to update it with the same limits, and create-apply-brand (held) to apply kit colors, fonts and logo to a project in one revision.',
       opacity: '0..1', masks: 'Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.',
       adjustments: 'Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.',
       appearance: 'Version 4 shape primitives (rect/ellipse layer types) accept shape rectangle|rounded-rectangle|ellipse|triangle|diamond and radius 0..4096. Outlines on primitives/freehand/path accept dash (up to16 lengths .1..512), cap butt|round|square, join miter|round|bevel. Every paint layer/group supports shadow null or {color six-digit hex, opacity0..1, blur0..64, offsetX/offsetY -512..512}; parent-coordinate pixels, source alpha preserved. Shadows have an aggregate bounded scratch pixel budget. Group shadows must be removed before ungrouping; transformed child paint scales with the group.',

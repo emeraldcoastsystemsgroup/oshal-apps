@@ -135,6 +135,48 @@ bindings:
     path: /_smoke
     allOf:
     - app.open
+  - id: brand-kit-read
+    method: GET
+    path: /brand-kit
+    allOf:
+    - app.open
+    - legacy.read
+  - id: brand-kit-save
+    method: PUT
+    path: /brand-kit
+    allOf:
+    - app.open
+    - source.change
+  - id: render-list
+    method: GET
+    path: /renders
+    allOf:
+    - app.open
+    - legacy.read
+  - id: render-create
+    method: POST
+    path: /renders
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: render-read
+    method: GET
+    path: /renders/:id
+    allOf:
+    - app.open
+    - legacy.read
+  - id: render-download
+    method: GET
+    path: /renders/:id/download
+    allOf:
+    - app.open
+    - legacy.read
+  - id: render-delete
+    method: DELETE
+    path: /renders/:id
+    allOf:
+    - app.open
+    - legacy.execute
   tools:
   - id: brand-graphics-source-list
     allOf:
@@ -157,6 +199,10 @@ bindings:
     allOf:
     - app.open
     - legacy.execute
+  - id: brand-graphics-job-status
+    allOf:
+    - app.open
+    - legacy.read
   bots:
   - id: b0110000-0000-0000-0000-000000000001
     allOf:

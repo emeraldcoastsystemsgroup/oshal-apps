@@ -5,6 +5,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0 (career-hunter backlog, "The Discover swipe deck as the Job Board's phone layout"). The check of the phone deck of New matches on an installed Career, on a test slot, as a test person. `person` makes a test person with a made-up résumé and made-up target titles and has Career score a few public openings for them, so the person has real matches (Career reads the résumé and scores with the slot's model, several minutes). `check` signs in as that person on the slot's own sign-in page. At 412x915 with touch it opens My jobs, presses New matches, and on the person's own matches presses Pass, Undo, Save, Undo and More, swipes a card right and undoes that, reading the job back from Career after every step; then it opens /api/career-hunter/mobile and expects the same deck. At 1440x900 it expects the list the stage has always been, with Save and Not interested on each row and no card. It writes screenshots and a JSON receipt and leaves every job as it found it. Every request that is not a read, the sign-in or one of the four moves of the jobs the check holds is stopped and listed, and so is a read that would make Career fetch an employer's page. `remove` takes the person's role back and deactivates them.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use target-lane titles (Project Manager, Program Manager, Software Engineer) and a matching made-up résumé in `person`, and ensure remote-only is off through Career's settings route before scoring. Previous non-lane titles (Operations Manager, Office Manager, Project Coordinator) scored openings with target_role=0 that GET /jobs?matches=1 filters out, leaving 0 new matches.
  *
  * Usage (a loopback kernel only; the administrator credential is read by name from the env file and never printed, the
  * person's credential stays in its 0600 file and is typed only into the slot's own sign-in page; all three refuse port 38788):
@@ -26,20 +27,20 @@ const DECK_SCRIPT = '/api/career-hunter/static/career-match-deck.js';
 /** The four moves the deck makes, as the bodies of POST /jobs/:id/status. Nothing else is let through. */
 const MOVES = ['{"status":"dismissed"}', '{"status":"new"}', '{"favorite":true}', '{"favorite":false}'];
 const NEEDED = 4, SCORE_LIMIT = 8;
-const TITLES = ['Operations Manager', 'Office Manager', 'Project Coordinator'];
+const TITLES = ['Project Manager', 'Program Manager', 'Software Engineer'];
 const RESUME = `Sam Example
-Operations manager | Sampletown, USA | sam.example@example.com
+Program manager | Sampletown, USA | sam.example@example.com
 SUMMARY
-Runs offices and operations teams (a made-up résumé for a test).
+Leads software delivery programs, engineering schedules and cross-functional teams (a made-up résumé for a test).
 EXPERIENCE
-Operations Manager, Sample Freight, 2019-01 to 2024-06
-- Ran scheduling, vendors and a team of eight.
-Office Manager, Northwind Logistics, 2014-01 to 2018-12
-- Kept the office, its budget and its suppliers running.
+Program Manager, Sample Freight Systems, 2019-01 to 2024-06
+- Led software delivery milestones, platform integrations and a team of eight engineers.
+Project Manager, Northwind Logistics Tech, 2014-01 to 2018-12
+- Delivered internal web applications, managed sprint schedules and coordinated vendor releases.
 SKILLS
-Scheduling, Vendor management, Budgeting, Microsoft Excel
+Program management, Project management, Agile delivery, Software engineering, Budgeting, SQL
 EDUCATION
-B.A. Business Administration, Sample State University, 2013
+B.S. Information Systems, Sample State University, 2013
 `;
 
 const say = (step, data = {}) => console.log(JSON.stringify({ step, ...data }));
@@ -156,6 +157,7 @@ async function makePerson(origin, envFile, file) {
   const person = (await existing(origin, file)) || await newPerson(origin, adminToken(envFile), file);
   let listed = await matches(origin, person.token).catch(() => []);
   if (listed.length < NEEDED) {
+    await http(origin, person.token, 'POST', '/api/career-hunter/settings/remote-only', { body: { remoteOnly: false } });
     await http(origin, person.token, 'POST', '/api/career-hunter/settings/title-profile', { body: { terms: TITLES } });
     await http(origin, person.token, 'POST', '/api/career-hunter/run/score', { body: { limit: SCORE_LIMIT }, accepted: [200, 202, 409] });
     listed = await until(async () => { const now = await matches(origin, person.token); return now.length >= NEEDED && now; }, 30 * 60000, `Career scoring at least ${NEEDED} openings for the test person`, 5000);

@@ -18,11 +18,12 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Publish an executable whole-text command shape and real approval-card semantics in the actual model-visible tool description.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.2 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: on a phone the Concierge sheet holds the one Jarvis chat window, and the window's own Close (editor-concierge:hide) now closes that sheet too so the editor takes the next tap, both standalone and inside Create (create-motion-studio). Presentation only: no route, tool, permission, migration or catalog change. Guard: tests/motion-one-chat-window.test.mjs.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-01, -04, -05, -09): add bounded motion-preview concierge tool on existing read grants, interactive on-canvas drag/scale/rotate handles (mouse and touch), timeline layer-bar and keyframe-diamond dragging (mouse and touch), and on-screen Revision History sheet with Restore and Redo.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: "Edit saved motion compositions with selectable layers, video and audio clips, motion blur, native properties, inline captions, keyframes, masks and photos."
-version: 0.4.3
+version: 0.4.4
 runtime: process
 lastingStorage: true
 status: active
@@ -1758,5 +1759,52 @@ tools:
     usageInstructions: >-
       List original owner renders only with fresh read/export grants. Choose actual ready receipt to download or link in Video; never synthesize ids or infer publication from progress. No access to other people or expired/deleted source.
     routingTags: [motion, render]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-preview
+    displayName: Motion Preview Frame
+    type: api
+    category: creative
+    description: Render one bounded PNG frame from a saved revision so you can visually verify your edit before reporting it done.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/revisions/{input.revision}/preview-frame/{input.timeTicks}/{input.compId}/{input.maxSide}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id, revision, timeTicks, compId, maxSide]
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        timeTicks:
+          type: string
+          minLength: 1
+          maxLength: 19
+          description: Non-negative decimal composition tick to render (e.g. "0" for start of composition).
+        compId:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: Exact decimal composition id or "auto" for the active composition.
+        maxSide:
+          type: integer
+          minimum: 16
+          maximum: 512
+          description: Maximum pixel side length for the bounded preview PNG (e.g. 320).
+    usageInstructions: >-
+      Call after saving an edit (and when inspecting current framing) on a returned immutable revision
+      with exact decimal timeTicks, compId (or "auto") and maxSide (typically 256 or 320). Returns a
+      bounded PNG dataUrl, dimensions, byte length and sha256 under the 60 KiB observation limit so
+      you can visually confirm the rendered pixels before reporting completion.
+    routingTags: [motion, preview]
     skills: [motion-editing]
     tags: [route-backed]

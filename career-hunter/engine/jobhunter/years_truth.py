@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Authoritative candidate-confirmed skill and total-career years overlay, prompt block renderer, over-claim allowance hook, deterministic post-generation years claim enforcer, and application receipt builder.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: a career total counted from the roles is a floor for a person who stated none (a lower number is corrected, "over 20 years" stands); years "of experience in <a field>" are left as written because no record confirms a field; a titled claim that matches neither figure takes the nearer true one; a corrected "1 year" reads "4 years".
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: the reader takes every figure Work history's Years by skill form can save: a skill's years up to and including 60 (60 itself was refused) and a total up to and including 70 (was under 60), so nothing the form saves is ignored by generation.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (Roger, 2026-11-25: a generated résumé said "Machine Learning (4 years)", "SAP HANA (5 years)", "AWS GovCloud (5 years)" and "over 25 years" / "26 years" of experience, none of them his figures): a person who has stated years of their own gets a years count only where they stated one. In the summary, headline, competencies, skills and cover letter, a years claim that names none of their figures, and a career total when they stated no total, is taken out by code after the last model pass ("Kubernetes (2 years)" reads "Kubernetes", "over 25 years of experience in X" reads "experience in X"); a claim that names one of their figures is still corrected to it. A person with no figures of their own keeps the roles' floor.
 """Authoritative candidate-confirmed per-skill and total-career years truth."""
 from __future__ import annotations
 
@@ -334,16 +335,91 @@ def _number(match: re.Match) -> float:
     return float(raw) if raw[0].isdigit() else float(claims_check._NUMBER_WORDS.get(raw, 0))
 
 
+_EXPERIENCE_NEXT = re.compile(r"(?:[\w-]+\s+){0,2}?experience\b", re.I)
+_OF_NEXT = re.compile(r"\s+of\s+", re.I)
+_LABEL_BEFORE = re.compile(r"\s*(?:\(\s*|:\s*|\s-\s*|[–—]\s*)$")
+_SENTENCE_START = re.compile(r"(?:^|[.!?|•\n])\s*$")
+_LONE_EXPERIENCE = re.compile(r"\s*experience\b\s*(?=$|[|•;\n])", re.I)
+_SEPARATOR_BEFORE = re.compile(r"\s*[|•;]\s*$")
+
+
+def _stated(figs: dict) -> bool:
+    """@description Whether the person stated years of their own: then a years count appears only where they stated
+    one, and a total only when they stated a total. @param figs - figures(prof). @returns True when they did."""
+    return bool(figs.get("skills")) or figs.get("career") is not None
+
+
+def _cut(text: str, match: re.Match, context: dict, last: int):
+    """@description The span to take out of a string for a years claim the person never stated, and whether the words
+    that follow now open a sentence. "Kubernetes (2 years)" loses " (2 years)", "a 26-year career" loses "26-year ",
+    "led DevOps for 2 years" loses " for 2 years", "over 25 years of experience in X" keeps "experience in X",
+    "with over 10 years leading teams" reads "with experience leading teams", and a headline part left as the bare word
+    "experience" goes with its separator. @param text - The string. @param match - The _CLAIM_RE match.
+    @param context - _claim_context() output. @param last - Where the text not yet copied begins (nothing before it
+    is taken). @returns (start, end, replacement, capitalize the next word)."""
+    start, end, head = match.start(), match.end(), text[last:match.start()]
+    if match.group("sep") == "-":
+        space = re.match(r"\s+", text[end:])
+        return start, end + (space.end() if space else 0), "", False
+    if context["tight"]:
+        label = _LABEL_BEFORE.search(head)
+        opened = bool(label) and "(" in label.group(0)
+        start = last + label.start() if label else start
+        close = re.match(r"\s*\)", text[end:]) if opened else None
+        return start, end + (close.end() if close else 0), "", False
+    if context.get("before"):
+        lead = re.search(r"\s*\bfor\s+$", head, re.I)
+        return (last + lead.start() if lead else start), end, "", False
+    rest = text[end:]
+    lone = _LONE_EXPERIENCE.match(rest)
+    separator = _SEPARATOR_BEFORE.search(head)
+    if lone and separator:  # "Java Architect | 20+ years' experience" reads "Java Architect"
+        return last + separator.start(), end + lone.end(), "", False
+    of = _OF_NEXT.match(rest)
+    spaces = len(rest) - len(rest.lstrip())
+    follows = rest[of.end():] if of else rest[spaces:]
+    filler = "" if of or _EXPERIENCE_NEXT.match(follows) else "experience "
+    opens = bool(_SENTENCE_START.search(head)) and not text[last:start].strip() or bool(_SENTENCE_START.search(text[:start]))
+    return start, end + (of.end() if of else spaces), filler, opens
+
+
+def _agrees(context: dict, claimed: float, figs: dict) -> bool:
+    """@description Whether a claim's number is one of the person's own figures for what it names: their total for a
+    statement of experience, or a figure of a skill it names. Such a claim is theirs and stays as written.
+    @param context - _claim_context() output. @param claimed - The number written. @param figs - figures(prof).
+    @returns True when the number is theirs."""
+    career = figs.get("career")
+    if career is not None and context.get("career") and abs(career - claimed) < 1e-6:
+        return True
+    return any(abs(fig["years"] - claimed) < 1e-6 for fig, _ in _matches(context.get("subject") or "", figs))
+
+
+def _capital(segment: str) -> str:
+    """@description A segment with its first letter capitalised, for words that now open a sentence.
+    @param segment - Text. @returns The text."""
+    return segment[:1].upper() + segment[1:] if segment[:1].isalpha() else segment
+
+
 def _enforce_text(text: str, path: str, figs: dict, changes: list) -> str:
-    """@description Rewrite the years claims of one string that differ from the person's figures.
+    """@description Rewrite the years claims of one string that differ from the person's figures, and, for a person
+    who stated figures, take out the claims that name none of them (a career total too, when they stated no total).
     @param text - String value. @param path - Dotted path in the packet. @param figs - figures(prof).
     @param changes - List the corrections are appended to. @returns The string, corrected."""
-    out, last = [], 0
+    out, last, capital = [], 0, False
     for match in _CLAIM_RE.finditer(text):
+        if match.start() < last:
+            continue
         context = _claim_context(text, match)
         if context:
             context["hedged"] = bool(match.group("plus")) or (match.group("mod") or "").lower() in _LOWER_BOUND
         target = _target(context, _number(match), figs) if context else None
+        if target is None and context and _stated(figs) and not _agrees(context, _number(match), figs):
+            start, end, filler, opens = _cut(text, match, context, last)
+            piece = text[last:start]
+            out.extend([_capital(piece) if capital else piece, _capital(filler) if opens and filler else filler])
+            capital, last = opens and not filler, end
+            changes.append({"path": path, "from": text[start:end], "to": filler.strip(), "skill": "not stated"})
+            continue
         if target is None:
             continue
         years, label = target
@@ -352,10 +428,14 @@ def _enforce_text(text: str, path: str, figs: dict, changes: list) -> str:
         new_phrase = f"{_fmt_years(years)}{gap}{unit}{match.group('poss') or ''}"
         if new_phrase == match.group(0):
             continue
-        out.extend([text[last:match.start()], new_phrase])
-        last = match.end()
+        piece = text[last:match.start()]
+        out.extend([_capital(piece) if capital else piece, new_phrase])
+        capital, last = False, match.end()
         changes.append({"path": path, "from": match.group(0), "to": new_phrase, "skill": label})
-    return text if not last else "".join(out) + text[last:]
+    if not last:
+        return text
+    tail = text[last:]
+    return "".join(out) + (_capital(tail) if capital else tail)
 
 
 def _walk_enforce(node, path: str, figs: dict, changes: list):
@@ -379,8 +459,8 @@ def enforce(data: dict, prof: dict, selected=()) -> tuple[dict, list]:
     @param data - Generated packet. @param prof - The person's profile. @param selected - Additional experience
     chosen for this packet. @returns (packet, corrections); the packet itself when nothing changed."""
     figs = figures(prof)
-    if figs["career"] is None and isinstance(prof, dict):
-        figs["roles_career"] = _roles_career(prof, selected)
+    if figs["career"] is None and not _stated(figs) and isinstance(prof, dict):
+        figs["roles_career"] = _roles_career(prof, selected)  # a total only they stated, once they state any figure
     if not isinstance(data, dict) or not (figs["skills"] or figs["career"] is not None or figs.get("roles_career")):
         return data, []
     new_data, changes = copy.deepcopy(data), []

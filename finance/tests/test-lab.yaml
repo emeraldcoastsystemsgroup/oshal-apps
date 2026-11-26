@@ -757,3 +757,69 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+  - id: finance-projects-unit
+    name: Finance projects integer-cents math and owner-scoped routes
+    purpose: "Verify integer-cents project budget, allocation line, multi-source actuals (manual, plaid, ads, sms, email, invoice), variance rollups, invalid source refusal, cross-project line refusal, and two-owner 404 isolation."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/finance-projects.test.mjs
+    expected:
+      - Integer-cents arithmetic computes exact budget, committed, actual, and variance totals with zero float drift and flags over-budget projects and lines.
+      - Invalid actual sources return 400 and foreign or cross-project line references return 404.
+      - Two owners remain strictly isolated across list, summary, update, delete, line, and actual routes with zero per-request DDL.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: finance-projects-rls
+    name: Finance projects enforcing-role PostgreSQL 16 FORCE RLS isolation
+    purpose: "Apply migration 007-finance-projects.sql as a NOSUPERUSER NOBYPASSRLS role on disposable PostgreSQL 16 and verify exact-owner FORCE RLS isolation across projects, lines, and actuals."
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/finance-projects-rls.test.mjs
+    expected:
+      - Owner A cannot read, update, or delete Owner B rows on oshal_finance_projects, oshal_finance_project_lines, or oshal_finance_project_actuals.
+      - Absent oshal.current_sub returns zero rows even for the table-owning role because FORCE ROW LEVEL SECURITY is active.
+      - End-to-end route lifecycle persists and rolls up integer-cent totals accurately on PostgreSQL 16.
+    prerequisites:
+      - runner:node-test
+      - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Drops the temporary database and enforcing role (or removes the disposable container) after the suite ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: finance-projects-browser
+    name: Finance projects pane desktop and phone browser contract
+    purpose: "Exercise the Finance Projects pane on tools/finance.html in headless Chromium at 1440x900 and 412x915 with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/finance-projects-browser.test.mjs
+    expected:
+      - Creating a project, adding allocation lines, recording actuals, and removing an actual via two-click in-page confirm updates budget, committed, actual, and variance displays accurately.
+      - Desktop (1440x900) and phone (412x915) viewports render with zero page errors and zero horizontal overflow.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never

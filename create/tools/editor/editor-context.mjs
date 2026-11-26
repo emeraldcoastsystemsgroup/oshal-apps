@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose the current document identity and revision to the automatic save/refresh handoff; distinguish saved-project editing tools from read-only bridge messages.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: expose flipX and flipY booleans on the selected paint/group layer in bounded read-only editor context.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: expose set text styling properties on the selected text layer in bounded read-only editor context.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: expose align on the selected text layer in bounded read-only editor context.
  */
 import { state, subscribe, dirty } from './editor-state.mjs';
 import { resolveSelection, selectionSummary } from './region-select.mjs';
@@ -24,6 +25,7 @@ function regionFields() {
 function textContextFields(layer) {
   return {
     text: clipped(layer.text, 1000),
+    align: layer.align ?? 'left',
     ...(layer.italic ? { italic: true } : {}),
     ...(layer.underline ? { underline: true } : {}),
     ...(layer.lineHeight !== undefined ? { lineHeight: layer.lineHeight } : {}),

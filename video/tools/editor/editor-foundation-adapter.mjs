@@ -8,6 +8,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work). On a phone the Concierge sheet holds the one Jarvis chat window, whose own Close says editor-concierge:hide from the pane. The editor shell hears that on a desktop, but the sheet sits outside the shell, so the Close left the sheet over the editor and the next tap landed on the window. The sheet now closes on that event too, as AI Office's does.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: load shared editor modules in parallel and honor any Concierge press recorded by editor-concierge-early.js while Video's editor modules were still loading so Today's bar opens Video's own concierge instead of swallowing an early press.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: add New project and Aspect ratio sheets to the Project menu while keeping #projectAspectRatio accessible in the app bar.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-04, -09, -12): add Version history sheet to Project menu, Duplicate clip tool to clip tool row, and refresh uploaded library when opening Add media.
  */
 import * as timeline from './timeline-model.mjs';
 import {applyMultitrack} from './multitrack-model.mjs';
@@ -169,13 +170,14 @@ export async function bindVideoFoundation(adapter){
  const moreTools=button=>menu('More tools',[{label:'Track, keyframe and caption tools…',run:()=>sheet('Tracks and captions',[advanced])},{label:'Link a Motion composition…',run:()=>sheet('Motion',[$('motionImportPanel')])},{label:'Render preview…',run:()=>openExport()},'-',{label:'Keyboard shortcuts',run:()=>sheet('Keyboard shortcuts',[],[help])}],button);
  const audioRow=legacy.querySelector('#bedSource')?.closest('.row'),musicHeading=[...legacy.querySelectorAll('h2')].find(node=>node.textContent==='Music');
  function mainTools(){const more=tool('More','⋯',()=>moreTools(more));return[
-  tool('Add','+',async()=>sheet('Add media',[media],await vidsClip.extraNodes())),
+  tool('Add','+',async()=>{void adapter.loadUploadedMedia?.();return sheet('Add media',[media],await vidsClip.extraNodes());}),
   tool('Text','T',()=>sheet('Text',[$('titlesHeading'),$('titleForm'),$('titles')],[rp.buildAutoCaptionsNode()])),
   tool('Audio','♪',()=>sheet('Audio',[musicHeading,audioRow],[rp.buildAudioActionsNode()])),
   conciergeTool(),tool('Stickers','☺',()=>rp.openStickersSheet()),tool('Filters','◐',()=>rp.openLooksSheet('global')),more];}
  function clipTools(isVideoClip=true){const more=tool('More','⋯',()=>moreTools(more)),version2=adapter.doc().version===2;return[
   tool('Done','✓',()=>{adapter.clearSelection();refresh();}),
   tool('Split','✂',()=>{if(version2){$('multiSplitFrame').value=String(adapter.frame());$('multiSplit').click();}else $('split').click();}),
+  tool('Duplicate','⧉',()=>{if(version2)$('multiDuplicate').click();else $('duplicateSegment').click();}),
   tool('Adjust','≡',()=>adjust()),
   ...(version2?[]:[tool('Earlier','←',()=>$('moveLeft').click()),tool('Later','→',()=>$('moveRight').click())]),
   destructive(tool('Delete','⌫',()=>version2?$('multiRemove').click():$('removeSegment').click())),
@@ -201,7 +203,7 @@ export async function bindVideoFoundation(adapter){
   tools.append(...controls.slice(1));layer.body.append(rows,tools);
  }
  exportButton.onclick=act(()=>openExport());
- projectMenu.onclick=act(()=>{const s=adapter.state;return menu('Project',[{label:'New project',run:()=>rp.openNewProjectSheet(),disabled:$('newProject').disabled},{label:'Aspect ratio…',run:()=>rp.openAspectRatioSheet(),disabled:!adapter.editable()},{label:'Open…',run:()=>openProjects(),disabled:$('projectList').disabled},{label:'Duplicate',run:()=>$('saveAsNew').click(),disabled:$('saveAsNew').disabled},'-',{label:'Delete project',danger:true,run:()=>confirmDelete(),disabled:$('deleteProject').disabled||!s.projectId}],projectMenu);});
+ projectMenu.onclick=act(()=>{const s=adapter.state;return menu('Project',[{label:'New project',run:()=>rp.openNewProjectSheet(),disabled:$('newProject').disabled},{label:'Aspect ratio…',run:()=>rp.openAspectRatioSheet(),disabled:!adapter.editable()},{label:'Open…',run:()=>openProjects(),disabled:$('projectList').disabled},{label:'Version history…',run:()=>rp.openRevisionsSheet(),disabled:!s.projectId||!adapter.permissions().read},{label:'Duplicate',run:()=>$('saveAsNew').click(),disabled:$('saveAsNew').disabled},'-',{label:'Delete project',danger:true,run:()=>confirmDelete(),disabled:$('deleteProject').disabled||!s.projectId}],projectMenu);});
  function openProjects(){const list=make('div','ds-menu-list');for(const option of [...$('projectList').options].filter(option=>option.value)){const entry=make('button','ds-menu-row',option.textContent);entry.type='button';entry.onclick=act(async()=>{await layers.close(layers.top());$('projectList').value=option.value;$('projectList').dispatchEvent(new Event('change'));});list.append(entry);}return sheet('Your projects',[],[list]);}
  function confirmDelete(){const layer=layers.create('Delete this project?','ds-sheet ds-confirm'),text=make('p','',`Delete "${adapter.doc().name}" and its exports? This cannot be undone.`),actionsRow=make('div','ds-confirm-actions'),cancel=make('button','ds-layer-done','Cancel'),remove=make('button','ds-danger-fill','Delete project');
   cancel.type=remove.type='button';remove.dataset.dsDestructive='';cancel.onclick=()=>void layers.close(layer.dialog);remove.onclick=act(async()=>{await layers.close(layer.dialog);adapter.confirmNext();$('deleteProject').click();});actionsRow.append(cancel,remove);layer.body.append(text,actionsRow);return layers.open(layer);}

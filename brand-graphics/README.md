@@ -1,5 +1,11 @@
 # brand-graphics — Brand Graphics
 
+1.4.3 delivers tool parity (`CREATE-TOOL-BRAND-04`, `-05`, `-06`, `-07`):
+- Replaces the legacy `cli` executor on `brand_graphic` with a real `api` executor on `POST /api/brand-graphics/renders` (held for approval) and adds read-only `brand-graphics-job-status` (`GET /api/brand-graphics/renders`). When no local renderer or worker is available, `POST /renders` returns `503 worker_unavailable` and queues nothing.
+- Sends and records every form field — `title`, `sourceLink`, `voiceover`, and `music` (`none`, `clean-pulse`, `warm-ambient`, `broadcast-sting`) — on screen and in `brand_graphic`.
+- Renders motion clips in the signed-in person's own brand kit (`brandStyle: "my-brand"`) with strict per-owner isolation or the Open Swarm look (`brandStyle: "oshal"`).
+- Adds length (`5–60s`), aspect (`16:9`, `9:16`, `1:1`), and format (`mp4`) controls with real `ffmpeg` rendering stored under `OSHAL_PACKAGE_DATA_DIR` (`lastingStorage: true`), an in-app `<video controls>` preview player, and an owner-scoped **Download MP4** link (`/api/brand-graphics/renders/:id/download`).
+
 1.4.2 updates person-facing tool labels and the Brand Graphics persona to name the product Open Swarm and retires the legacy voiceover pronunciation note; technical identifiers keep their forms.
 
 1.4.0 makes the seven reference functions work (they were greyed "Not available yet" controls):

@@ -8,6 +8,8 @@
  * 2026-07-22 00:50:36 | roger.murphy@emeraldcoastsystemsgroup.com  | Request optional victory color through the scene storyteller mode after the deterministic outcome is durably saved.
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Show generated art immediately, suppress replay duplicates, and pass stable story-event identities to the server illustrator.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Present investigation chapter resolution separately from combat victory and route every next chapter through its authored controller.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Announce level-up milestones with a visible tabletop banner when /advance levels the party across campaign chapters.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Trigger keyed level-up cutaways and local scene-advance transitions on /advance, sync live cutawayBudget from /cutaway, and fall back to local transitions when capped or soft.
  */
 
 'use strict';
@@ -87,6 +89,10 @@ async function advanceScene() {
   if (requestEpoch !== campaignEpoch || !campaign || campaign.campaign_id !== campaignId) return;
   if (!r || !r.ok) { advanceInFlight = false; closeOverlay(); banner(r && r.error || 'Could not advance.'); return; }
   (r.notes || []).forEach((n) => addBeat('level-up', n));
+  if (r.notes && r.notes.length) banner(r.notes[0]);
+  if (Array.isArray(r.levelUps) && r.levelUps.length && typeof triggerLevelUpCutaways === 'function') {
+    triggerLevelUpCutaways(r.levelUps, r.notes);
+  }
   if (r.done) {
     board = r.state; rev = r.rev; boardSheets = r.sheets || boardSheets; sheetsRev = r.sheetsRev || sheetsRev;
     rememberConfirmedBoard(board, rev);
@@ -96,6 +102,9 @@ async function advanceScene() {
   rememberConfirmedBoard(board, rev);
   advanceInFlight = false;
   indexTerrain(); layout(); closeOverlay();
+  if (!(r.levelUps && r.levelUps.length) && typeof showLocalBeatTransition === 'function' && typeof CUTAWAY_BEATS === 'object' && CUTAWAY_BEATS) {
+    showLocalBeatTransition(CUTAWAY_BEATS.classifyCombatBeat({ kind: 'advance', sceneTitle: SC() && SC().title }));
+  }
   playIntro(() => startScene()); // introduce the next authored investigation or encounter
 }
 async function defeat() {
@@ -143,15 +152,25 @@ function showCutaway(url) {
 }
 // Paint the moment. Milestones (opening/victory) are host-only to avoid dupes;
 // a player's "show me" free-talk paints for whoever asked (anyPlayer).
-async function requestCutaway(prompt, anyPlayer, eventKey) {
+async function requestCutaway(prompt, anyPlayer, eventKey, options) {
   if (!(anyPlayer || isOwner()) || !campaign) return null;
   const campaignId = campaign.campaign_id, requestEpoch = campaignEpoch;
+  const opts = options || {};
   const result = await api('/cutaway', {
     method: 'POST',
-    body: JSON.stringify({ campaignId, prompt, eventKey: eventKey || null }),
+    body: JSON.stringify({
+      campaignId, prompt, eventKey: eventKey || null, key: eventKey || null,
+      beatKind: opts.beatKind || null,
+    }),
   }).catch(() => null);
-  if (result && result.ok && result.url && campaign && campaign.campaign_id === campaignId && campaignEpoch === requestEpoch) {
+  if (!campaign || campaign.campaign_id !== campaignId || campaignEpoch !== requestEpoch) return result;
+  if (result && result.cutawayBudget && typeof setCutawayBudget === 'function') {
+    setCutawayBudget(result.cutawayBudget);
+  }
+  if (result && result.ok && result.url) {
     showCutaway(result.url);
+  } else if (result && (result.capped || result.soft) && opts.fallbackBeat && typeof showLocalBeatTransition === 'function') {
+    showLocalBeatTransition(opts.fallbackBeat);
   }
   return result;
 }

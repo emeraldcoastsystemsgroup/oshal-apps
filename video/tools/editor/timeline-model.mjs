@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Speed-aware v1 layout/split/playhead mapping and immutable segment-effect, caption and sticker helpers.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Support optional aspectRatio on createTimeline plus immutable setAspectRatio and patchProject operations across v1 and v2 timelines.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: add immutable duplicateSegment preserving all segment trims, volume, speed and visual effect settings.
  */
 import { ASPECT_RATIOS, LIMITS, PROFILE, TITLE_POSITIONS, TITLE_SIZES, demand, exactObject, integer, plainText, timelineFrames, validateTimeline } from './timeline-validation.mjs';
 import { clipDurationFrames } from './editor-effects.mjs';
@@ -153,6 +154,18 @@ export function moveSegment(document, id, to) {
 export function removeSegment(document, id) {
   const index = segmentIndex(document, id);
   return withSegments(document, document.segments.filter((_, position) => position !== index));
+}
+
+/** @description Duplicate one segment immediately after itself, preserving all trims, volume, speed and effect settings.
+ * @param {object} document Document. @param {string} id Segment. @returns {{document:object,id:string}} New document and duplicate ID. */
+export function duplicateSegment(document, id) {
+  demand(document.segments.length < LIMITS.segments, `The timeline holds at most ${LIMITS.segments} segments`);
+  const index = segmentIndex(document, id), original = document.segments[index];
+  const copyId = nextId(new Set(document.segments.map(segment => segment.id)), 's');
+  const copy = { ...structuredClone(original), id: copyId };
+  const segments = [...document.segments];
+  segments.splice(index + 1, 0, copy);
+  return { document: withSegments(document, segments), id: copyId };
 }
 
 /** @description Set one segment's clip volume, as a percentage (100 is unchanged, 0 is silent).

@@ -30,6 +30,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: the boot pair on installed and fresh schemas, round by round, with the tick and a catalog read-back as the verdict.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: expect 14 tables with forced RLS after adding venture_quote_inbox.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,7 +42,7 @@ delete process.env.OSHAL_SCHEMA_BOOTSTRAP;
 const require = createRequire(import.meta.url);
 const boot = require('./helpers/venture-schema-boot.cjs');
 const ROUNDS = Number.parseInt(process.env.VENTURE_SCHEMA_RACE_ROUNDS ?? '20', 10);
-const TABLES = 13;
+const TABLES = 14;
 const FUNCTIONS = ['venture_reject_fx_mutation', 'venture_validate_fx_owner', 'venture_validate_quote_fx_binding',
   'venture_validate_rebaseline_policy_owner', 'venture_validate_run_cost_transition', 'venture_validate_run_owner'];
 const TRIGGERS = ['venture_fx_assumptions_immutable', 'venture_fx_assumptions_validate_owner',

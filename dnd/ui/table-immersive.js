@@ -9,6 +9,7 @@
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Wire the full-screen, Dungeon Master panel, Escape and quick-question controls only when no audience view renders (ADR-164 D6): under the family view of table.html the table is hidden and never starts. The full table wires them exactly as before.
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The rail portrait asks only for bundled art (tokenArtUrl); a token without it shows the plain portrait frame.
  * 2026-11-06 08:15:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): the HUD's More menu (Timeline, Help, DM Settings, Full screen) opens from ⋯ More and closes on an item, an outside press or Escape; DM & Story keeps its name and reports aria-pressed, so the drawer's ✕ is its one close control; Full screen is plain words (phone fonts have no ⛶).
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Display active concentration, condition, reaction, and effective AC badges in the right gameplay rail.
  */
 
 'use strict';
@@ -41,11 +42,14 @@ function renderGameplayRail() {
   const controller = token.kind === 'pc' ? controllerLabel(token) : `${role || 'NPC'} · Dungeon Master`;
   const personality = token.kind === 'monster' ? tokenPersonality(token) : '';
   const portrait = tokenArtUrl(token.kind === 'pc' ? token.slug : token.ref);
+  const shownAc = typeof ENG !== 'undefined' && ENG.effectiveAc ? ENG.effectiveAc(token) : token.ac;
+  const statusPills = typeof spellStatusPillsHtml === 'function' ? spellStatusPillsHtml(token, !!(board && board.mode === 'combat')) : '';
   root.innerHTML = `<button type="button" class="rail-character-head" id="railSheetBtn">
       <span class="rail-portrait"${artStyle(portrait)}></span>
-      <span><small>ACTIVE · ${esc(controller)}</small><b>${esc(tokenDisplayName(token))}</b><em>❤ ${token.hp}/${token.maxHp} · 🛡 ${token.ac} · 👟 ${movementLeft(token)}ft</em></span>
+      <span><small>ACTIVE · ${esc(controller)}</small><b>${esc(tokenDisplayName(token))}</b><em>❤ ${token.hp}/${token.maxHp} · 🛡 ${shownAc} · 👟 ${movementLeft(token)}ft</em></span>
       <i>${token.kind === 'pc' ? 'View full sheet' : esc(role)}</i>
     </button>
+    ${statusPills ? `<div class="status-pills rail-status-pills">${statusPills}</div>` : ''}
     ${personality ? `<div class="rail-character-note">${esc(personality)}</div>` : ''}
     <div class="rail-label">Available now</div><div class="rail-pills">${railReadyActions(token, sheet)}</div>
     <div class="rail-label">Carried items</div><div class="rail-pills">${railInventoryRows(inventory)}</div>`;

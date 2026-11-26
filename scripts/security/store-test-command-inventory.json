@@ -11,7 +11,8 @@
     "8 | maintainer@emeraldcoastsystemsgroup.com | Lane CHATCORE3 (aero-lab 1.4.6): register Aero Lab's Draft with AI browser guard (job home-summary).",
     "9 | maintainer@emeraldcoastsystemsgroup.com | Register the own-first-screen + one-concierge structural guard and the Create ten-editor Chromium concierge browser guard in job store-bots.",
     "10 | maintainer@emeraldcoastsystemsgroup.com | Register scan-to-print/tests/routes.core.test.js in job scan-to-print (BACKLOG B6) using the pinned store toolchain (express, multer, sharp).",
-    "11 | maintainer@emeraldcoastsystemsgroup.com | Register the engineering shelf's role contract and the check that its Engineer role gives exactly what Design Studio's four steps need (job design-studio)."
+    "11 | maintainer@emeraldcoastsystemsgroup.com | Register the engineering shelf's role contract and the check that its Engineer role gives exactly what Design Studio's four steps need (job design-studio).",
+    "12 | maintainer@emeraldcoastsystemsgroup.com | Register the strict catalog YAML check's mutation suite (job test-catalogs): libyaml and js-yaml over every package Test Lab catalog, with no framework checkout."
   ],
   "commands": [
     ".|node --test scripts/check-catalog.test.mjs",
@@ -26,6 +27,7 @@
     ".|node --test scripts/check-forced-rls.test.mjs",
     ".|node --test scripts/check-medium-properties.test.mjs",
     ".|node --test scripts/check-adr160-contract.test.mjs",
+    ".|node --test scripts/check-test-catalog-yaml.test.mjs",
     ".|node --test scripts/check-test-catalogs.test.mjs",
     ".|node --test scripts/check-app-scopes.test.mjs",
     ".|node --test scripts/check-bot-dependencies.test.mjs",

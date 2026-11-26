@@ -5,6 +5,7 @@
   SEQ | AUTHOR                                  | DESCRIPTION
   =============================================================================
   1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-inbox & switchboard--switchboard-threads): withhold CHANNELS and WORKSPACES filters when no account is connected; fold Threads into Inbox via a 44px Messages | By person segmented control (?group=person) calling /api/switchboard/threads/items with confirmed Gmail reply outbox; add aria-label Refresh on 44px #refreshBtn; convert provider pills into a unified dot-and-word legend; apply solid --ds-accent + --ds-on-accent tokens and --ds-font.
+  2   | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): render channel/workspace filter strips (.navlist) and .groupbar as single-row horizontal scrollable strips on phone viewports (<=760px) with 44px nowrap touch targets and active-item reveal.
   =============================================================================
 -->
 <html lang="en" data-theme="midnight">
@@ -275,6 +276,27 @@
     .item .right { grid-column:2; flex-direction:row; align-items:center; justify-content:space-between; }
     .verbs { opacity:1; transform:none; }
   }
+  @media (max-width:760px) {
+    .rail { flex-direction:column; gap:12px; min-width:0; max-width:100%; }
+    .rail > div { flex:none; min-width:0; max-width:100%; }
+    .navlist {
+      flex-direction:row; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; gap:6px; padding-bottom:2px; max-width:100%;
+    }
+    .navlist::-webkit-scrollbar { display:none; }
+    .nav {
+      width:auto; flex:0 0 auto; white-space:nowrap; min-height:44px;
+      border:1px solid var(--line); border-radius:var(--pill); padding:8px 13px;
+    }
+    .nav .lbl { flex:none; overflow:visible; text-overflow:clip; }
+    .groupbar {
+      max-width:100%; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    }
+    .groupbar::-webkit-scrollbar { display:none; }
+    .segbtn { flex:0 0 auto; white-space:nowrap; min-height:44px; }
+  }
   @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
 </style>
 </head>
@@ -441,6 +463,12 @@
       + '<span class="lbl">'+cssEsc(label)+'</span>'
       + (count!=null?'<span class="n tnum">'+count+'</span>':'')+'</button>';
   }
+  function revealInStrip(strip, el){
+    if(!strip || !el || !strip.clientWidth) return;
+    var start=el.offsetLeft, end=start+el.offsetWidth;
+    if(start<strip.scrollLeft) strip.scrollLeft=start;
+    else if(end>strip.scrollLeft+strip.clientWidth) strip.scrollLeft=end-strip.clientWidth;
+  }
   function renderChannels(connected){
     var order=["gmail","outlook","slack","social"], html="";
     var total=Object.keys(state.byChannel).reduce(function(a,k){return a+state.byChannel[k];},0);
@@ -449,7 +477,8 @@
       if(!connected[k] && !state.byChannel[k]) return;
       html+=navRow("data-ch",k,CH[k].icon,CH[k].v,CH[k].label,state.byChannel[k]||0,state.channel===k);
     });
-    $("channels").innerHTML=html;
+    var chHost=$("channels"); chHost.innerHTML=html;
+    if(typeof chHost.querySelector==="function") revealInStrip(chHost, chHost.querySelector(".nav.on"));
   }
   function renderWorkspaces(list){
     var html=navRow("data-ws","","",null,"All accounts",null,state.workspace==="");
@@ -457,7 +486,8 @@
       state.wsColors[w.workspaceId]=w.color;
       html+=navRow("data-ws",w.workspaceId,"",WS_HEX[w.color]||"--muted",w.name,null,state.workspace===w.workspaceId);
     });
-    $("workspaces").innerHTML=html;
+    var wsHost=$("workspaces"); wsHost.innerHTML=html;
+    if(typeof wsHost.querySelector==="function") revealInStrip(wsHost, wsHost.querySelector(".nav.on"));
     $("wsnote").innerHTML=(list&&list.length)?"":'Group accounts into brand desks in <a href="'+API+'/organize">Workspaces</a>.';
   }
 

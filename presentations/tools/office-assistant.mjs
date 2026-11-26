@@ -1,9 +1,10 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guide edits are proposals against the exact draft the model read.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Display speaker notes updates in `update_slide` proposal reviews.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Include cover subtitle in draft snapshots and display `set_subtitle` / `set_title.subtitle` in proposal reviews (CREATE-TOOL-PRESENTATIONS-15).
  */
-export function draftSnapshot({kind, title, outline, theme}) {
-  return JSON.stringify([kind, title, outline, theme]);
+export function draftSnapshot({kind, title, outline, theme, subtitle = ''}) {
+  return JSON.stringify([kind, title, outline, theme, subtitle]);
 }
 
 export function createProposalReview({host, readDraft, applyActions, onMessage}) {
@@ -23,7 +24,8 @@ export function createProposalReview({host, readDraft, applyActions, onMessage})
         action.op === 'update_cell' ? `Sheet ${action.index}, cell ${action.cell}: ${action.value}` :
         action.op === 'update_slide' ? `${action.bullets ? 'Replace body of' : action.notes !== undefined && action.title == null ? 'Update speaker notes on' : 'Update heading of'} section ${action.index}: ${action.title || ''} ${(action.bullets || []).join(' · ')}${typeof action.notes === 'string' ? (action.notes ? ' · Notes: ' + action.notes : ' · Clear speaker notes') : ''}` :
         action.op === 'add_slide' ? `Add section: ${action.title || ''}\n${(action.bullets || []).join('\n')}` :
-        action.op === 'set_title' ? `Title: ${action.title}` : `Theme: ${action.theme}`;
+        action.op === 'set_subtitle' ? (action.subtitle ? `Cover subtitle: ${action.subtitle}` : 'Clear cover subtitle') :
+        action.op === 'set_title' ? `Title: ${action.title}${typeof action.subtitle === 'string' ? (action.subtitle ? ` · Subtitle: ${action.subtitle}` : ' · Clear subtitle') : ''}` : `Theme: ${action.theme}`;
       list.append(item);
     }
     const apply = document.createElement('button');

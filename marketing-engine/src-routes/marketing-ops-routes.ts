@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Marketing ops rail (service auth, /api/marketing-ops):
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Compile clean against real core types: type the connector spec/creds as ConnectorSpec/BuildSpecOptions instead of unknown, and pass the full CreateInternalTicketInput shape (workspaceId/assignedAgentId/parentTicketId/external* nulls) the canonical schedule-dispatch caller uses.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.8 (P2): wire reallocationProposals() into the weekly review over real recorded channel costs and conversions, writing proposed `channel_allocation` rows to oshal_marketing_budget_ledger and noting them on the review ticket.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.9 (P5): populate campaign_slug and medium attribution columns on every oshal_marketing_events INSERT via extractEventAttribution (including GSC page-dimension UTM URLs), preserving NULL when unattributed.
  *     the deterministic daily metrics ingest (Search Console via the gsc spec + caller's google
  *     connection, PostHog via its spec, GitHub traffic via env token — every source fail-soft, a
  *     missing source is recorded NO DATA and never invented) and the weekly review (scorecard
@@ -30,6 +32,9 @@ import {
   scorecardRollup, weekStartOf,
   type MarketingEventLike, type ScorecardBucket, type ScorecardWeekRollup,
 } from './marketing-model';
+import { buildChannelPerformanceInputs } from './marketing-budget-model';
+import { createReallocationLedgerProposal, loadRecordedChannelMetrics } from './marketing-budget';
+import { extractEventAttribution } from './marketing-attribution-model';
 
 const logger = createChildLogger({ module: 'marketing-ops-routes' });
 
@@ -95,7 +100,7 @@ async function ensureOpsSchema(pool: AppContext['pool']): Promise<void> {
       ...buildOwnerRlsPolicyStatements('oshal_marketing_run_ledger', 'user_sub'),
     ],
     requirements: [
-      { table: 'oshal_marketing_events', columns: ['event_id', 'user_sub', 'ts', 'source', 'event', 'value', 'meta'] },
+      { table: 'oshal_marketing_events', columns: ['event_id', 'user_sub', 'ts', 'source', 'campaign_slug', 'medium', 'event', 'value', 'meta'] },
       { table: 'oshal_marketing_scorecard_weeks', columns: ['user_sub', 'week_start', 'data', 'sources'] },
       { table: 'oshal_marketing_run_ledger', columns: ['run_id', 'user_sub', 'channel', 'action', 'outcome', 'detail'] },
     ],
@@ -134,10 +139,12 @@ interface SourceIngestResult {
 }
 
 /** One day-bucketed event row being (re)written for a source. */
-interface DayEventRow {
+export interface DayEventRow {
   event: string;
   date: string;
   value: number;
+  campaignSlug?: string | null;
+  medium?: string | null;
   meta: Record<string, unknown>;
 }
 
@@ -267,12 +274,21 @@ async function ingestSearchConsole(ctx: AppContext, sub: string): Promise<Source
   const window = gscWindow(new Date());
   const sites = await gscSiteUrls(spec, creds);
   if (!sites.length) return { status: 'no_data', events: 0, reason: 'no_sites' };
-  const { totals, succeeded } = await gscDateTotals(spec, creds, sites, window);
+  const { buckets, succeeded } = await gscDateTotals(spec, creds, sites, window);
   if (!succeeded) return { status: 'no_data', events: 0, reason: 'query_failed' };
-  const rows: DayEventRow[] = window.dates.flatMap((date) => [
-    { event: 'clicks', date, value: totals.get(date)?.clicks ?? 0, meta: {} },
-    { event: 'impressions', date, value: totals.get(date)?.impressions ?? 0, meta: {} },
-  ]);
+  const rows: DayEventRow[] = [];
+  for (const date of window.dates) {
+    const forDate = [...buckets.values()].filter((b) => b.date === date);
+    if (!forDate.length) {
+      rows.push({ event: 'clicks', date, value: 0, campaignSlug: null, medium: null, meta: {} });
+      rows.push({ event: 'impressions', date, value: 0, campaignSlug: null, medium: null, meta: {} });
+      continue;
+    }
+    for (const b of forDate) {
+      rows.push({ event: 'clicks', date, value: b.clicks, campaignSlug: b.campaignSlug, medium: b.medium, meta: {} });
+      rows.push({ event: 'impressions', date, value: b.impressions, campaignSlug: b.campaignSlug, medium: b.medium, meta: {} });
+    }
+  }
   const written = await replaceDayEvents(ctx, sub, 'gsc', rows);
   return { status: 'ok', events: written };
 }
@@ -291,17 +307,25 @@ async function gscSiteUrls(spec: ConnectorSpec, creds: BuildSpecOptions): Promis
     .map((e) => String(e.siteUrl));
 }
 
-/** Aggregate clicks/impressions per date across the owner's sites for the settled window. */
+interface GscAttributedBucket {
+  date: string;
+  campaignSlug: string | null;
+  medium: string | null;
+  clicks: number;
+  impressions: number;
+}
+
+/** Aggregate clicks/impressions per (date, campaignSlug, medium) across the owner's sites. */
 async function gscDateTotals(
   spec: ConnectorSpec, creds: BuildSpecOptions, sites: string[],
   window: { startDate: string; endDate: string; dates: string[] },
-): Promise<{ totals: Map<string, { clicks: number; impressions: number }>; succeeded: boolean }> {
-  const totals = new Map<string, { clicks: number; impressions: number }>();
+): Promise<{ buckets: Map<string, GscAttributedBucket>; succeeded: boolean }> {
+  const buckets = new Map<string, GscAttributedBucket>();
   let succeeded = false;
   for (const siteUrl of sites) {
     try {
       const res = await invokeSpecResource(spec, creds, 'searchanalytics', {
-        siteUrl, startDate: window.startDate, endDate: window.endDate, dimensions: ['date'], rowLimit: 100,
+        siteUrl, startDate: window.startDate, endDate: window.endDate, dimensions: ['date', 'page'], rowLimit: 500,
       });
       if (!res?.body?.ok) {
         logger.warn({ siteUrl, status: res?.status }, 'gsc searchanalytics query not ok');
@@ -312,16 +336,21 @@ async function gscDateTotals(
       for (const row of rows) {
         const date = Array.isArray(row?.keys) ? String(row.keys[0] ?? '') : '';
         if (!window.dates.includes(date)) continue;
-        const bucket = totals.get(date) ?? { clicks: 0, impressions: 0 };
+        const pageUrl = Array.isArray(row?.keys) && row.keys.length > 1 ? String(row.keys[1] ?? '') : '';
+        const attr = extractEventAttribution({ url: pageUrl, meta: row });
+        const key = `${date}\0${attr.campaignSlug ?? ''}\0${attr.medium ?? ''}`;
+        const bucket = buckets.get(key) ?? {
+          date, campaignSlug: attr.campaignSlug, medium: attr.medium, clicks: 0, impressions: 0,
+        };
         bucket.clicks += Number(row?.clicks) || 0;
         bucket.impressions += Number(row?.impressions) || 0;
-        totals.set(date, bucket);
+        buckets.set(key, bucket);
       }
     } catch (err) {
       logger.error({ err, stack: (err as Error)?.stack, siteUrl }, 'gsc searchanalytics query failed');
     }
   }
-  return { totals, succeeded };
+  return { buckets, succeeded };
 }
 
 /**
@@ -418,8 +447,8 @@ async function writeGithubEvents(
   return rows.length ? replaceDayEvents(ctx, sub, 'github', rows) : 0;
 }
 
-/** Idempotent day-bucket rewrite: delete the same (owner, source, meta.date) rows, then insert. */
-async function replaceDayEvents(
+/** Idempotent day-bucket rewrite: delete the same (owner, source, meta.date) rows, then insert with attribution columns. */
+export async function replaceDayEvents(
   ctx: AppContext, sub: string, source: string, rows: DayEventRow[],
 ): Promise<number> {
   if (!rows.length) return 0;
@@ -429,10 +458,15 @@ async function replaceDayEvents(
     [sub, source, dates],
   );
   for (const row of rows) {
+    const attr = extractEventAttribution({
+      campaignSlug: row.campaignSlug,
+      medium: row.medium,
+      meta: row.meta,
+    });
     await ctx.pool.query(
-      `INSERT INTO oshal_marketing_events (user_sub, ts, source, event, value, meta)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-      [sub, `${row.date}T00:00:00.000Z`, source, row.event, row.value,
+      `INSERT INTO oshal_marketing_events (user_sub, ts, source, campaign_slug, medium, event, value, meta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      [sub, `${row.date}T00:00:00.000Z`, source, attr.campaignSlug, attr.medium, row.event, row.value,
         JSON.stringify({ ...row.meta, date: row.date })],
     );
   }
@@ -510,9 +544,10 @@ async function reviewForOwner(
   const previous = scorecardRollup(events as MarketingEventLike[], prevWeek);
   await upsertScorecardWeek(ctx, sub, week, current);
   await upsertScorecardWeek(ctx, sub, prevWeek, previous);
+  const newProposals = await generateWeeklyReallocationProposals(ctx, sub);
   const proposals = await pendingProposalCount(ctx, sub);
   const due = await experimentsDue(ctx, sub);
-  const description = buildReviewDescription(week, prevWeek, current, previous, proposals, due);
+  const description = buildReviewDescription(week, prevWeek, current, previous, proposals, due, newProposals);
   if (!ctx.ticketService) throw new Error('ticketService unavailable on the app context');
   const ticket = await ctx.ticketService.createTicket({
     title: `Weekly marketing review — ${week}`,
@@ -550,6 +585,40 @@ async function upsertScorecardWeek(
      DO UPDATE SET data = EXCLUDED.data, sources = EXCLUDED.sources, computed_at = now()`,
     [sub, week, JSON.stringify(rollup.data), JSON.stringify(rollup.sources)],
   );
+}
+
+/** Generate proposed channel_allocation rows from real recorded channel costs for active campaigns. */
+async function generateWeeklyReallocationProposals(ctx: AppContext, sub: string): Promise<string[]> {
+  const created: string[] = [];
+  try {
+    const { rows: campaigns } = await ctx.pool.query(
+      `SELECT campaign_id, name, slug, budget_monthly_usd, channels, channel_allocations, finance_project_id
+         FROM oshal_marketing_campaigns
+        WHERE user_sub = $1 AND status = 'active'
+        ORDER BY updated_at DESC LIMIT 50`,
+      [sub],
+    );
+    for (const camp of campaigns) {
+      const existing = await ctx.pool.query(
+        `SELECT entry_id FROM oshal_marketing_budget_ledger
+          WHERE user_sub = $1 AND campaign_id = $2 AND field = 'channel_allocation' AND status = 'proposed'
+          LIMIT 1`,
+        [sub, camp.campaign_id],
+      );
+      if (existing.rows.length > 0) continue;
+      const recorded = await loadRecordedChannelMetrics(ctx.pool, sub, camp);
+      const perf = buildChannelPerformanceInputs({ campaign: camp, ...recorded });
+      const { proposal, recommendations } = await createReallocationLedgerProposal(
+        ctx.pool, sub, camp, perf, { proposedBy: 'weekly-review' },
+      );
+      if (proposal && recommendations.length >= 2) {
+        created.push(`${String(camp.name)}: ${recommendations[0].channel} -> ${recommendations[1].channel} (${recommendations[0].rationale})`);
+      }
+    }
+  } catch (err) {
+    logger.error({ err, stack: (err as Error)?.stack }, 'weekly reallocation proposal generation unavailable');
+  }
+  return created;
 }
 
 /** How many budget proposals await a human decision (0 when the 001 table is not ensured yet). */
@@ -612,6 +681,7 @@ function buildReviewDescription(
   week: string, prevWeek: string,
   current: ScorecardWeekRollup, previous: ScorecardWeekRollup,
   proposals: number, due: DueExperiment[],
+  newProposals: string[] = [],
 ): string {
   const lines: string[] = [`## Weekly marketing scorecard — week of ${week}`, ''];
   lines.push(`| Source | This week (${week}) | Last week (${prevWeek}) | Status |`, '| --- | --- | --- | --- |');
@@ -626,6 +696,9 @@ function buildReviewDescription(
     + `last week: ${previous.data.totals.events} events (value ${previous.data.totals.value}).`);
   lines.push('', '## Pending budget proposals',
     proposals > 0 ? `${proposals} proposal(s) awaiting a human decision on the Approvals pane.` : 'None.');
+  if (newProposals.length > 0) {
+    for (const item of newProposals) lines.push(`- [channel_allocation] ${item}`);
+  }
   lines.push('', '## Experiments past their window');
   if (due.length) {
     for (const d of due) {

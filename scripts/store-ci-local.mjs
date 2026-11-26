@@ -28,6 +28,7 @@
  * 22 | maintainer@emeraldcoastsystemsgroup.com | OSHAL_KERNEL_PLATFORM: a suite that renders the kernel's shared UI (Career's concierge panel uses the shared assistant) gets the kernel's `platform` folder from STORE_CI_KERNEL_PLATFORM, an explicit read-only path the operator sets (an export of the commit production runs). It is never found by looking around, and without it such a step stays a named skip, which fails the gate.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | Scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"). A change to one package waited for every package's suites, 12 to 15 minutes, and unrelated one-test timeouts under load failed the gate four times in one night. A run now does the publish wall, the structural rules and the suites of the packages the change touches or reaches (scripts/store-ci-scope.mjs decides; anything it cannot place runs everything), says before it starts what it runs and what it leaves to the scheduled full run, and ends on a line that says scoped: the full-pass line is printed by a full run only. --full runs every job, --plan prints the plan and runs nothing, --base measures from another commit, --retry-from reruns the jobs that failed in a first run on the same tree plus the publish wall, and STORE_CI_RESULT_FILE receives the result for the hook, store-push and the scheduled full run. An argument this runner does not know is refused, so a mistyped --full cannot quietly run less.
  * 24 | maintainer@emeraldcoastsystemsgroup.com | Require sharp + express + multer in the pinned toolchain for scan-to-print's HTTP route suite (tests/routes.core.test.js, BACKLOG B6), so a clone whose toolchain predates sharp fails closed naming npm ci --prefix scripts/toolchain rather than with a raw MODULE_NOT_FOUND.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Carry the test-catalogs job's strict YAML step: one `check` policy entry for scripts/check-test-catalog-yaml.mjs, which needs no framework checkout (libyaml through python3's PyYAML, js-yaml from this toolchain), so unlike the framework loader step beside it it runs here instead of reporting SKIPPED. Twelve catalogs the kernel could not parse passed this gate on 2026-11-19 and 2026-11-20.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -234,6 +235,7 @@ const POLICY = [
   { match: /^node\s+scripts\/check-medium-properties\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-adr160-contract\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-test-catalogs\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-test-catalog-yaml\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-app-scopes\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-bot-dependencies\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-store-bots\.mjs$/, kind: 'check' },

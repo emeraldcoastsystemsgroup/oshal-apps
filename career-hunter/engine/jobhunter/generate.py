@@ -18,6 +18,9 @@
 # 50 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years pass is given the additional experience chosen for the packet, so the career total it holds a low claim to is the one the receipt records.
 # 51 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: _packet_files also writes Resume_Parse.docx (docx_parse), the job's résumé as labelled lines for an employer's résumé parser, from the same résumé and the recorded roles of the packet's profile; generate_for and rerender_packet hand those roles over.
 # 52 | maintainer@emeraldcoastsystemsgroup.com | Generate again (lane CAREER-REGEN): application.json records the Career version that made the packet ("career_version", career_version.current(), second key so a reader finds it in the first bytes); rerender_packet keeps the recorded one, since it writes no new content. My jobs reads it to tell which jobs have documents from an earlier Career.
+# 53 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: after the years and term passes, _tailored_packet has resume_review.settle judge the review's own checks again on the final packet, so the job page's "needs your review" names only what the sent résumé still holds.
+# 54 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: before the years pass, _tailored_packet drops a job the model wrote twice (role_plan.drop_repeats) and records the count as roles_carried.repeated.
+# 55 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2 (Roger's Honeycomb letter, made 6:17 PM Central on 2026-11-25, was dated "November 26, 2026"): the letter's date is the calendar day in Career's time zone (America/Chicago, the zone its schedules run on; CAREER_TIME_ZONE overrides), not the server's UTC day.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -745,8 +748,10 @@ def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
     data, resume_reviewed = resume_review.review_resume(
         data, prof_doc, selected, posting, roles, embargo, ranked)
     data = _sanitize(data)
+    roles_carried["repeated"] = role_plan.drop_repeats(data.get("resume") or {})
     data, years_fixed = years_truth.enforce(data, prof_doc, selected)
     data, terms_fixed = term_fidelity.restore(data, prof_doc, selected, posting)
+    resume_reviewed = resume_review.settle(resume_reviewed, data, prof_doc, selected, posting)
     return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed
 
 
@@ -887,7 +892,17 @@ def _render_pdf(html_path: Path, pdf_path: Path) -> None:
                    check=True, cwd=str(config.ROOT))
 
 
-def _today() -> str:
-    # career_db has no date dependency; use the OS date here (display only).
+def _today(now=None) -> str:
+    """@description The date a letter carries: the calendar day in Career's time zone (America/Chicago, the zone its
+    schedules run on; CAREER_TIME_ZONE names another), never the server's UTC day, which turns over at 6 PM Central.
+    @param now - An aware datetime for tests; the current time when omitted. @returns e.g. "November 25, 2026"."""
     import datetime
-    return datetime.date.today().strftime("%B %d, %Y")
+    import os
+    moment = now or datetime.datetime.now(datetime.timezone.utc)
+    try:
+        from zoneinfo import ZoneInfo
+        local = moment.astimezone(ZoneInfo(os.environ.get("CAREER_TIME_ZONE") or "America/Chicago"))
+    except Exception as err:  # no time zone data in this runtime: US Central's standard offset, never UTC
+        print(f"letter date: time zone unavailable ({type(err).__name__}); using UTC-6", file=sys.stderr)
+        local = moment.astimezone(datetime.timezone(datetime.timedelta(hours=-6)))
+    return local.strftime("%B %d, %Y")

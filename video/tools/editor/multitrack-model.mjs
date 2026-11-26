@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep v2 clips, linked A/V, trims, splits, ripple edits and effect/keyframe changes immutable under the existing history/store contract.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Support speed-aware migration/splits/ripple edits, clip visual effects and keyframed stickers in v2 multitrack editing.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-12): add duplicateClip (preserving all clip settings), renameTrack and deleteTrack operations.
  */
 import { validateTimeline, timelineFrames, demand } from './timeline-validation.mjs';
 import { clipDurationFrames } from './editor-effects.mjs';
@@ -120,6 +121,44 @@ function extractAudio(document, operation) {
   target.clips.push(audioClip);
 }
 
+function duplicateClip(document, operation) {
+  const own = found(document, operation.id);
+  const target = operation.track !== undefined ? track(document, operation.track) : own.track;
+  editable(target);
+  demand(own.track.kind === target.kind, 'Duplicate onto a track of the same kind');
+  const duration = clipDurationFrames(own.clip.in, own.clip.out, own.clip.speed ?? 100);
+  const start = operation.start !== undefined ? operation.start : own.clip.start + duration;
+  const copy = structuredClone(own.clip);
+  delete copy.link;
+  copy.id = uid('clip');
+  copy.start = start;
+  target.clips.push(copy);
+}
+
+function renameTrack(document, operation) {
+  const own = track(document, operation.id);
+  editable(own);
+  demand(typeof operation.name === 'string' && operation.name.trim().length > 0, 'Track name is required');
+  own.name = operation.name.trim();
+}
+
+function deleteTrack(document, operation) {
+  const own = track(document, operation.id);
+  editable(own);
+  demand(document.tracks.length > 1, 'Cannot delete the last remaining track');
+  for (const clip of own.clips) {
+    const linked = partner(document, clip);
+    if (linked && linked.track.id !== own.id) { editable(linked.track); delete linked.clip.link; }
+  }
+  document.tracks = document.tracks.filter(item => item.id !== own.id);
+  const total = timelineFrames(document);
+  for (const key of ['titles', 'captions']) document[key] = document[key].map(title => ({ ...title, end: Math.min(title.end, total) })).filter(title => title.start < title.end);
+  if (document.stickers?.length) {
+    const stickers = document.stickers.filter(st => st.start < total).map(st => ({ ...st, end: Math.min(st.end, total) }));
+    if (stickers.length) document.stickers = stickers; else delete document.stickers;
+  }
+}
+
 /** @description Apply one immutable v2 edit and validate the whole result before returning it.
  * @param {object} value V2 document.
  * @param {object} operation Track/clip/text operation.
@@ -127,6 +166,8 @@ function extractAudio(document, operation) {
 export function applyMultitrack(value, operation) {
   const document = validateTimeline(value); demand(document.version === 2, 'Upgrade to multitrack first');
   if (operation.type === 'addTrack') document.tracks.push({ id: uid('track'), name: operation.name, kind: operation.kind, clips: [], muted: false, locked: false });
+  else if (operation.type === 'renameTrack') renameTrack(document, operation);
+  else if (operation.type === 'deleteTrack') deleteTrack(document, operation);
   else if (operation.type === 'track') {
     const own = track(document, operation.id); demand(operation.patch && Object.keys(operation.patch).every(key => ['name', 'muted', 'locked'].includes(key)), 'Unsupported track change'); Object.assign(own, operation.patch);
   } else if (operation.type === 'addClip') {
@@ -134,7 +175,8 @@ export function applyMultitrack(value, operation) {
     const source = document.sources[operation.source]; demand(source, 'Choose an uploaded source');
     const start = operation.start ?? 0; own.clips.push({ id: uid('clip'), source: operation.source, in: operation.in ?? 0,
       out: operation.out ?? Math.min(source.frames, 1800 - start), start, volume: source.kind === 'audio' ? 40 : 100 });
-  } else if (operation.type === 'clip') editClip(document, operation);
+  } else if (operation.type === 'duplicateClip') duplicateClip(document, operation);
+  else if (operation.type === 'clip') editClip(document, operation);
   else if (operation.type === 'moveClip') {
     const own = found(document, operation.id), target = track(document, operation.track); editable(own.track); editable(target);
     demand(own.track.kind === target.kind, 'Move between tracks of the same kind');

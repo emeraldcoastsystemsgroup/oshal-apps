@@ -11,6 +11,8 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Put direct Tab in, Tab out and Add sub-engagement beside existing actions while preserving one-level relationships, drafts and the revision-checked save/Undo path.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: each time the page reads the main résumé it has the Years by skill section read too (CareerYearsBySkill.load), so the years counted from the jobs and the revision that section saves on follow a job just saved; a person with no main résumé gets no section.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Notify CareerYearsBySkill.sync synchronously on main-résumé save and load before render() so stale years Undo hides immediately and Save years never sends a pre-edit revision while GET /resume/master-section?field=years is in flight.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: a job's card shows where it was on its own line under its months (only when it has a location), and Edit and Add a job have an optional Location box under Employer, "City, State", with one line of help; it saves with the job's Save through the same revision-checked edit, with Undo.
  */
 (function (win) {
   'use strict';
@@ -40,6 +42,7 @@
     var answer = await request('/resume/doc?id=master');
     if (state.editing === 'new' && state.revision && state.revision !== answer.revision) state.newParent = '';
     state.doc = answer; state.revision = typeof answer.revision === 'string' ? answer.revision : '';
+    if (win.CareerYearsBySkill && win.CareerYearsBySkill.sync) win.CareerYearsBySkill.sync(state.revision);
     render();
     if (win.CareerYearsBySkill) await win.CareerYearsBySkill.load({ profile: Boolean(state.revision) });
     return answer;
@@ -88,7 +91,8 @@
     var bullets = (role.bullets || []).map(function (text) { return el('li', { text: text }); });
     return el('li', { class: 'wh-job' + (role.parent_role_id ? ' wh-client-job' : ''), 'data-job': String(index) }, [
       el('div', { class: 'wh-job-head' }, [
-        el('div', {}, [el('h2', { text: role.title || 'Untitled job' }), el('p', { class: 'wh-meta', text: [role.org, W.spanLabel(role.start, role.end)].filter(Boolean).join(' · ') })]),
+        el('div', {}, [el('h2', { text: role.title || 'Untitled job' }), el('p', { class: 'wh-meta', text: [role.org, W.spanLabel(role.start, role.end)].filter(Boolean).join(' · ') }),
+          role.location ? el('p', { class: 'wh-meta wh-where', text: role.location }) : null]),
         el('div', { class: 'wh-role-actions' }, [el('button', { type: 'button', class: 'ck-btn wh-edit', 'data-edit': String(index), 'aria-label': 'Edit ' + (role.title || 'this job'), text: 'Edit' }), hierarchyActions(role, index, false)]),
       ]),
       bullets.length ? el('ul', { class: 'wh-bullets' }, bullets) : el('p', { class: 'wh-meta', text: 'No bullets yet.' }),
@@ -146,13 +150,22 @@
       el('label', { class: 'wh-check' }, [heading, el('span', { text: 'Show Selected Client Engagements subheading' })])]);
   }
 
+  /** Where the job was, optional, in the person's own words; employer forms such as Workday ask for it per job. */
+  function locationField(value) {
+    return el('div', { class: 'wh-label' }, [
+      el('label', { for: 'wh-location', text: 'Location' }),
+      el('input', { id: 'wh-location', name: 'location', maxlength: '120', value: value || '', autocomplete: 'off', placeholder: 'City, State', 'aria-describedby': 'wh-location-help' }),
+      el('p', { id: 'wh-location-help', class: 'wh-help', text: 'Optional. Where you did this job, as employer forms ask for it: Austin, TX or Remote.' }),
+    ]);
+  }
+
   function editor(role, index) {
     var isNew = index === 'new', current = !role.end, list = el('ol', { class: 'wh-bullet-list' },
       (role.bullets || []).map(function (text, n) { return bulletRow(text, isNew ? null : n); }));
     var field = function (name, label, value) { var id = 'wh-' + name; return el('label', { for: id, class: 'wh-label' }, [el('span', { text: label }), el('input', { id: id, name: name, maxlength: '200', required: true, value: value || '', autocomplete: 'off' })]); };
     return el('li', { class: 'wh-job wh-editing' + (role.parent_role_id ? ' wh-client-job' : ''), 'data-job': String(index) }, [el('form', { class: 'wh-form', novalidate: true, 'aria-label': isNew ? 'Add a job' : 'Edit ' + role.title }, [
       el('h2', { text: isNew ? (state.newParent ? 'Sub-engagement' : 'Add a job') : 'Edit job' }),
-      field('title', 'Job title', role.title), field('org', 'Employer', role.org),
+      field('title', 'Job title', role.title), field('org', 'Employer', role.org), locationField(role.location),
       relationshipFields(role, index),
       el('div', { class: 'wh-dates' }, [monthField('start', 'Start', role.start, false), monthField('end', 'End', role.end, current)]),
       el('label', { class: 'wh-check' }, [el('input', { type: 'checkbox', name: 'current', checked: current }), el('span', { text: 'I work here now' })]),
@@ -184,13 +197,13 @@
   }
 
   function newEditor() {
-    return editor({ title: '', org: '', start: '', end: '', bullets: [''], parent_role_id: state.newParent }, 'new');
+    return editor({ title: '', org: '', location: '', start: '', end: '', bullets: [''], parent_role_id: state.newParent }, 'new');
   }
 
   function readForm(form) {
     var value = function (name) { var input = form.elements[name]; return input ? String(input.value || '').trim() : ''; };
     var current = form.elements.current.checked;
-    return { title: value('title'), org: value('org'), parent_role_id: value('parentRole'),
+    return { title: value('title'), org: value('org'), location: value('location'), parent_role_id: value('parentRole'),
       engagements_heading: form.elements.engagementsHeading.checked ? win.CareerRoleHierarchy.HEADING : '',
       start: W.composeMonth(value('startYear'), value('startMonth')),
       end: current ? '' : W.composeMonth(value('endYear'), value('endMonth')),
@@ -237,11 +250,12 @@
       for (var part of W.chunks(edits)) {
         var answer = await request('/resume/master-edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: revision, edits: part }) });
         revision = answer.revision;
+        if (revision !== before && win.CareerYearsBySkill && win.CareerYearsBySkill.sync) win.CareerYearsBySkill.sync(revision);
       }
       state.editing = null; notice('');
       if (saved) saved();
       await load(); await followInWord(prior, state.doc);
-      announce(done, before, state.revision);
+      if (state.revision === revision) announce(done, before, state.revision);
       return true;
     } catch (error) {
       state.lastError = error.message;

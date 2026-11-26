@@ -20,11 +20,14 @@
  * 2026-07-23 13:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep both combat and investigation openings in the shared lobby until every joined player has claimed a hero.
  * 2026-07-23 13:25:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Restrict a setup-to-investigation write to an empty clue ledger and the unchanged authored board.
  * 2026-07-23 13:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Delegate setup authorization to a focused guard so this rules boundary remains below the executable-line threshold.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Preserve and validate deeper-spellcasting token fields, sphere AoE templates, concentration saves, and buff/reaction transitions via lib/dnd-spellcasting-guard.js.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Allow Level 5 PC Extra Attack weapon swings (attacksPerAction) in combat damage bounds.
  */
 
 'use strict';
 
 const ENG = require('../ui/engine.js');
+const SG = require('./dnd-spellcasting-guard');
 const { normalizeRollPayload } = require('./dnd-roll-payload');
 const { presentationGateDecision } = require('./dnd-presentation-gate');
 const { setupWriteDecision } = require('./dnd-setup-guard');
@@ -175,7 +178,7 @@ function stripTokenPrivateFields(state) {
     tokens: state.tokens.map((token) => {
       const clean = {};
       Object.keys(token || {}).forEach((key) => { if (!key.startsWith('_')) clean[key] = token[key]; });
-      return clean;
+      return SG.sanitizeSpellcastingFields(clean);
     }),
   };
 }
@@ -226,12 +229,14 @@ function actionTelegraphTransition(before, after, state, actor, rules, serial) {
 
 /** @description Resolve every legal effect target represented by one action cue. */
 function actionRollTargets(state, actor, action, target, rules) {
+  if (action.aoeShape === 'sphere') return ENG.sphereTargets(worldFor(state, rules), actor, action, target);
   if (action.aoeShape !== 'cone') return [target];
   return ENG.coneTargets(worldFor(state, rules), actor, action, target);
 }
 
 /** @description Bind structured roll actors, targets, and thresholds to the cue. */
 function actionRollRecordMatches(roll, actor, action, targets) {
+  if (SG.isConcentrationSaveRoll(roll)) return true;
   const target = targets.find((candidate) => candidate.id === (roll.kind === 'save' ? roll.actorId : roll.targetId));
   if (!target || roll.actionName !== action.name) return false;
   if (roll.kind === 'save') {
@@ -240,7 +245,7 @@ function actionRollRecordMatches(roll, actor, action, targets) {
   }
   if (roll.actorId !== actor.id) return false;
   return roll.kind !== 'attack' || (roll.targetKind === 'ac'
-    && Number(roll.target) === Number(target.ac));
+    && Number(roll.target) === Number(ENG.effectiveAc(target)));
 }
 
 /** @description Verify attack d20 outcomes and require damage for every hit. */
@@ -249,11 +254,12 @@ function attackRollFamilyMatches(payload, action) {
   if (!attacks.length) return false;
   const damageOrdinals = new Set(payload.rolls.filter((roll) =>
     ['damage', 'sneak'].includes(roll.kind)).map((roll) => roll.ordinal));
+  const baseHit = Number(action.toHit || 0);
   return attacks.every((roll) => {
     const natural = roll.faces[0];
     const outcome = natural === 20 ? 'critical'
       : natural === 1 || roll.total < roll.target ? 'miss' : 'hit';
-    return roll.bonus === Number(action.toHit || 0) && roll.outcome === outcome
+    return roll.bonus >= baseHit && roll.bonus <= baseHit + 4 && roll.outcome === outcome
       && (outcome === 'miss' ? !damageOrdinals.has(roll.ordinal)
         : damageOrdinals.has(roll.ordinal));
   });
@@ -371,7 +377,8 @@ function effectsMatch(action, beforeState, afterState, actorBefore, actorAfter, 
   const beforeWorld = worldFor(beforeState, rules);
   const afterWorld = worldFor({ ...afterState, tokens: beforeState.tokens.map((token) => token.id === actorBefore.id ? actorAfter : token) }, rules);
   const legal = new Set(ENG.validTargets(beforeWorld, actorBefore, action).concat(ENG.validTargets(afterWorld, actorAfter, action)).map((t) => t.id));
-  if (!changed.length) return action.aoeShape === 'cone' || legal.size > 0;
+  const isAoe = action.aoeShape === 'cone' || action.aoeShape === 'sphere';
+  if (!changed.length) return isAoe || action.mode === 'buff' || legal.size > 0;
   if (action.mode === 'heal') {
     const max = diceMax(action.heal, false);
     return changed.every(({ old, next }) => old.kind === actorBefore.kind && !old.dead && legal.has(old.id) &&
@@ -379,29 +386,17 @@ function effectsMatch(action, beforeState, afterState, actorBefore, actorAfter, 
         || (pcLifeStateValid(next) && deathSavesCleared(next))));
   }
   const foeKind = actorBefore.kind === 'pc' ? 'monster' : 'pc';
-  const foes = changed.every(({ old, next }) => old.kind === foeKind && next.hp < old.hp);
+  const foes = changed.every(({ old, next }) => (action.aoeShape === 'sphere' && action.friendlyFire !== false ? true : old.kind === foeKind) && next.hp < old.hp);
   if (!foes) return false;
   let max = diceMax(action.damage, action.mode === 'attack') + diceMax(action.sneak, action.mode === 'attack');
-  if (actorBefore.kind === 'monster' && action.mode === 'attack') {
-    max *= Math.max(1, Number(action.multiattack) || 1);
-  }
+  const actorMulti = actorBefore.kind === 'monster'
+    ? Math.max(1, Number(action.multiattack) || 1)
+    : (action.type === 'weapon' ? Math.max(1, Number(actorSheet(rules, actorBefore).attacksPerAction) || 1) : 1);
+  if (action.mode === 'attack') max *= actorMulti;
   if (action.mode === 'autohit') max = diceMax(action.damage, false) * Math.max(1, Number(action.darts) || 1);
-  if (action.aoeShape !== 'cone' && changed.length !== 1) return false;
-  if (action.aoeShape !== 'cone' && !legal.has(changed[0].old.id)) return false;
-  if (action.aoeShape === 'cone' && !coneCanReach(beforeWorld, afterWorld, actorBefore, actorAfter, action, changed)) return false;
+  if (!isAoe && (changed.length !== 1 || !legal.has(changed[0].old.id))) return false;
+  if (isAoe && !SG.aoeCanReach(beforeWorld, afterWorld, actorBefore, actorAfter, action, changed)) return false;
   return changed.every(({ old, next }) => old.hp - next.hp <= max);
-}
-
-/** @description Find a legal cone direction containing every damaged target. */
-function coneCanReach(beforeWorld, afterWorld, beforeActor, afterActor, action, changed) {
-  return [beforeWorld, afterWorld].some((world, index) => {
-    const actor = index ? afterActor : beforeActor;
-    for (let x = 0; x < world.grid.w; x++) for (let y = 0; y < world.grid.h; y++) {
-      const ids = new Set(ENG.coneTargets(world, actor, action, { x, y }).map((t) => t.id));
-      if (changed.every(({ old }) => ids.has(old.id))) return true;
-    }
-    return false;
-  });
 }
 
 /** @description Return the exact next eligible initiative position. Stable,
@@ -428,10 +423,11 @@ function tokenStructureMatches(current, proposed, actorId, nextId) {
   if (nextById.size !== current.tokens.length) return false;
   return current.tokens.every((token) => {
     const next = nextById.get(token.id);
-    if (!next) return false;
-    const mutable = ['hp', 'dead'];
+    if (!next || !SG.spellcastingStateValid(next)) return false;
+    const mutable = ['hp', 'dead'].concat(SG.SPELLCASTING_KEYS);
     if (token.kind === 'pc') mutable.push('downed', 'stable', 'deathSaves');
     if (token.id === actorId) mutable.push('x', 'y', 'slots', 'acted', 'moved', 'positionSet', 'moveRemaining', 'turnSerial', 'turnResult', 'movementResult');
+    if (token.id !== actorId && SG.reactionSlotChangeValid(token, next)) mutable.push('slots');
     if (token.id === actorId && token.kind === 'monster') mutable.push('fled');
     if (token.id === nextId) mutable.push('acted', 'moved', 'positionSet', 'moveRemaining', 'turnSerial');
     return same(tokenShape(token, mutable), tokenShape(next, mutable));
@@ -733,7 +729,7 @@ function legalActionChoice(context, result) {
   if (context.automatedCompanion && (!cue || !context.nextTelegraph)) return null;
   const target = cue ? cue.target : rolledActionTarget(context.current, context.active, result);
   const actions = cue ? [cue.action] : (actorSheet(context.rules, context.active).actions || []);
-  if (!target) return null;
+  if (!target) return cue ? null : SG.buffActionMatches(actions, context.active, context.actor, context.changed, slotsMatch);
   return actions.find((action) => slotsMatch(
     action, context.active.slots, context.actor.slots,
   ) && effectsMatch(

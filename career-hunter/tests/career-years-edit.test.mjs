@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24 (Roger, 2026-11-19: "i have to be able to generate accurate resumes ... i cant have random numbers 2 years vs 11 years vs 20 years getting out of place"). Résumé generation has stated a person's own years (`years_by_skill`, `career_years`) since 1.68.22, and nothing on any screen wrote them. This guards the read and save behind Work history's Years by skill section, over Career's real compiled résumé route module and the real engine programs on a made-up person (tests/helpers/career-years-fixture.mjs): the read lists the years counted from the roles, the person's figure and what a résumé states, and each "used" is compared with what the real generation code says for the same person (skill_tenure.prompt_block line by line, years_truth.enforce on a written packet); a save writes exactly the two keys, is backed up and audited, and Undo puts back the exact earlier file; the editor's two ends (0.5 and 60, 1 and 70) are read back by generation's own reader; a bad row refuses the whole save in words that name the row; a moved main résumé is refused. Red on store main 8b4c5002 (1.68.23), where field `years` is not a section (400): all 9 cases fail there.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: once a person states any figure, a résumé states years only for the skills they gave and a total only when they gave one; the screen says "No year count (you gave none)" and "No total (you gave none)" for the rest, and the counted spans and roles' floor are proved on a person with no figures at all.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,11 +16,12 @@ after(() => h.stop());
  * each of `written` (a résumé's headline, then its summary) after the last pass over a generated packet.
  */
 const generation = (written = []) => h.python(`
-import json
+import json, re
 from jobhunter import profile, skill_tenure, years_truth
 prof = profile.load()
 tenure = skill_tenure.compute_tenure(prof)
-lines = [line[4:] for line in skill_tenure.prompt_block(tenure, max_skills=999).splitlines() if line.startswith('  * ')]
+block = skill_tenure.prompt_block(tenure, max_skills=999).splitlines()
+lines = [line[4:] for line in block if line.startswith('  * ')] + [line[2:] for line in block if re.match(r'^- (?!Total ).+: [0-9.]+ years$', line)]
 figures = years_truth.figures(prof)
 passed = [years_truth.enforce({'resume': {'headline': text, 'summary': text}}, prof)[0]['resume'] for text in json.loads(${JSON.stringify(JSON.stringify(written))})]
 print(json.dumps({'lines': lines, 'career': figures['career'], 'skills': {f['name']: f['years'] for f in figures['skills']},
@@ -34,11 +36,11 @@ test('the read lists the years counted from the roles, the person\'s figure and 
   assert.deepEqual(body.rows, [
     { skill: 'Python', from_roles: 3.5, yours: 10, used: 10, used_words: '10 years' },
     { skill: 'SAP NetWeaver Java', from_roles: null, yours: 6.5, used: 6.5, used_words: '6.5 years' },
-    { skill: 'Java', from_roles: 5, yours: null, used: 5, used_words: 'Up to 5 years' },
-    { skill: 'SQL', from_roles: 5, yours: null, used: 5, used_words: 'Up to 5 years' },
-    { skill: 'Docker', from_roles: 3.5, yours: null, used: 3, used_words: 'Up to 3 years' },
-    { skill: 'Linux', from_roles: 1, yours: null, used: null, used_words: 'No year count (under 2 years)' },
-  ], 'most years used first, then by name; a skill counted under two years states no count');
+    { skill: 'Docker', from_roles: 3.5, yours: null, used: null, used_words: 'No year count (you gave none)' },
+    { skill: 'Java', from_roles: 5, yours: null, used: null, used_words: 'No year count (you gave none)' },
+    { skill: 'Linux', from_roles: 1, yours: null, used: null, used_words: 'No year count (you gave none)' },
+    { skill: 'SQL', from_roles: 5, yours: null, used: null, used_words: 'No year count (you gave none)' },
+  ], 'the person\'s figures first; a skill they gave no figure states no count, however long the roles count it');
   assert.deepEqual([body.career_from_roles, body.career_yours, body.career_used, body.career_used_words, body.more], [9.5, 15, 15, '15 years', 0]);
   assert.deepEqual(body.limits, { rows: 40, name: 60, skill_years: { min: 0.5, max: 60, step: 0.5 }, career_years: { min: 1, max: 70, step: 0.5 } });
 });
@@ -46,13 +48,11 @@ test('the read lists the years counted from the roles, the person\'s figure and 
 test('"used" is what the real generation code states: the tenure block line by line, and the last pass on written text', async () => {
   h.reset('generation');
   const { body } = await h.read(), said = generation(['Engineer with 3 years of experience', 'Python (2 years)', 'SAP NetWeaver Java: 30 years', 'Engineer with over 15 years of experience']);
-  assert.equal(said.lines.length, body.rows.length, 'one row per skill of the table generation reads');
+  assert.equal(said.lines.length, body.rows.filter((row) => row.yours !== null).length, 'generation lists exactly the skills the person gave a figure');
   for (const row of body.rows) {
     const line = said.lines.find((item) => item.startsWith(row.skill + ': '));
-    assert.ok(line, `generation lists ${row.skill}`);
-    if (row.yours !== null) assert.ok(line.endsWith(`: exactly ${row.used} years (the person's own figure)`) && row.used_words === `${row.used} years`, line);
-    else if (row.used !== null) assert.ok(line.endsWith(`max ${row.used} years`) && row.used_words === `Up to ${row.used} years`, line);
-    else assert.ok(line.endsWith('under 2 years (omit year count)') && row.used_words === 'No year count (under 2 years)', line);
+    if (row.yours !== null) assert.ok(line === `${row.skill}: ${row.used} years` && row.used_words === `${row.used} years`, `${row.skill}: ${line}`);
+    else assert.ok(line === undefined && row.used === null && row.used_words === 'No year count (you gave none)', `${row.skill}: ${line}`);
   }
   const used = Object.fromEntries(body.rows.map((row) => [row.skill, row.used]));
   assert.deepEqual([said.passed, said.same], [[`Engineer with ${body.career_used} years of experience`, `Python (${used.Python} years)`,
@@ -61,10 +61,19 @@ test('"used" is what the real generation code states: the tenure block line by l
   assert.deepEqual([said.career, body.career_used_words], [15, '15 years']);
 });
 
-test('with no total of the person\'s own, a résumé is held to the whole years the roles give, and the screen says so in that pass\'s terms', async () => {
-  const { career_years: _total, ...profile } = yearsProfile();
+test('with figures but no total of the person\'s own a résumé states no total; with no figures at all it is held to the whole years the roles give, and the screen says so in that pass\'s terms', async () => {
+  const { career_years: _total, ...withFigures } = yearsProfile();
+  h.reset('no-total', withFigures);
+  const { body: noTotal } = await h.read();
+  assert.deepEqual([noTotal.career_from_roles, noTotal.career_yours, noTotal.career_used, noTotal.career_used_words], [9.5, null, null, 'No total (you gave none)']);
+  assert.deepEqual(generation(['Engineer with 3 years of experience', 'Engineer with over 5 years of experience']).passed, ['Engineer with experience', 'Engineer with experience'],
+    'a total the person never gave is taken out');
+  const { years_by_skill: _rows, ...profile } = withFigures;
   h.reset('floor', profile);
   const { body } = await h.read();
+  assert.deepEqual(body.rows.find((row) => row.skill === 'Java'), { skill: 'Java', from_roles: 5, yours: null, used: 5, used_words: 'Up to 5 years' }, 'no figures at all: the counted span');
+  const counted = generation();
+  assert.equal(counted.lines.length, body.rows.length, 'no figures at all: one line per skill of the counted table');
   assert.deepEqual([body.career_from_roles, body.career_yours, body.career_used, body.career_used_words], [9.5, null, 9, 'At least 9 years, or "over 5 years"']);
   const said = generation(['Engineer with 3 years of experience', 'Engineer with over 4 years of experience', 'Engineer with 9 years of experience', 'Engineer with over 5 years of experience']);
   assert.deepEqual(said.passed, ['Engineer with 9 years of experience', 'Engineer with 9 years of experience', 'Engineer with 9 years of experience', 'Engineer with over 5 years of experience'],
@@ -91,8 +100,8 @@ test('a save writes exactly the two keys, is backed up and audited, the read sho
   assert.deepEqual(h.audit().at(-1).changelog, ['years by skill: 3 stated', 'years of experience in total: set to 18.5']);
   const { body: reread } = await h.read();
   assert.deepEqual(reread.rows.map((row) => [row.skill, row.from_roles, row.yours, row.used_words]), [
-    ['Java', 5, 11, '11 years'], ['SQL', 5, null, 'Up to 5 years'], ['Python', 3.5, 4.5, '4.5 years'], ['Docker', 3.5, null, 'Up to 3 years'],
-    ['Kubernetes', null, 2, '2 years'], ['Linux', 1, null, 'No year count (under 2 years)']]);
+    ['Java', 5, 11, '11 years'], ['Python', 3.5, 4.5, '4.5 years'], ['Kubernetes', null, 2, '2 years'],
+    ['Docker', 3.5, null, 'No year count (you gave none)'], ['Linux', 1, null, 'No year count (you gave none)'], ['SQL', 5, null, 'No year count (you gave none)']]);
   assert.deepEqual([reread.career_yours, reread.career_used_words], [18.5, '18.5 years']);
   assert.deepEqual(generation().skills, { Java: 11, Python: 4.5, Kubernetes: 2 }, 'generation reads the saved figures');
   const undone = await h.call('POST', '/resume/master-undo', { revision: body.revision, restore: opened.revision });
@@ -107,7 +116,7 @@ test('an empty figure removes the person\'s figure; an empty list and a null tot
   assert.deepEqual([one.code, one.body.changed], [200, true], JSON.stringify(one.body));
   assert.deepEqual([h.saved().years_by_skill, 'career_years' in h.saved()], [[{ skill: 'SAP NetWeaver Java', years: 6.5 }], false]);
   const { body: after } = await h.read();
-  assert.deepEqual(after.rows.find((row) => row.skill === 'Python'), { skill: 'Python', from_roles: 3.5, yours: null, used: 3, used_words: 'Up to 3 years' });
+  assert.deepEqual(after.rows.find((row) => row.skill === 'Python'), { skill: 'Python', from_roles: 3.5, yours: null, used: null, used_words: 'No year count (you gave none)' });
   assert.deepEqual([after.career_from_roles, after.career_yours], [9.5, null]);
   const same = await h.save(one.body.revision, { years_by_skill: [{ skill: 'SAP NetWeaver Java', years: 6.5 }], career_years: null });
   assert.deepEqual([same.code, same.body.changed, same.body.revision, h.backups().length], [200, false, one.body.revision, 1], 'nothing changed, nothing backed up');
@@ -194,7 +203,7 @@ test('figures written by hand read as generation reads them, and every skill wit
   h.reset('by-hand', yearsProfile({ years_by_skill: [{ skill: 'k8s', years: '4' }, { skill: 'Python', years: 99 }, { skill: 'Docker' }, 'Java 11'], career_years: 'many' }));
   const { body } = await h.read(), said = generation();
   assert.deepEqual(body.rows.filter((row) => row.yours !== null), [{ skill: 'k8s', from_roles: null, yours: 4, used: 4, used_words: '4 years' }], 'only the figure generation reads');
-  assert.deepEqual([said.skills, said.career, body.career_yours, body.career_used], [{ k8s: 4 }, null, null, 9]);
+  assert.deepEqual([said.skills, said.career, body.career_yours, body.career_used], [{ k8s: 4 }, null, null, null]);
   const small = h.python(`
 import json
 from jobhunter import profile, years_edit

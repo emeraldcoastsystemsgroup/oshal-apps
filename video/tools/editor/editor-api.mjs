@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Name the storage refusal (video_edit_storage_unavailable) instead of "Something went wrong", so a failed upload or download says why (sweep 12).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Plain-language refusal descriptions for voice synthesis, sound library and export resolution/frame-rate errors.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: add plain-language refusal descriptions for revision restore errors.
  */
 
 export const BASE = '/api/video/editor';
@@ -59,6 +60,9 @@ const WORDS = Object.freeze({
   video_edit_sound_not_found: 'That sound effect is not in the library.',
   video_edit_export_resolution_invalid: 'Choose 720p, 1080p, or 4K resolution.',
   video_edit_export_fps_invalid: 'Choose 30 fps or 60 fps.',
+  video_edit_no_prior_revision: 'There is no earlier saved version to restore yet.',
+  video_edit_revision_already_current: 'That revision is already the current version.',
+  video_edit_revision_not_found: 'That saved revision is no longer available.',
 });
 
 /**

@@ -9,19 +9,44 @@ prices and compliance sources are in the
 Every entry has a done-when so scope does not have to be guessed later. Items owned by another package
 or by core say so; core items need operator approval before they start.
 
-**Posture:** campaigns, owner consent gates, manual publishing to LinkedIn/Mastodon/Bluesky, the
-scorecard and budget proposals run today. Nothing sends to a list, nothing texts a customer, and no
-budget is tied to finance yet. Every outward action stays opt-in and default OFF.
+**Posture (`marketing-engine` `0.6.7`, reviewed `2026-11-26`):** campaigns, owner consent gates,
+manual publishing to LinkedIn/Mastodon/Bluesky, the scorecard, budget proposals (wired to
+cross-application `/cockpit/?screen=approvals`), the owner-scoped P1 Audience store (`0.6.0`),
+CSV import with mandatory consent attestation (`0.6.1`), built-in HTML/plain-text email
+templates with unremovable postal footer + the Compliance pane (`0.6.2`), the double opt-in
+sign-up engine with embeddable snippets (`0.6.3`), single-row phone navigation (`0.6.4`),
+the one-click unsubscribe + broadcast pipeline with full send gate chain (`0.6.5`), P3
+sequences with per-recipient state + strict per-sequence standing authorization (`0.6.6`), and P3
+launch plans with dated milestones, asset checklist, recorded-numbers-only retros, and one unified
+marketing calendar (`0.6.7`) run today. Nothing texts a customer, and no budget is tied to finance
+yet. Every outward action stays opt-in, confirm-gated, and default OFF.
 
-**P0 is merged in both repos** (store `4b8984e5` through PR #185, merged 2026-09-14 as `4e15108`;
-core `477f3a0b` through PR #431, merged 2026-09-14 as `b8de2099` and deployed from that commit):
-marketing-engine 0.5.0 carries three readiness probes (first campaign, an armed channel, a
-configured sender) behind `/api/marketing-engine/readiness`, and `marketing-routes.ts` is split into
-five modules with all 20 routes unchanged. `marketing-suite` 1.0.0 is the ADR-141 group front door
-(12 borrowed tiles, a five-step setup dashboard). The store's write-class ledger now follows a
-route's package-local import closure, which also corrected 19 routes across 14 packages that
-delegate their SQL to sibling modules. What remains in P0 is step 3's proof on the running box and
-the two operator steps below.
+**Progress through `0.6.1`:**
+- **P0 (`0.5.0`):** merged in both repos (store `4b8984e5` through PR #185, merged 2026-09-14 as
+  `4e15108`; core `477f3a0b` through PR #431, merged 2026-09-14 as `b8de2099` and deployed from that
+  commit): `marketing-engine` carries three readiness probes (first campaign, an armed channel, a
+  configured sender) behind `/api/marketing-engine/readiness`, and `marketing-routes.ts` is split
+  into five modules with all 20 routes unchanged. `marketing-suite` (now `1.1.4`) is the ADR-141
+  group front door. The store's write-class ledger follows a route's package-local import closure,
+  which also corrected 19 routes across 14 packages that delegate their SQL to sibling modules.
+- **Platform parity (`0.5.1`–`0.5.11`):** system-scoped schedules (`runsAs: system`), company
+  audience view, routing keywords, design/mobile updates, and cross-app `approvals:` wiring.
+- **P1 in progress (`0.6.0`–`0.6.5`):** Audience store (`003-marketing-audience.sql` +
+  `/api/marketing/audience/*` routes, `0.6.0`), CSV import with consent attestation
+  (`POST /api/marketing/audience/contacts/import-csv`, `0.6.1`), HTML email templates with
+  plain-text alternative, mandatory postal footer, and Compliance pane
+  (`004-marketing-compliance.sql` + `/api/marketing/compliance`, `/templates`,
+  `/templates/render`, `/content/:id/approve`, `0.6.2`), the double opt-in sign-up engine
+  (`005-marketing-double-optin.sql` + `/api/marketing/audience/signup-forms*`,
+  `/api/marketing/audience/opt-in/confirm`, embeddable static-site snippet, and Compliance pane
+  controls, `0.6.3`), single-row phone navigation (`0.6.4`), and one-click unsubscribe + broadcast
+  pipeline (`006-marketing-broadcasts.sql` + `/api/marketing/broadcasts*`,
+  `/api/marketing/audience/unsubscribe`, `/api/marketing/audience/preferences/:contactId`, RFC 8058
+  headers, and Broadcasts card in the Compliance pane, `0.6.5`) are DONE under the existing
+  `/api/marketing` (`auth: oidc`) mount. Exposing unauthenticated public `POST` endpoints for sign-up
+  and RFC 8058 one-click unsubscribe awaits `oshald` anonymous-POST rail support (`anonymousRoutes`
+  currently dispatches `GET`/`HEAD` only). Remaining P1 work covers the core Resend connector
+  `headers`/batch schema update and inbound delivery-event webhooks.
 
 **Open operator decisions** (cost/benefit tables in spec §10): where the audience lives, how sign-ups
 are captured, how sequences are authorized, and when SMS registration happens. The items below assume
@@ -40,11 +65,13 @@ audience lives in oshal's own tables; sign-up is our own public form route with 
 waits for the business-account move and then Low-Volume Standard 10DLC; sequences run under
 per-sequence standing authorization, default OFF.
 
-**State of the work (checked 2026-09-14 against git and the core deploy log):** both PRs are merged.
-Core `477f3a0b` + `eae041ab` reached `main` through PR **#431** (merge `b8de2099`), and
-`scripts/oshal-deploy.sh` deployed `b8de2099` (image `1fe73566ae87`, api + 34 bots recreated). Store
-`4b8984e5` + `1f405b7` reached `main` through PR **#185** (merge `4e15108`). Step 1 is done and step
-2's recreate is done; resume at step 2's done-when, then step 3.
+**State of the work (checked `2026-11-25` against store `main`):** `marketing-engine` is at
+`0.6.1` (P0 readiness probes from `0.5.0`, P1 Audience store from `0.6.0`, and P1 CSV import with
+consent attestation from `0.6.1` have all landed). `marketing-suite` is at `1.1.4` (`active`), while
+member `brand-graphics` (`1.4.3`) still declares `status: inactive`. Steps 1 and 2 below are done;
+resume at verifying `0.6.1` + the group on the running box (step 3), operator account setup
+(step 4), and the remaining open P1 items (step 5, starting at the public sign-up form with double
+opt-in).
 
 ### 1. ~~Land the two open PRs~~ — DONE 2026-09-14
 - **Done:** store PR #185 merged as `4e15108`; core PR #431 merged as `b8de2099`.
@@ -63,33 +90,22 @@ Core `477f3a0b` + `eae041ab` reached `main` through PR **#431** (merge `b8de2099
 - **Done when:** `docker exec oshal-local-api printenv | cut -d= -f1 | grep -E 'MARKETING_EMAIL_FROM|GITHUB_TRAFFIC_TOKEN|GOOGLE_CONNECT_SCOPES|SWITCHBOARD_PUBLISH_EXECUTOR'`
   lists every name (names only — never print the values).
 
-### 3. Put marketing-engine 0.5.0 and the group on the box
-**State 2026-09-14 23:15Z (read from the box, nothing changed):** `swarm_applications` holds
-`marketing-engine` 0.5.0 `active` and `marketing-suite` 1.0.0 `inactive`; the member `brand-graphics` 1.1.0 is
-`inactive` because its store manifest declares `status: inactive` (the same line is on the installed copy),
-and the group refuses activation unless all six members are active — so the group cannot activate until
-that package is released as active, which is a product decision, not an install step.
+### 3. Put marketing-engine 0.6.1 and the group on the box
+**State (`2026-11-25`):** store `main` carries `marketing-engine` `0.6.1` (`active`, with P0
+readiness probes, P1 Audience store `0.6.0`, and P1 CSV import with consent attestation `0.6.1`)
+and `marketing-suite` `1.1.4` (`active`). Member `brand-graphics` (`1.4.3`) still declares
+`status: inactive`, and the group refuses activation unless all six members are active — so the
+group cannot activate until that package is released as active (a product decision, not an install
+step).
 
-The box must be healthy first: `docker ps --filter name=oshal-local-api` shows `Up (healthy)`. As of
-2026-09-14 it was Exited (255) with the host overcommitted; that recovery belongs to the ops thread,
-and `scripts/oshal-up.sh` is the ordered bring-up.
-- **Remaining:** stage the package LF-exact from git (never from the shared working tree, which runs
-  behind and carries other sessions' edits), then load the group:
-  ```
-  cd /c/Projects/oshal-apps
-  SHA=$(git rev-parse origin/main)            # after step 1
-  git -c core.autocrlf=false archive $SHA marketing-engine \
-    | docker exec -i oshal-local-api sh -c 'rm -rf /tmp/stage && mkdir -p /tmp/stage && tar -x -C /tmp/stage'
-  # back the current copy up OUTSIDE deployed-apps, carry .oshal-install.json across (update sha +
-  # installedAt), swap the directory, then hash-verify every file against its git blob
-  docker restart oshal-local-api              # a NEW route module only mounts at boot
-  ```
-  Install `marketing-suite` the way packages are installed on this box (the Applications page, or the
-  same stage-and-load path): its six members — marketing-engine, switchboard, social, brand-graphics,
-  presentations, video — must all be active or the install refuses by design.
-- **Done when:** the boot log shows one `App loaded` for each of the two, `/api/marketing-engine/readiness`
-  answers 200 for a signed-in user, `/cockpit/?app=marketing-suite` lands on Setup, and each of the five
-  setup steps reports from its member's probe.
+- **Remaining:** ensure `marketing-engine` `0.6.1` is installed on the running stack (applying
+  `003-marketing-audience.sql` and mounting the readiness and `/api/marketing/audience/*` routes),
+  and install/activate `marketing-suite` (`1.1.4`) once all six members (`marketing-engine`,
+  `switchboard`, `social`, `brand-graphics`, `presentations`, `video`) are active.
+- **Done when:** `marketing-engine` `0.6.1` is active with migration `003-marketing-audience.sql`
+  applied, `/api/marketing-engine/readiness` answers 200 for a signed-in user,
+  `/cockpit/?app=marketing-suite` lands on Setup, and each of the five setup steps reports from its
+  member's probe.
 
 ### 4. The two steps only the operator can take
 - **Remaining:** create one campaign on the board — that alone gives the daily ingest an owner and
@@ -99,10 +115,11 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
 - **Done when:** one Monday review ticket has appeared in the cockpit backlog from a real campaign,
   and the scorecard shows a real row for every source that is connected.
 
-### 5. Then P1, in this order
-- **Remaining:** the audience store, CSV import, the public sign-up form with double opt-in, one-click
-  unsubscribe, the broadcast pipeline, delivery events, templates and the compliance pane — the P1
-  items below, in that order. One core dependency comes first: the Resend connector must accept the
+### 5. Then remaining P1 items, in this order
+- **Already delivered:** Audience store (`0.6.0`) and CSV import with consent attestation (`0.6.1`).
+- **Remaining:** the public sign-up form with double opt-in, one-click unsubscribe, the broadcast
+  pipeline, delivery events, HTML templates, and the compliance pane — the open P1 items below, in
+  that order. One core dependency comes first: the Resend connector must accept the
   `List-Unsubscribe` header pair and a batch send (core `swarm-apps/connectors/resend.yaml`), because
   today's action is a single recipient with `additionalProperties: false`.
 - **Done when:** P1's own done-when criteria below are met, starting with a real sign-up completing
@@ -144,13 +161,14 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
 - **Done when:** `printenv` inside the api lists each name (values never logged), and with a key set
   the daily ingest reports that source `ok` instead of NO DATA.
 
-### Install the Marketing Suite group and marketing-engine 0.5.0 on the box
-- **Remaining:** install store `4b8984e5` onto the running stack: marketing-engine 0.5.0 (new
-  readiness route — the api must restart for a new route module) and the `marketing-suite` group,
-  whose install resolves its six members fail-closed. The group is a front door over apps that are
-  already installed; `brand-graphics`, `presentations` and `video` must be active or the install
-  refuses. Then point the cockpit at it (`/cockpit/?app=marketing-suite`) and decide whether the
-  default framework ribbon's Marketing band stays or gives way to the group.
+### Install the Marketing Suite group and marketing-engine 0.6.1 on the box
+- **Remaining:** install current store `main` onto the running stack: `marketing-engine` `0.6.1`
+  (carries P0 readiness probes from `0.5.0`, P1 Audience store from `0.6.0`, and P1 CSV import with
+  consent attestation from `0.6.1`) and the `marketing-suite` group (`1.1.4`), whose install
+  resolves its six members fail-closed. The group is a front door over apps that are already
+  installed; `brand-graphics` (`1.4.3`, currently `status: inactive`), `presentations` and `video`
+  must be active or the install refuses. Then point the cockpit at it (`/cockpit/?app=marketing-suite`)
+  and decide whether the default framework ribbon's Marketing band stays or gives way to the group.
 - **Done when:** the cockpit shows one Marketing front door landing on Setup, each of the five setup
   steps reports from its member's probe for a real signed-in user, the readiness route answers 200,
   and `deployed-apps/marketing-suite/.oshal-install.json` records the installed sha.
@@ -202,35 +220,72 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
   ownership, and session auth) and `tests/marketing-audience-rls.test.mjs` (enforcing-role disposable
   PostgreSQL 16 FORCE RLS end-to-end CSV import and cross-owner suppression/list isolation).
 
-### Public sign-up form with double opt-in
-- **Remaining:** an `auth: public` POST route per form slug with per-IP and per-form rate limits, a
-  honeypot field, UTM capture, a `pending` consent row, and a signed single-use confirmation link sent
-  through the transactional path; the confirm route flips consent to `confirmed`. Embeddable snippet
-  for the static sites.
-- **Done when:** a real sign-up from a phone completes double opt-in; forged, replayed and expired
-  tokens are refused by tests; the route is a reviewed row in the store route inventory; the form
-  answers nothing but an acknowledgement.
+### Public sign-up form with double opt-in — engine DONE in `0.6.3` (public anonymous-POST mount awaits kernel rail)
+- **Delivered (`0.6.3`):** migration `005-marketing-double-optin.sql` adding
+  `oshal_marketing_signup_forms` (per-form 32-byte random `signing_secret` never returned by API,
+  consent disclosure text, optional target list, configurable honeypot field, per-IP and per-form
+  hourly rate caps, token TTL) and `oshal_marketing_optin_tokens` (SHA-256 hashed single-use
+  expirable confirmation tokens, never storing raw tokens), both with exact-owner FORCE RLS
+  (`oshal.current_sub`, no operator bypass); pure `marketing-optin-model` (deterministic bounded
+  `SlidingWindowRateLimiter`, constant-time HMAC-SHA256 token signer/verifier, honeypot screening,
+  UTM capture, generic acknowledgement response, and self-contained HTML-escaped static-site embed
+  snippet); owner-scoped `/api/marketing/audience/signup-forms*` and `/api/marketing/audience/opt-in/confirm`
+  routes implementing rate limits (`429`), silent honeypot short-circuit (zero DB writes),
+  suppression immunity (never re-subscribes or leaks status), `pending -> confirmed` state machine
+  with atomic single-use replay protection (`409 token_already_used`), forged (`400`) and expired
+  (`410`) refusals, and the Sign-up forms & double opt-in card in the Compliance pane.
+- **Proven by:** `tests/marketing-double-optin.test.mjs`, `tests/marketing-double-optin-browser.test.mjs`
+  (desktop `1440x900` + phone `412x915`), `tests/marketing-audience-rls.test.mjs` (enforcing-role
+  PG 16 FORCE RLS on `005-marketing-double-optin.sql`), and live Blue proof (`0.6.3`).
+- **Remaining (kernel boundary):** `oshald`'s `anonymousRoutes` currently dispatches `GET`/`HEAD`
+  only, so `0.6.3` keeps all double opt-in routes under the existing `/api/marketing` (`auth: oidc`)
+  mount (zero `policy_pending` drift). Once `oshald` adds an anonymous-POST rail (and reviewed
+  `store-route-inventory.json` entry), mount the existing submit/confirm pipeline on the public
+  POST rail and send confirmation links through the transactional email path.
 
-### One-click unsubscribe and preference page
-- **Remaining:** a signed per-recipient, per-list token; RFC 8058 POST endpoint (no cookies, no auth,
-  no redirect) and a visible unsubscribe page; both write a suppression and revoke the consent at once.
-- **Done when:** a real mailbox's one-click unsubscribe suppresses the contact within that request,
-  the next broadcast skips it, and token-forgery tests fail closed.
+### One-click unsubscribe and preference page — engine DONE in `0.6.5` (public anonymous-POST mount awaits kernel rail)
+- **Delivered (`0.6.5`):** pure signed per-recipient, per-list HMAC-SHA256 unsubscribe tokens
+  (`mintUnsubscribeToken` / `verifyUnsubscribeToken` with constant-time `timingSafeEqual`, failing
+  closed `unsubscribe_token_forged` on tampered/wrong-owner/wrong-secret tokens) and strict RFC 8058
+  header builder (`buildRfc8058Headers` emitting only `List-Unsubscribe` and `List-Unsubscribe-Post`
+  and refusing CRLF / non-http(s) URLs) in `marketing-broadcast-model`; owner-scoped
+  `POST /api/marketing/audience/unsubscribe` atomically writing normalized `email_hash` to
+  `oshal_marketing_suppressions` (`reason: 'one_click_unsubscribe'`, `source: 'rfc8058'`), revoking
+  active email consents with `revokedAt` & `revokedVia` evidence, and marking the contact
+  `unsubscribed`; plus `GET/PUT /api/marketing/audience/preferences/:contactId` for owner-scoped
+  list memberships and channel opt-outs.
+- **Proven by:** `tests/marketing-broadcast-unsub.test.mjs`, `tests/marketing-broadcast-browser.test.mjs`,
+  `tests/marketing-audience-rls.test.mjs`, and live Blue proof (`0.6.5`).
+- **Remaining (kernel boundary):** `oshald`'s `anonymousRoutes` currently dispatches `GET`/`HEAD`
+  only, so `0.6.5` keeps `/api/marketing/audience/unsubscribe` under the existing `/api/marketing`
+  (`auth: oidc`) mount (zero `policy_pending` drift). Once `oshald` supports unauthenticated public
+  `POST` routes, mount the existing token-verified handler on the public RFC 8058 POST rail with no
+  cookies and no redirects.
 
 ### Resend connector: headers and batch send (core)
 - **Remaining:** extend `swarm-apps/connectors/resend.yaml` with a `headers` parameter limited to
   `List-Unsubscribe` and `List-Unsubscribe-Post`, and a batch action with a bounded recipient count;
-  both stay confirm-gated and audited.
+  both stay confirm-gated and audited. `marketing-broadcast.ts` automatically forwards the validated
+  RFC 8058 `headers` pair whenever the loaded Resend spec declares `headers` on `send-email`.
 - **Done when:** a delivered test message shows both headers covered by the DKIM signature, and a
   schema test refuses any other header name.
 
-### Broadcast pipeline with the full send gate chain
-- **Remaining:** `oshal_marketing_messages` + `…_deliveries`; sending walks owner channel consent →
-  recipient consent confirmed → not suppressed → domain verified → compliance lint (postal address,
-  unsubscribe link and headers) → daily cap → approval → batched send; every step writes the run
-  ledger, including skips.
-- **Done when:** a broadcast to a real list reaches only confirmed, unsuppressed contacts; each gate
-  has a refusal test; the ledger shows one row per recipient decision.
+### ~~Broadcast pipeline with the full send gate chain~~ — DONE in `0.6.5`
+- **Delivered (`0.6.5`):** migration `006-marketing-broadcasts.sql` adding
+  `oshal_marketing_messages` (per-message 32-byte random `signing_secret` never returned by API)
+  and `oshal_marketing_deliveries` (one decision row per recipient), both with exact-owner FORCE RLS
+  (`oshal.current_sub`, no operator bypass); pure deterministic `planBroadcastDeliveries` gate chain
+  enforcing owner email channel consent (`enabled === true`, `daily_cap >= 1`), compliance settings
+  & multipart template lint, explicit write confirmation (`confirm: true` -> `428` on live send),
+  and per-recipient suppression -> confirmed consent -> daily cap checks with per-recipient signed
+  unsubscribe links and RFC 8058 headers; owner-scoped `/api/marketing/broadcasts`,
+  `/api/marketing/broadcasts/:id`, and `/api/marketing/broadcasts/:id/send` supporting both dry-run
+  audit mode (`{ dryRun: true }`) and confirmed live Resend dispatch (`{ confirm: true }`); and the
+  Broadcasts & One-Click Unsubscribe card in the Compliance pane.
+- **Proven by:** `tests/marketing-broadcast-unsub.test.mjs` (every gate refusal, mixed-list
+  eligibility, one-click suppression & next-run skip, two-owner isolation),
+  `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS across migrations `001`–`006`),
+  `tests/marketing-broadcast-browser.test.mjs` (`1440x900` & `412x915`), and live Blue proof (`0.6.5`).
 
 ### Email delivery events: bounces, complaints, deliveries
 - **Remaining:** an `auth: public` webhook route verifying the provider signature; hard bounces and
@@ -238,69 +293,126 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
 - **Done when:** a real hard bounce and a real complaint each create a suppression, and a forged
   webhook is refused.
 
-### HTML templates with plain-text alternative and postal footer
-- **Remaining:** a small template set (announcement, newsletter, launch) rendered to HTML plus a
-  generated text part; the owner's postal address and unsubscribe link are injected and cannot be
-  removed; campaign-director drafts into a template, never around it.
-- **Done when:** every marketing send carries both parts, the footer, and the link; a test proves a
-  template without them cannot be approved.
+### ~~HTML templates with plain-text alternative and postal footer~~ — DONE in `0.6.2`
+- **Delivered (`0.6.2`):** pure HTML + plain-text template engine and compliance linter
+  (`routes/marketing-templates.js`) with three built-in templates (`announcement`, `newsletter`,
+  `launch`), strict HTML escaping, `http(s)`-only CTA and unsubscribe URLs, unremovable sender
+  identity + physical postal address + unsubscribe link injected into both HTML and plain-text
+  parts; idempotent `template_id`, `html_body`, and `text_body` columns on
+  `oshal_marketing_content` (`004-marketing-compliance.sql`); `GET /api/marketing/templates`,
+  `POST /api/marketing/templates/render`, and compliance-gated `POST /api/marketing/content/:id/approve`
+  (refuses `422` when HTML/plain-text parts, postal footer, or unsubscribe link are missing);
+  `POST /api/marketing/drafts` and `personas/campaign-director.yaml` draft email copy into the
+  three built-in templates, never raw un-templated HTML.
+- **Proven by:** `tests/marketing-templates-compliance.test.mjs` (template rendering, XSS/URL
+  guards, compliance linter refusals, approval and publish enforcement) and
+  `tests/marketing-audience-rls.test.mjs` (end-to-end PG 16 FORCE RLS approval proof).
 
-### Compliance pane
-- **Remaining:** one settings pane for sender identity and postal address, suppression management,
-  consent export, contact deletion, and (P4) SMS quiet hours; sends are refused until identity and
-  address are set.
-- **Done when:** a broadcast is refused with a clear reason while the address is empty, and succeeds
-  after it is set.
+### ~~Compliance pane~~ — DONE in `0.6.2`
+- **Delivered (`0.6.2`):** migration `004-marketing-compliance.sql` adding
+  `oshal_marketing_compliance_settings` with exact-owner FORCE RLS (`oshal.current_sub`, no
+  operator bypass); `GET /api/marketing/compliance` and `PUT /api/marketing/compliance` for sender
+  identity, reply-to, physical postal address, unsubscribe base URL, and SMS quiet hours; fail-closed
+  `publishEmail` gate refusing `422` (`compliance_postal_address_required` /
+  `compliance_identity_required` / `template_compliance_failed`) with a `skipped_compliance` ledger
+  row and zero Resend calls until identity, postal address, and unsubscribe URL are configured;
+  Compliance tab in `tools/marketing-engine.html` (in More menu on phone) with settings form,
+  sandboxed HTML + plain-text template preview studio, suppression management, and per-contact
+  consent JSON export / export-first deletion.
+- **Proven by:** `tests/marketing-templates-compliance.test.mjs`,
+  `tests/marketing-compliance-browser.test.mjs` (desktop `1440x900` + phone `412x915`),
+  `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS isolation on
+  `oshal_marketing_compliance_settings`), and live Blue proof (`0.6.2`).
 
 ## P2 — Budget as a finance project
 
-### Finance projects: budget, allocations, actuals (finance package)
-- **Remaining:** in the finance package, `oshal_finance_projects`, `…_project_lines` and
-  `…_project_actuals` (source manual, plaid, ads, sms, email, invoice) with owner FORCE RLS; an
-  owner-scoped summary route (budget, committed, actual, variance by line) and a project pane on the
-  finance surface.
-- **Done when:** a project with lines and actuals shows correct budget vs actual, and an RLS test on
-  the enforcing role proves isolation.
+### ~~Finance projects: budget, allocations, actuals (finance package)~~ — DONE in `finance 1.8.5`
+- **Delivered (`finance 1.8.5`):** migration `007-finance-projects.sql` adding
+  `oshal_finance_projects`, `oshal_finance_project_lines`, and `oshal_finance_project_actuals`
+  (sources `manual`, `plaid`, `ads`, `sms`, `email`, `invoice`) with exact-owner FORCE RLS
+  (`oshal.current_sub`, no operator bypass); owner-scoped `/api/finance/projects*` routes including
+  `/api/finance/projects/:id/summary` (exact integer-cent budget, committed, actual, and variance by
+  line and source); and the Projects pane on the Finance surface.
+- **Proven by:** `finance/tests/finance-projects.test.mjs`, `finance/tests/finance-projects-rls.test.mjs`,
+  and live Blue/Production delivery (`finance 1.8.5`).
 
-### Campaign-to-project link and the "Create budget" hand-off
-- **Remaining:** marketing offers `create-budget-project`; finance accepts it, creates the project
-  from the campaign's name and budget, and returns its id; the campaign stores `finance_project_id`
-  and its surface reads the finance summary route in the same session.
-- **Done when:** creating a budget from a campaign produces a finance project, and both surfaces show
-  the same numbers.
+### ~~Campaign-to-project link and the "Create budget" hand-off~~ — DONE in `marketing-engine 0.6.8`
+- **Delivered (`marketing-engine 0.6.8`):** migration `009-marketing-finance-link.sql` (mirrored at
+  lazy DDL) adding `finance_project_id UUID` and `channel_allocations JSONB` onto
+  `oshal_marketing_campaigns`; `create-budget-project` offer targeting `finance` in `oshal-app.yaml`
+  (`dependencies.optional.apps: [finance]`, zero change to `dependencies.required`); pure
+  `buildBudgetProjectPayload` builder (`routes/marketing-budget-model.js`); owner-scoped
+  `POST /api/marketing/campaigns/:id/finance-project` and
+  `GET /api/marketing/campaigns/:id/budget-summary`; and the **Create budget in Finance** hand-off
+  and live Finance summary (`Budget`, `Committed`, `Actual`, `Variance`, channel lines, and
+  **Open in Finance** link) inside the expanded campaign detail card in `tools/marketing-engine.html`
+  (degrading honestly if Finance is absent).
+- **Proven by:** `tests/marketing-budget-p2.test.mjs`, `tests/marketing-budget-p2-browser.test.mjs`
+  (`1440x900` & `412x915`), `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS
+  across migrations `001`–`009`), and live Blue proof (`0.6.8`).
 
 ### Actuals from manual entry, tagged transactions and messaging usage
 - **Remaining:** manual actuals; tagging a Plaid transaction to a project line; email and SMS usage
   cost recorded as actuals from the delivery ledger.
 - **Done when:** each source adds an actual with its evidence, and a removed tag removes the actual.
 
-### Reallocation proposals on the weekly review
-- **Remaining:** call the existing `reallocationProposals()` from the weekly review with real channel
-  costs; proposals land as `proposed` ledger rows; approving one updates the finance lines and the
-  decision ledger in one transaction; accept the `channel_allocation` field the apply path rejects
-  today.
-- **Done when:** a review ticket carries a proposal from real numbers, and approving it changes both
-  ledgers atomically (a failure test proves neither changes on error).
+### ~~Reallocation proposals on the weekly review~~ — DONE in `marketing-engine 0.6.8`
+- **Delivered (`marketing-engine 0.6.8`):** `reallocationProposals()` wired into both
+  `POST /api/marketing/campaigns/:id/reallocation-proposals` and the weekly review
+  (`routes/marketing-ops-routes.js`) over recorded channel spend (`oshal_finance_project_actuals` +
+  `oshal_marketing_events`) and conversions, persisting recommendations as `status = 'proposed'`
+  rows in `oshal_marketing_budget_ledger` with `field = 'channel_allocation'` and surfacing them on
+  the weekly review ticket and Approvals pane; pure `parseChannelAllocationProposal` and
+  `applyChannelAllocationMap` (strict integer cents, refusing floats/negatives/malformed input); and
+  atomic `channel_allocation` approval in `decideBudgetProposal` (`routes/marketing-measure.js`,
+  428-gated via `confirm: true`) running inside one PostgreSQL transaction (`BEGIN` ... `COMMIT` /
+  `ROLLBACK`) that updates `oshal_marketing_campaigns.channel_allocations`, linked
+  `oshal_finance_project_lines` / `oshal_finance_projects`, and `oshal_marketing_budget_ledger`
+  together so any mid-transaction failure rolls back BOTH ledgers completely.
+- **Proven by:** `tests/marketing-budget-p2.test.mjs` (including mid-transaction failure rollback proof),
+  `tests/marketing-audience-rls.test.mjs` (real PG 16 atomic commit & rollback proof),
+  `tests/marketing-budget-p2-browser.test.mjs`, and live Blue proof (`0.6.8`).
 
 ## P3 — Automation and social calendar
 
-### Sequences with per-recipient state
-- **Remaining:** `oshal_marketing_sequences`, `…_sequence_steps`, `…_enrollments`; each step
-  re-checks consent and suppression before it sends; a sign-up can enroll into a welcome sequence.
-- **Done when:** step two reaches only contacts still consented, and an unsubscribe between steps
-  stops the rest.
+### ~~Sequences with per-recipient state~~ — DONE in `0.6.6`
+- **Delivered (`0.6.6`):** migration `007-marketing-sequences.sql` adding
+  `oshal_marketing_sequences` (per-sequence 32-byte random `signing_secret` never returned by API,
+  optional `trigger_form_slug`), `oshal_marketing_sequence_steps` (ordered steps 1..50 with
+  `delay_hours` and built-in compliant templates), and `oshal_marketing_enrollments` (per-recipient
+  `current_step_order`, `status`, `next_run_at`, and `history` audit trail), all with exact-owner
+  FORCE RLS (`oshal.current_sub`, no operator bypass); owner-scoped `/api/marketing/sequences*`
+  routes; deterministic `evaluateSequenceStepRun` re-checking recipient suppression and confirmed
+  email consent BEFORE EVERY SINGLE STEP (stopping suppressed contacts as `stopped_unsubscribed`
+  and unconsented contacts as `stopped_unconsented`); welcome-sequence auto-enrollment hook in
+  `POST /api/marketing/audience/opt-in/confirm` (`enrolledSequenceIds`); and the Sequences &
+  Standing Authorization card in the Compliance pane.
+- **Proven by:** `tests/marketing-sequences.test.mjs`, `tests/marketing-sequences-browser.test.mjs`
+  (`1440x900` & `412x915`), `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS
+  across migrations `001`–`007`), and live Blue proof (`0.6.6`).
 
-### Standing authorization per sequence
-- **Remaining:** make the inert `standing_authorization` real for sequences only: armed explicitly
-  per sequence, strict `true` only, bounded by the daily cap, with a one-click disarm; absent row
-  means OFF.
-- **Done when:** an armed sequence runs without per-email clicks within its cap, a disarmed one sends
-  nothing further, and a garbage value never arms it.
+### ~~Standing authorization per sequence~~ — DONE in `0.6.6`
+- **Delivered (`0.6.6`):** strict per-sequence `standing_authorization` guard (`isSequenceArmed` &
+  `parseStandingAuthInput`): strict boolean `true` only, default OFF on creation, absent row = OFF,
+  garbage values (`"true"`, `1`, `"yes"`, `{}`, `null`) rejected `400 invalid_standing_authorization`
+  and never arm, arming requires `confirm: true` (`428`) + integer `dailyCap >= 1` (`400` on `0`),
+  bounded by `min(seq.daily_cap - seqSentToday, channelRemainingCap)` per day, and instant one-click
+  `POST /api/marketing/sequences/:id/disarm` (no confirm dialog) immediately stops all further live
+  ticks (`403 sequence_disarmed`).
+- **Proven by:** `tests/marketing-sequences.test.mjs`, `tests/marketing-sequences-browser.test.mjs`,
+  `tests/marketing-audience-rls.test.mjs`, and live Blue proof (`0.6.6`).
 
-### One calendar for engine and Switchboard items
-- **Remaining:** a calendar view listing scheduled engine content and Switchboard posts together, with
-  the launch plan milestones.
-- **Done when:** items scheduled in either app appear once on the same calendar with their status.
+### ~~One calendar for engine and Switchboard items~~ — DONE in `0.6.7`
+- **Delivered (`0.6.7`):** idempotent `scheduled_for TIMESTAMPTZ` column on `oshal_marketing_content`
+  (`008-marketing-launch-plans.sql` + lazy DDL), pure deterministic `buildUnifiedCalendar` merger
+  (`routes/marketing-launch-model.js`) with strict `(source, sourceId)` deduplication and optional
+  `from`/`to` date window filtering, read-only `GET /api/marketing/calendar` combining engine
+  scheduled content, launch plan dated milestones, broadcasts, and optional owner-scoped
+  `oshal_switchboard_scheduled_posts` (degrading cleanly with `switchboardAvailable: false` when
+  Switchboard is absent or isolated), and the Unified Marketing Calendar card in `#pane-experiments`.
+- **Proven by:** `tests/marketing-launch-calendar.test.mjs`, `tests/marketing-launch-browser.test.mjs`
+  (`1440x900` & `412x915`), `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS
+  across migrations `001`–`008`), and live Blue proof (`0.6.7`).
 
 ### Scheduled publishing under explicit opt-in (switchboard)
 - **Remaining:** keep `SWITCHBOARD_PUBLISH_EXECUTOR` as the deployment switch and add a per-owner
@@ -314,11 +426,21 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
   artifact exchange.
 - **Done when:** an image and a short video publish with a post on X and LinkedIn from a real account.
 
-### Launch plan with milestones and a retro
-- **Remaining:** a launch plan on the campaign with dated milestones on the calendar, the asset
-  checklist from launch-coordinator, and a retro note that reads the campaign's numbers.
-- **Done when:** a real launch has its milestones on the calendar and a retro citing only recorded
-  numbers.
+### ~~Launch plan with milestones and a retro~~ — DONE in `0.6.7`
+- **Delivered (`0.6.7`):** migration `008-marketing-launch-plans.sql` adding
+  `oshal_marketing_launch_plans` (`plan_id`, `owner_sub`, `campaign_id`, `title`, `launch_date`,
+  `status`, `milestones`, `checklist`, `retro_markdown`, `retro_facts`, `retro_generated_at`,
+  exact-owner FORCE RLS on `oshal.current_sub` with no operator bypass); pure launch plan,
+  milestone, and starter `launch-coordinator` asset checklist normalizer plus strictly grounded
+  `buildCampaignRetro` citing ONLY recorded DB rows (`oshal_marketing_events`,
+  `oshal_marketing_run_ledger`, `oshal_marketing_deliveries`, `oshal_marketing_experiments`, and
+  plan completion counts, emitting explicit `NO DATA` where unrecorded — never inventing figures);
+  owner-scoped `GET/POST /api/marketing/launch-plans`, `GET/PATCH /api/marketing/launch-plans/:id`,
+  and `POST /api/marketing/launch-plans/:id/retro`; and the Launch Plans & Grounded Retros card in
+  `#pane-experiments`.
+- **Proven by:** `tests/marketing-launch-calendar.test.mjs`, `tests/marketing-launch-browser.test.mjs`
+  (`1440x900` & `412x915`), `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS
+  across migrations `001`–`008`), and live Blue proof (`0.6.7`).
 
 ## P4 — SMS
 
@@ -330,45 +452,83 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
 - **Done when:** the campaign shows approved in Twilio and a test text to the operator's phone is
   delivered without error 30034.
 
-### SMS in the consent model and sign-up
-- **Remaining:** add `sms` to the channel set; SMS sign-up captures prior express written consent
-  with the TCPA/CTIA evidence fields and sends the opt-in confirmation (program name, HELP, frequency,
-  fees).
-- **Done when:** an SMS consent row holds every evidence field, and a number without one is never
-  sent to (test).
+### ~~SMS in the consent model and sign-up~~ — DONE in `0.6.10`
+- **Delivered (`0.6.10`):** migration `011-marketing-sms-consent.sql` (mirrored at lazy DDL in
+  `src-routes/marketing-sms.ts`) adding idempotent `phone_e164`, `phone_hash`, `timezone`, and
+  `timezone_inferred` columns onto `oshal_marketing_contacts` (indexed on `(owner_sub, phone_hash)`)
+  and `oshal_marketing_sms_queue` with exact-owner FORCE RLS (`oshal.current_sub`, no operator
+  bypass); pure E.164 normalization (`normalizePhoneE164`), mandatory 7-field TCPA/CTIA prior
+  express written consent validation (`programName`, `disclosureText`, `frequency`, `helpText`,
+  `stopText`, `feeDisclosure`, `recordedAt`), deterministic opt-in confirmation builder
+  (`buildSmsOptInConfirmationText`), fail-closed `hasValidSmsConsent` and `evaluateSmsSendGate`,
+  and pure CTIA STOP/HELP keyword classifier (`classifyInboundSmsKeyword`); owner-scoped
+  `POST /api/marketing/audience/sms-opt-in`, `POST /api/marketing/audience/sms/schedule`,
+  `GET /api/marketing/audience/sms/queue`, and `POST /api/marketing/audience/sms/keyword`; and
+  the **SMS Consent & Quiet Hours** card in `#pane-compliance`. (Live US 10DLC SMS transmission
+  and the public Twilio webhook stay honestly blocked on the operator's Twilio business-account
+  migration above.)
+- **Proven by:** `tests/marketing-sms-p4.test.mjs`, `tests/marketing-sms-browser.test.mjs`
+  (`1440x900` & `412x915`), `tests/marketing-audience-rls.test.mjs` (enforcing-role PG 16 FORCE RLS
+  across migrations `001`–`011`), and live Blue proof (`0.6.10`).
 
 ### Inbound STOP and HELP
+- **Blocked on the operator (live Twilio webhook):** owner-scoped deterministic STOP/HELP keyword
+  classification, suppression, consent revocation, and held-queue cancellation shipped in `0.6.10`
+  (`POST /api/marketing/audience/sms/keyword`), while the `auth: public` inbound webhook verified
+  with `X-Twilio-Signature` waits on the operator's Twilio business-account move and 10DLC number.
 - **Remaining:** an `auth: public` inbound webhook in the package, configured on the owner's Twilio
   number, verifying `X-Twilio-Signature`; STOP family keywords (any case) suppress and send one final
   confirmation; HELP answers with the program text.
 - **Done when:** STOP from a real handset suppresses within one webhook, HELP answers, and a forged
   request is refused.
 
-### Quiet hours and recipient time zones
-- **Remaining:** store each contact's time zone (explicit, or inferred from the number and marked as
-  inferred); hold any marketing text outside 8 a.m.–9 p.m. recipient-local.
-- **Done when:** a send scheduled at 10 p.m. recipient-local waits until 8 a.m., proven by a
-  clock-controlled test.
+### ~~Quiet hours and recipient time zones~~ — DONE in `0.6.10`
+- **Delivered (`0.6.10`):** explicit IANA time zone (`timezone_inferred = false`) or NANP area-code
+  inferred time zone (`inferTimezoneFromPhone`, `timezone_inferred = true`) stored on
+  `oshal_marketing_contacts`; DST-aware clock-controlled `evaluateSmsQuietHours(nowIso, recipientTimezone)`
+  enforcing 8 a.m.–9 p.m. recipient-local permitted hours and holding quiet-hours sends in
+  `oshal_marketing_sms_queue` (`status = 'held_quiet_hours'`) with the exact UTC ISO `release_at`
+  of the next `08:00:00` in the recipient's local time zone.
+- **Proven by:** clock-controlled tests in `tests/marketing-sms-p4.test.mjs` (10 p.m. recipient-local
+  in `America/New_York` and `America/Los_Angeles` held until exact next 8 a.m. local; 10 a.m. local
+  permitted), `tests/marketing-audience-rls.test.mjs`, `tests/marketing-sms-browser.test.mjs`, and
+  live Blue proof (`0.6.10`).
 
 ## P5 — Attribution and analytics
 
-### Attribution columns on ingest
-- **Remaining:** the daily ingest writes `campaign_slug` and `medium` (the columns exist; the INSERT
-  omits them) wherever the source can attribute.
-- **Done when:** a UTM-tagged visit in Search Console or site analytics appears under its campaign on
-  the scorecard.
+### ~~Attribution columns on ingest~~ — DONE in `0.6.9`
+- **Delivered (`0.6.9`):** pure `extractEventAttribution()` (`routes/marketing-attribution-model.js`)
+  parsing `campaign_slug` and `medium` from direct fields, nested `utm`/`meta` objects, and URL
+  query parameters (`?utm_campaign=...&utm_medium=...`), wired into `marketing-ops-routes.ts`
+  (`gscDateTotals` requesting `['date', 'page']` dimensions and `replaceDayEvents` writing
+  `campaign_slug` and `medium` on every `INSERT INTO oshal_marketing_events`, preserving `NULL`
+  when unattributed).
+- **Proven by:** `tests/marketing-attribution-p5.test.mjs`, `tests/marketing-audience-rls.test.mjs`,
+  `tests/marketing-attribution-browser.test.mjs`, and live Blue proof (`0.6.9`).
 
-### UTM capture on sign-up and conversions
-- **Remaining:** the sign-up route stores the UTM set on the consent evidence; conversions (sign-up,
-  purchase through the payments app) record the first-touch campaign.
-- **Done when:** a sign-up from a tagged link and a test purchase each show their campaign on the
-  funnel.
+### ~~UTM capture on sign-up and conversions~~ — DONE in `0.6.9`
+- **Delivered (`0.6.9`):** migration `010-marketing-attribution.sql` adding
+  `oshal_marketing_conversions` (`conversion_id`, `owner_sub`, `contact_id`, `campaign_slug`,
+  `medium`, `source`, `kind`, `amount_cents`, `reference_id`, `utm`, `occurred_at`, exact-owner
+  FORCE RLS on `oshal.current_sub` with no operator bypass), automatic first-touch `signup`
+  conversion capture in `marketing-optin.ts` on UTM-tagged sign-ups (idempotent across submit and
+  confirm), and `POST /api/marketing/attribution/conversions` inheriting immutable first-touch
+  `campaign_slug`/`medium`/`source` from prior sign-up consent UTM evidence when not overridden.
+- **Proven by:** `tests/marketing-attribution-p5.test.mjs`, `tests/marketing-audience-rls.test.mjs`,
+  `tests/marketing-attribution-browser.test.mjs`, and live Blue proof (`0.6.9`).
 
-### Email and SMS engagement per campaign
-- **Remaining:** delivered, clicked, unsubscribed, bounced and complained counts per campaign from the
-  delivery ledger; opens are shown as unreliable if shown at all.
-- **Done when:** the scorecard shows those counts for a real broadcast, and NO DATA for a campaign
-  that sent nothing.
+### ~~Email and SMS engagement per campaign~~ — DONE in `0.6.9`
+- **Delivered (`0.6.9`):** idempotent engagement timestamp columns (`clicked_at`, `bounced_at`,
+  `complained_at`, `unsubscribed_at`) on `oshal_marketing_deliveries` (`010-marketing-attribution.sql`
+  + lazy DDL), `POST /api/marketing/deliveries/:deliveryId/event` (recording engagement events with
+  automatic suppression and consent revocation on bounce, complaint, or unsubscribe; foreign owner
+  `404`), `GET /api/marketing/attribution/funnel` computing per-campaign visits, first-touch
+  conversions/revenue, and `delivered`/`clicked`/`unsubscribed`/`bounced`/`complained` counts with
+  explicit `NO DATA` wherever a campaign sent nothing (opens omitted as unreliable), and the
+  **Campaign Attribution & Engagement Funnel** card on `#pane-scorecard` in
+  `tools/marketing-engine.html`.
+- **Proven by:** `tests/marketing-attribution-p5.test.mjs`, `tests/marketing-audience-rls.test.mjs`,
+  `tests/marketing-attribution-browser.test.mjs` (`1440x900` & `412x915`), and live Blue proof (`0.6.9`).
 
 ### PostHog bounded stats resource (core)
 - **Remaining:** a bounded PostHog stats resource in the core connector spec so the ingest can read

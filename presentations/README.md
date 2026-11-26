@@ -31,6 +31,7 @@ surface"** carve — only the surface layer ships here:
 | Tile | URL | What |
 |---|---|---|
 | AI Office | `/api/presentations/sections/ui` | Authoring workspace with slides, document sections or a sheet grid, visible file actions and an AI partner; the walkthrough is optional. Deep link: `?kind=pptx\|docx\|xlsx&starter=<id>&theme=<id>&topic=<text>` opens the studio on that purpose (a kind alone opens its editor) |
+| Meeting Recap | `/api/presentations/recap/app` | Upload a meeting recording (`.mp4`/`.mov`/`.webm`/`.mkv`/`.wav`/`.mp3`/`.m4a`, chunked for multi-GB files), run local-only audio extraction, local-only transcription (`local-stt`) or local transcript parsing, RGB colour-space scene detection with camera-strip privacy cropping, chronological `timeline.md`, end-to-end `summary.md` with verbatim timestamped quotes, and `review.pptx` (image + text layouts only, zero charts) with explicit ADR-108 Save to Files |
 | Starters | `GET /api/presentations/sections/starters` | The purpose-first starter catalog (`src-routes/office-starters.ts`): per kind, grouped — a document is a resume, a flyer, a letter, a report; a spreadsheet is a budget, a plan, a tracker, an invoice; a deck tells a story, explains, runs a meeting or sells. Served like `/themes` so the studio and the Create front door render one catalog |
 
 The normal route opens the authoring workspace directly. Select a format, add a slide,
@@ -127,6 +128,12 @@ Career 1.68.12 uses these shared document fields for employer and client-engagem
 
 Presentation slides include a **Speaker notes** editor directly beneath the active slide canvas on both desktop and mobile viewports (hidden for Word documents and Excel workbooks). Notes are bounded to 4,000 characters per slide, travel through undo/redo and revision saves, export to real PowerPoint notes pages (`ppt/notesSlides/notesSlideN.xml`), and survive `.pptx` import/open, saved reopen and **Edit & regenerate**. Concierge edits update speaker notes via `page` (`patch: { notes }`) in the structured editor and via `notes` on `update_slide`, `add_slide` and `set_outline` in the outline Guide.
 
+## Workbook tool, cover subtitle and Slack delivery parity (2.20.13)
+
+- **Workbook creation tool (`CREATE-TOOL-PRESENTATIONS-04`):** `presentations-create-workbook` creates standalone Excel workbooks (`.xlsx`) via `POST /api/presentations/sections/xlsx`, matching `presentations-create-deck` and `presentations-create-document` and returning the saved link and `openUrl`.
+- **Cover subtitle on screen (`CREATE-TOOL-PRESENTATIONS-15`):** `#subtitleInput` sits beside the title in the studio on desktop and mobile, feeds the exported cover/title/overview block for `.pptx`, `.docx` and `.xlsx`, persists in saved outline records for **Edit & regenerate** / reopen, and supports Guide `set_subtitle` and `set_title` (`subtitle`) actions.
+- **Slack delivery parity (`CREATE-TOOL-PRESENTATIONS-20`):** **Send to Slack** (`#slackBtn` / `#slackRow` and `#fSlack` in My files) requires a channel ID and explicit confirmation before posting to `POST /api/presentations/sections/slack`, paired with the approval-gated `presentations-send-slack` concierge tool (`requiresApproval: true`, `defaultAuthMode: ask`, `confirm: true`).
+
 <!-- oshal-rating:start -->
 ## Models and requirements
 
@@ -139,6 +146,7 @@ Container memory, MiB low / high: **128 / 512 (declared)**.
 |---|---|---|---|---|---|---|
 | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
 | deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |
+| meeting-recap-summary | meeting recap summary notes | T2 | none | template | not yet measured | none recorded |
 <!-- oshal-rating:end -->
 
 ## Editing workspace
@@ -202,3 +210,4 @@ Actual Chromium source tests exercise default entry,50-slide scrolling/viewport
 geometry, phone chat focus, draft history, paragraph generation payload and saved
 source reopen. Catalog/Guide/generation responses are named HTTP fixtures; these
 cases do not prove installed providers or independently decoded DOCX files.
+

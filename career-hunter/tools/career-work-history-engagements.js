@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16 20:45Z: "i can not find where to see my expanded experience.. it doesnt show anywhere and it was very hard to obtain to begin with because it covers like 20 different companies over a 4 year span when i was consulting in the field"). Work history's Expanded experience: every client engagement the main résumé holds (its project ledger) and every client account group, read whole from GET /resume/doc?id=master (`expanded`). An engagement placed under a job shows on that job's card; the rest show under "Not placed under a job yet" with Place all under [job]. Each engagement shows its name, role, industry, months or length, technology, bullets and marked not public, and opens as a form (client or project, role, industry, start and end month and year, length in months, technology, the job it was done under, marked not public, bullets added, edited, moved and removed); Add an engagement, Move up, Move down and Remove (after confirming). Client accounts show by group and open as one name per line; Add a group. Every save goes through the page's revision-checked main-résumé save with the changed-with-Undo bar. A form being typed in keeps what was typed across redraws, and a refused save says why in the form itself. The layout follows LinkedIn's Experience and Projects sections ("Associated with" a position): the client work sits with the job it was done under.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: an engagement's form has a Location box (City, State) under Industry, and its card shows the saved location beside its role and industry.
  */
 (function (win) {
   'use strict';
@@ -32,7 +33,7 @@
   }
 
   function card(e) {
-    var meta = [e.role, e.industry, timing(e)].filter(Boolean).join(' · ');
+    var meta = [e.role, e.industry, e.location, timing(e)].filter(Boolean).join(' · ');
     var details = [e.tech.length ? 'Technology: ' + e.tech.join(', ') : ''].concat((e.other || []).map(function (pair) { return pair[0] + ': ' + pair[1]; })).filter(Boolean);
     return el('li', { class: 'wh-eng', 'data-eng-index': String(e.index) }, [
       el('div', { class: 'wh-job-head' }, [
@@ -96,6 +97,7 @@
     var form = el('form', { class: 'wh-eng-form', novalidate: true, 'aria-label': isNew ? 'Add an engagement' : 'Edit ' + e.project }, [
       el('h4', { text: isNew ? 'Add an engagement' : 'Edit engagement' }),
       input('project', 'Client or project', e.project, { required: true }), input('role', 'Your role', e.role), input('industry', 'Industry', e.industry),
+      input('location', 'Location', e.location, { maxlength: '120', placeholder: 'City, State' }),
       el('div', { class: 'wh-dates' }, [monthPair('engStart', 'Engagement start', e.start), monthPair('engEnd', 'Engagement end', e.end)]),
       input('months', 'Length in months', e.months, { inputmode: 'decimal', maxlength: '8' }),
       input('tech', 'Technology (separate with commas)', e.tech.join(', '), { maxlength: '2000' }),
@@ -108,7 +110,7 @@
     return el('li', { class: 'wh-eng wh-eng-editing' }, [form]);
   }
 
-  var BLANK = { project: '', role: '', industry: '', start: '', end: '', months: null, tech: [], bullets: [], job: null, public: true };
+  var BLANK = { project: '', role: '', industry: '', location: '', start: '', end: '', months: null, tech: [], bullets: [], job: null, public: true };
   function itemsFor(list, newJob) {
     var items = list.map(function (e) { return isEditing('engagement', e.index) ? keep(function () { return editor(e, false, e.job ? e.job.index : null); }) : card(e); });
     if (isEditing('engagement', 'new') && E.editing.job === newJob) items.unshift(keep(function () { return editor(BLANK, true, newJob); }));
@@ -210,7 +212,7 @@
     var v = function (name) { var field = form.elements[name]; return field ? String(field.value || '').trim() : ''; };
     var months = v('months'), job = v('job');
     return {
-      project: v('project'), role: v('role'), industry: v('industry'),
+      project: v('project'), role: v('role'), industry: v('industry'), location: v('location'),
       start: W.composeMonth(v('engStartYear'), v('engStartMonth')), end: W.composeMonth(v('engEndYear'), v('engEndMonth')),
       months: months === '' ? null : Number(months.replace(',', '.')),
       tech: v('tech').split(',').map(function (item) { return item.trim(); }).filter(Boolean),

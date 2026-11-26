@@ -6,6 +6,9 @@
  * 2026-07-22 01:08:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Add read-only timeline playback with honest board gaps, exact snapshot maps, roll details, scrubbing, stepping, speed controls, and separately confirmed rewind branching.
  * 2026-07-23 11:10:07 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep an explicit Return to Game control visible at the top of every populated timeline.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Resolve saved scenes across the complete adventure catalog during playback.
+ * 2026-11-25 14:20:00 | maintainer@emeraldcoastsystemsgroup.com     | Display correlated cutaway previews, board-revision coverage metrics, and read-only Markdown/HTML/JSON recap export controls inside Timeline Playback.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Resolve scene.mapId for playback map backgrounds on multi-chapter arcs sharing bundled map art.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Display per-campaign cutaway art budget alongside coverage counts in the Timeline Playback header.
  */
 
 'use strict';
@@ -20,9 +23,28 @@ function playbackTime(value) {
 
 /** @description Return a compact human label for one persisted frame. */
 function playbackFrameTitle(frame) {
-  if (frame.type === 'snapshot') return frame.label || 'Saved board';
-  if (frame.type === 'current') return frame.label || 'Current saved board';
+  if (frame.type === 'snapshot' || frame.type === 'current' || frame.type === 'revision') {
+    return frame.label || 'Saved board';
+  }
   return `#${Number(frame.seq) || 0} ${String(frame.kind || 'story').replaceAll('-', ' ')}`;
+}
+
+/** @description Allow only safe relative /api/ or http(s) URLs for replay cutaway art. */
+function safePlaybackCutawayUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value || /[\u0000-\u001f\u007f\s<>"]/.test(value)) return '';
+  if (value.startsWith('/api/') && !value.startsWith('//') && !value.includes('\\')) return value;
+  return /^https?:\/\//i.test(value) ? value : '';
+}
+
+/** @description Render an inline read-only cutaway artwork card when a frame carries one. */
+function playbackCutaway(frame) {
+  const cutaway = frame && frame.cutaway;
+  const url = cutaway ? safePlaybackCutawayUrl(cutaway.url) : '';
+  if (!url) return '';
+  const title = cutaway.title || 'Scene illustration';
+  const caption = cutaway.caption && cutaway.caption !== title ? `<p>${esc(cutaway.caption)}</p>` : '';
+  return `<figure class="playback-cutaway"><span class="playback-cutaway-badge">CUTAWAY ART</span><img src="${esc(url)}" alt="${esc(title)}" loading="lazy" /><figcaption><b>${esc(title)}</b>${caption}</figcaption></figure>`;
 }
 
 /** @description Render exact persisted dice groups without rolling again. */
@@ -67,16 +89,17 @@ function playbackBoard(frame) {
   const fallbackH = Math.max(1, ...frame.board.tokens.map((token) => Number(token.y) + 1 || 1));
   const grid = scene && scene.grid || { w: fallbackW, h: fallbackH };
   const tokens = frame.board.tokens.map((token) => playbackToken(token, grid)).join('');
-  const art = scene ? `background-image:linear-gradient(rgba(10,8,6,.22),rgba(10,8,6,.4)),url('${API}/art/map/${encodeURIComponent(scene.id)}')` : '';
+  const art = scene ? `background-image:linear-gradient(rgba(10,8,6,.22),rgba(10,8,6,.4)),url('${API}/art/map/${encodeURIComponent(scene.mapId || scene.id)}')` : '';
   return `<div class="playback-board-wrap"><div class="playback-board" style="${art}">${tokens}</div><div class="playback-board-meta"><b>${esc(scene && scene.title || frame.board.sceneId || 'Saved board')}</b><span>${esc(frame.board.mode || 'unknown mode')} - round ${Number(frame.board.round) || 0}</span></div></div>`;
 }
 
 /** @description Render the selected timeline fact and any exact board available beside it. */
 function playbackFrameHtml(frame) {
   const branch = frame.branch === 'prior' ? '<span class="playback-warning">PRIOR BRANCH</span>' : '';
-  const contentHtml = frame.content ? `<p class="playback-copy">${esc(frame.content)}</p>` : '';
+  const isCutawayOnly = frame.kind === 'cutaway' && frame.cutaway;
+  const contentHtml = frame.content && !isCutawayOnly ? `<p class="playback-copy">${esc(frame.content)}</p>` : '';
   const restore = frame.restorable ? '<button class="big" id="playbackRestore">Restore / Branch from this Save</button>' : '';
-  return `<div class="playback-frame-head"><div><small>${esc(playbackTime(frame.createdAt))}</small><h2>${esc(playbackFrameTitle(frame))}</h2></div><span class="playback-fidelity ${frame.fidelity === 'exact-board' ? 'exact' : 'gap'}">${frame.fidelity === 'exact-board' ? 'EXACT BOARD' : 'LOG ONLY'}</span>${branch}</div>${contentHtml}${playbackRolls(frame.payload)}<p class="playback-note">${esc(frame.fidelityNote || '')}</p>${playbackBoard(frame)}<div class="playback-restore">${restore}</div>`;
+  return `<div class="playback-frame-head"><div><small>${esc(playbackTime(frame.createdAt))}</small><h2>${esc(playbackFrameTitle(frame))}</h2></div><span class="playback-fidelity ${frame.fidelity === 'exact-board' ? 'exact' : 'gap'}">${frame.fidelity === 'exact-board' ? 'EXACT BOARD' : 'LOG ONLY'}</span>${branch}</div>${contentHtml}${playbackRolls(frame.payload)}${playbackCutaway(frame)}<p class="playback-note">${esc(frame.fidelityNote || '')}</p>${playbackBoard(frame)}<div class="playback-restore">${restore}</div>`;
 }
 
 /** @description Stop passive playback without changing campaign or timeline data. */
@@ -131,7 +154,35 @@ function leaveTimelinePlayback() {
   if (typeof back === 'function') back(); else closeOverlay();
 }
 
-/** @description Bind playback navigation, selection, speed, save, and exit controls. */
+/** @description Download a sanitized read-only recap in the chosen format without mutating state. */
+async function exportPlaybackRecap(format) {
+  if (!timelinePlaybackSession || !['md', 'html', 'json'].includes(format)) return false;
+  const campaignId = timelinePlaybackSession.campaignId;
+  const url = `${API}/replay-export?campaignId=${encodeURIComponent(campaignId)}&format=${encodeURIComponent(format)}`;
+  try {
+    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) { banner('Could not export campaign recap.'); return false; }
+    const blob = await response.blob();
+    const header = response.headers && response.headers.get ? String(response.headers.get('content-disposition') || '') : '';
+    const match = /filename="([^"]+)"/i.exec(header);
+    const filename = match ? match[1] : `campaign-recap.${format}`;
+    if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && document.createElement) {
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
+    banner(`Exported recap (.${format})`);
+    return true;
+  } catch (_error) {
+    banner('Could not export campaign recap.');
+    return false;
+  }
+}
+
+/** @description Bind playback navigation, selection, speed, export, save, and exit controls. */
 function bindTimelinePlaybackControls() {
   $('playbackBack').onclick = leaveTimelinePlayback;
   $('playbackClose').onclick = leaveTimelinePlayback;
@@ -143,20 +194,37 @@ function bindTimelinePlaybackControls() {
   document.querySelectorAll('[data-playback-index]').forEach((button) => {
     button.onclick = () => { stopTimelinePlayback(); selectPlaybackFrame(button.dataset.playbackIndex); };
   });
+  if ($('playbackExportMd')) $('playbackExportMd').onclick = () => { void exportPlaybackRecap('md'); };
+  if ($('playbackExportHtml')) $('playbackExportHtml').onclick = () => { void exportPlaybackRecap('html'); };
+  if ($('playbackExportJson')) $('playbackExportJson').onclick = () => { void exportPlaybackRecap('json'); };
   if ($('playbackSave')) $('playbackSave').onclick = savePlaybackMoment;
   if ($('playbackLeaveTable')) $('playbackLeaveTable').onclick = () => { stopTimelinePlayback(); void quitToGameMenu(); };
+}
+
+/** @description Format concise board-revision and cutaway coverage stats for the playback header. */
+function playbackCoverageSummary(coverage, budget) {
+  const exact = Number(coverage && coverage.exactBoards) || 0;
+  const beats = Number(coverage && coverage.archiveEntries) || 0;
+  const cutaways = Number(coverage && coverage.cutaways) || 0;
+  const cap = Number(budget && budget.cap) || 20;
+  const used = budget && budget.used != null ? Number(budget.used) : cutaways;
+  return `${exact} exact board frames · ${cutaways} cutaways · ${beats} story beats · Art ${used}/${cap}`;
 }
 
 /** @description Render the full read-only timeline shell and its honest coverage summary. */
 function renderTimelinePlayback() {
   const session = timelinePlaybackSession, data = session.data, frames = data.frames || [];
   if (!frames.length) { overlay(`<h1>Timeline Playback</h1><p>No persisted story or board frames are available.</p><button class="big" id="playbackBack">${esc(session.options.backLabel || 'Back')}</button>`, 'playback'); $('playbackBack').onclick = leaveTimelinePlayback; return; }
-  const items = frames.map((frame, index) => `<button class="playback-event" data-playback-index="${index}"><span>${esc(playbackFrameTitle(frame))}</span><small>${frame.fidelity === 'exact-board' ? 'exact board' : 'story / roll only'} - ${esc(playbackTime(frame.createdAt))}</small></button>`).join('');
+  const items = frames.map((frame, index) => {
+    const artTag = frame.cutaway ? ' · cutaway' : '';
+    return `<button class="playback-event" data-playback-index="${index}"><span>${esc(playbackFrameTitle(frame))}</span><small>${frame.fidelity === 'exact-board' ? 'exact board' : 'story / roll only'}${artTag} - ${esc(playbackTime(frame.createdAt))}</small></button>`;
+  }).join('');
   const coverage = data.coverage || {}, canSave = session.options.allowSave && data.campaign.is_owner && !data.ended;
   const save = canSave ? '<button class="big ghost" id="playbackSave">Save Current Board</button>' : '';
   const leave = session.options.table ? '<button class="big ghost" id="playbackLeaveTable">Quit to My Games</button>' : '';
   const backLabel = esc(session.options.backLabel || 'Return to Game');
-  overlay(`<div class="playback-title"><div><h1>Timeline Playback</h1><p><b>Read-only.</b> Selecting, scrubbing, stepping, or playing never changes the campaign. Restore is a separate confirmed action.</p></div><div class="playback-title-actions"><span>${Number(coverage.archiveEntries) || 0} story beats<br>${Number(coverage.exactBoards) || 0} exact boards</span><button type="button" class="playback-close" id="playbackClose">← ${backLabel}</button></div></div><div class="playback-controls"><button id="playbackPrev">Previous</button><button id="playbackToggle">Play</button><button id="playbackNext">Next</button><label>Speed <select id="playbackSpeed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label><b id="playbackPosition"></b></div><input id="playbackScrubber" class="playback-scrubber" type="range" min="0" max="${frames.length - 1}" value="${session.index}" aria-label="Timeline position"><div class="playback-layout"><div class="playback-events">${items}</div><div class="playback-frame" id="playbackFrame"></div></div><div class="playback-actions">${save}<button class="big ghost" id="playbackBack">${backLabel}</button>${leave}</div>`, 'playback');
+  const exportBar = '<div class="playback-export-bar" role="group" aria-label="Export campaign recap"><span>Export Recap</span><button type="button" class="playback-export-btn" id="playbackExportMd" data-playback-export="md">Markdown (.md)</button><button type="button" class="playback-export-btn" id="playbackExportHtml" data-playback-export="html">Shareable HTML (.html)</button><button type="button" class="playback-export-btn" id="playbackExportJson" data-playback-export="json">JSON (.json)</button></div>';
+  overlay(`<div class="playback-title"><div><h1>Timeline Playback</h1><p><b>Read-only.</b> Selecting, scrubbing, stepping, playing, or exporting never changes the campaign. Restore is a separate confirmed action.</p><p class="playback-coverage-line" id="playbackCoverage">${esc(playbackCoverageSummary(coverage, data.cutawayBudget))}</p></div><div class="playback-title-actions"><span>${Number(coverage.exactBoards) || 0} exact board frames<br>${Number(coverage.cutaways) || 0} cutaways · ${Number(coverage.archiveEntries) || 0} beats</span><button type="button" class="playback-close" id="playbackClose">← ${backLabel}</button></div></div><div class="playback-controls"><button id="playbackPrev">Previous</button><button id="playbackToggle">Play</button><button id="playbackNext">Next</button><label>Speed <select id="playbackSpeed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label><b id="playbackPosition"></b></div>${exportBar}<input id="playbackScrubber" class="playback-scrubber" type="range" min="0" max="${frames.length - 1}" value="${session.index}" aria-label="Timeline position"><div class="playback-layout"><div class="playback-events">${items}</div><div class="playback-frame" id="playbackFrame"></div></div><div class="playback-actions">${save}<button class="big ghost" id="playbackBack">${backLabel}</button>${leave}</div>`, 'playback');
   $('overlayCard').classList.add('playback-wide');
   bindTimelinePlaybackControls(); selectPlaybackFrame(session.index);
 }

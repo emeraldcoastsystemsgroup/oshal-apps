@@ -1,3 +1,8 @@
+# 136 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2: final-packet also proves the letter date is the Central calendar day.
+# 135 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: years-truth now proves a person who stated figures gets years only where they stated one (unconfirmed claims and an unstated total taken out, a person with no figures keeps the roles' floor); register final-packet (one entry per job; the review judged on the final résumé).
+# 134 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: register role-location (a job's location on Work history over the real routes and engine, with Undo, a client engagement's, the parse résumé printed from the saved record, the concierge's patch tool, and the page in Chromium at 1440x900 and 412x915); parse-resume and assisted-application expect the recorded location on the parse résumé and the typed rows in the kernel's shape.
+# 133 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT: career-native-busy-feedback, career-prepare-open, the match deck page and one-route-apply-by-hand now expect a change answered busy to wait and save by itself; register concurrent-writes (a change refused while a résumé is being written waits and saves by itself, once, in order across open pages, handed on by a page that closes, dropped with words after 30 minutes, and My jobs' bulk queue lets it go first) and concurrent-writes-page (Save on Find jobs, notes on a job page and Remove on My jobs in Chromium at 1440x900 and 412x915 over the real routes and engine).
+# 132 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-STRENGTHEN (DEMO-03): register strengthen-readonly-store: GET /strengthen over the compiled route, the launcher's command mapping and the Python engine on a store and shared corpus made read-only. A person who never scanned gets the themes counted from their own scores, one who scanned gets what they saved, one with nothing saved gets the themes with no jobs, and no read writes a byte.
 # 131 | maintainer@emeraldcoastsystemsgroup.com | Lane REGEN-PROOF: regenerate-live matches its check. On a slot whose /readyz says schedulerEnabled:false (the test slot) the check makes his career-regenerate job's own call (POST /regenerate/advance as him, every 20 s) with the page closed and says so; each row starts with no queue; a reload reopens Getting ready without signing in again; the cockpit's recents write is permitted.
 # 130 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN: register regenerate-routes (Generate again over the real routes and engine: older documents, order, one at a time, retry once, Pause, Go on, Stop, a reload, his own Generate wins, applied refused), regenerate-page (My jobs in Chromium at 1440x900 and 412x915) and regenerate-live (the queue finishing with no Career page open on the test slot; its install prerequisite names this release when the lead versions it).
 # 129 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-REPLAY: register assisted-application-replay (a paused run's Go on — fill in again from where it was with the line saying entries are remembered, and the receipt's count of values played back from the kernel's memory, from replay:1 as remembered from start 1, in Chromium at 1440x900 and 412x915 over the real routes).
@@ -2632,7 +2637,7 @@ cases:
         - tests/career-submission-activity.test.mjs
     expected:
       - To approve is not a stage. A job Career picked leads Saved, marked Career picked this for you, with the Prepare application button a saved job has, and a pick the person already prepared is not shown.
-      - Prepare application on a pick promotes the job and opens the one application page, and the route that wrote documents without guidance is never called. Remove moves a pick to Removed, clears Saved, retains its application history, and keeps it removed after reload. A refused write keeps the pick and offers manual retry.
+      - Prepare application on a pick promotes the job and opens the one application page, and the route that wrote documents without guidance is never called. Remove moves a pick to Removed, clears Saved, retains its application history, and keeps it removed after reload. A refused write keeps the pick and offers manual retry; a phone Pass answered busy waits and lands once.
       - The view=approve address opens Saved on those jobs and says so when there are none, and the approvals address forwards there.
       - With the documents ready, Send is Open the employer's form as the one filled button, then Download résumé and cover letter, then I applied.
       - I applied records the application as the person's own word, through the application record's own route when the job has one, and the page reads Sent with You marked this as applied yourself.
@@ -2768,8 +2773,8 @@ cases:
     installation: never
 
   - id: career-native-busy-feedback
-    name: Running work preserves drafts and manual save retry
-    purpose: Distinguish the exact native writer-busy refusal from a revision conflict on actual Career pages without retrying writes automatically.
+    name: Running work keeps drafts and saves a change refused unrun by itself
+    purpose: Distinguish the exact native writer-busy refusal (409 career_run_in_progress, nothing ran), which now waits and saves by itself, from a revision conflict and every other answer on actual Career pages, which keep their own words and paths.
     level: browser
     runner:
       kind: node-test
@@ -2777,9 +2782,9 @@ cases:
       files:
         - tests/career-running-feedback-browser.test.mjs
     expected:
-      - A busy draft retains typed changes and offers manual Retry; ordinary revision conflicts keep their explicit Reload path.
-      - A refused phone-card Save restores only that job and its history entry; an acknowledged favorite remains saved when only scoring is refused.
-      - Exact status and error classification preserve unknown failures, current view epochs and deliberate retry.
+      - A Save, a draft, a fit check and a submission request answered busy say they are waiting, never try again, keep typed changes, and land once Career takes changes again, once; ordinary revision conflicts keep their explicit Reload path.
+      - A phone card whose Save waits stays away, also in a list replaced meanwhile; an acknowledged favorite remains saved while a fit check waits.
+      - Every other status and error (a 503, a conflict, an unrelated 409 that borrows the code, an unknown result) keeps its classification, current view epochs and deliberate retry.
     prerequisites:
       - runtime:chromium
     sideEffects: none
@@ -2824,7 +2829,7 @@ cases:
     expected:
       - Prepare writes once through the shipped owner status writer and opens the real tailoring workspace; another synthetic owner is unchanged.
       - Open application names prepared work and performs no preparation write. A refused parent keeps an acknowledged preparation available to open again.
-      - Pending preparation stays busy across redraws. Unknown writes require a read-only Check preparation before a separate manual retry; refused checks cannot write or navigate.
+      - Pending preparation stays busy across redraws. A promotion answered busy waits past its 15-second deadline and opens tailoring once it lands. Unknown writes require a read-only Check preparation before a separate manual retry; refused checks cannot write or navigate.
     prerequisites:
       - runtime:chromium
     sideEffects: none
@@ -4020,11 +4025,23 @@ cases:
     installation: never
   - id: years-truth
     name: Generated documents state the person's own years by skill and keep recorded terms
-    purpose: Prove a person's years_by_skill and career_years override the computed tenure table, reach the writer and reviewer prompts as exact, are enforced by code on the résumé's headline, summary, competencies and skills and on the cover letter (numbers too low and too high), leave project lengths, ranges, other skills and role bullets alone, and that a miswritten recorded term is restored.
+    purpose: Prove a person's years_by_skill and career_years override the computed tenure table, reach the writer and reviewer prompts as the only year counts allowed, are enforced by code on the résumé's headline, summary, competencies and skills and on the cover letter (numbers too low and too high), that a years claim naming none of a person's figures, and a total they never stated, is taken out ("Machine Learning (4 years)" reads "Machine Learning"), that a person with no figures keeps the roles' floor, that project lengths, ranges and role bullets are left alone, and that a miswritten recorded term is restored.
     level: unit
     runner: {kind: node-test, scope: package, files: [tests/career-years-truth.test.mjs]}
     expected:
-      - tests/career-years-truth-contract.py reports 100 or more checks and no failure, including 40 phrasings corrected or left alone as listed.
+      - tests/career-years-truth-contract.py reports 150 or more checks and no failure, including the phrasings corrected, taken out or left alone as listed.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: pure}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: final-packet
+    name: A generated résumé prints each job once and its review names only what the sent résumé holds
+    purpose: Prove role_plan.drop_repeats keeps one entry when the model writes the same job twice with different punctuation (the copy bound to the recorded role kept, two stints with different spans kept), and resume_review.settle judges the review's own checks again on the final packet, so a years conflict the years pass already fixed is not shown as needing review while a reviewer's item and a conflict still present are, and that a letter is dated the calendar day in Career's time zone (America/Chicago), not the server's UTC day.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-final-packet.test.mjs]}
+    expected:
+      - tests/career-final-packet-contract.py reports 10 or more checks and no failure, including a letter made at 00:18 UTC on November 26 dated November 25.
     prerequisites: [runner:node-test, fixture:store-toolchain]
     sideEffects: none
     isolation: {mode: pure}
@@ -4062,6 +4079,25 @@ cases:
       - A figure of 61 is refused in the server's words naming the row and nothing is saved; a changed, a cleared and an added figure with a total save, and the table then shows what the server answers; the figures are there after a reload; Undo puts back the exact earlier file.
       - Nothing is wider than the screen at either size, measured against the screen's own width; on the phone every control is at least 44 px tall and every box has 16 px text, with an added card and a 44-character unbroken name too.
       - A skill name that holds markup is drawn as text and the script builds no markup from data; figures typed and not saved survive a job saved on the same page, whose next save goes on the revision the years save left; a person with no main résumé sees no section.
+    prerequisites: [runner:node-test, runner:python, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up person's folders under the test's temporary folder and close the browser contexts."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: role-location
+    name: A job's location is set on Work history with Undo and is printed on the parse résumé
+    purpose: >-
+      Career's real compiled résumé route module (GET /resume/doc, GET /resume/master-section, POST /resume/master-edit,
+      POST /resume/master-undo) over the launcher's real Python programs on a made-up person, and the shipped Work history
+      page in Chromium at 1440x900 and 412x915 over the same routes: a job's optional Location, a client engagement's, the
+      parse résumé the engine writes from the saved record, and the concierge's patch tool.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-role-location.test.mjs, tests/career-role-location-page.test.mjs]}
+    expected:
+      - A job's location is read with the exact revision, set, changed and cleared through the revision-checked edit, backed up and audited; Undo puts back the exact earlier file; a cleared one is no key; a job with none reads as before.
+      - A new job and a client engagement under an employer carry their own; a ledger engagement keeps its own; a wrong current value, a location over 120 characters and a moved main résumé change nothing.
+      - The parse résumé written from the saved record prints Location under Company for a job with one and no Location line for a job without; the patch tool takes key location with the approval every job edit needs.
+      - On the page a job's card shows its location on its own line; Edit and Add a job have an optional Location box (City, State) under Employer; at 412 it is at least 44 px tall with 16 px text and nothing is wider than the screen.
     prerequisites: [runner:node-test, runner:python, browser:chromium, fixture:store-toolchain]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove the made-up person's folders under the test's temporary folder and close the browser contexts."}
@@ -4127,7 +4163,7 @@ cases:
       - At 412 one card shows the employer, the title, the place, pay only when the posting states it and the fit; Undo, Pass, Save and More are 44 px targets on the screen above the bottom bar, Pass and Save the wide ones; nothing is wider than the screen.
       - Pass and Save by button and by swipe change the person's store as the board's own buttons do; Undo puts each job back in the store and on top; a job that moved to Getting ready since is left there, said in words, and nothing is written.
       - More opens the job's details and writes nothing; the buttons keep keyboard focus after acting and the card under the lead one is not a tab stop.
-      - The end of the deck says how many were saved and passed with Open Saved and Find jobs and keeps Undo; the wait for the list, a list that cannot be read (with Try again), a Pass that cannot be sent (the card comes back), a Save that cannot be confirmed (Undo checks it) and a stage with no matches (No matches yet, Find jobs) each say what happened.
+      - The end of the deck says how many were saved and passed with Open Saved and Find jobs and keeps Undo; the wait for the list, a list that cannot be read (with Try again), a Pass that cannot be sent (the card comes back), a Save that cannot be confirmed (Undo checks it), a Save answered busy (it waits and lands, and a list searched meanwhile does not get it back) and a stage with no matches (No matches yet, Find jobs) each say what happened.
       - A deck of 30 with 25 a page shows every job once and none twice; /api/career-hunter/mobile opens the deck at 412 and the list at 1440.
       - At 1440 the stage is the list of rows with Save and Not interested, the search row and the pager, with no card and no deck buttons; a link naming career-mobile opens the board with view=matches.
     prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
@@ -4271,6 +4307,7 @@ cases:
       - Any public employer site is filled, never refused as site_unsupported. A site Career names no engine for is the generic site (careful general rules, no page kinds guessed, Next or Continue to move, a stop before any button that sends); a company page embedding Greenhouse, Lever, Ashby or SmartRecruiters is approved at that engine's own form address from the source's engine, token and job id (or gh_jid / ashby_jid), never a guessed one; SAP SuccessFactors, BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS (at its in_iframe address), Oracle Recruiting Cloud and Taleo are recognised by host and get their own rules; no profile presses a submit word, signs for him or maps State to anything but the state.
       - The packet's Word résumé is the parse résumé (its own Resume_Parse.docx byte for byte, else the same digest from docx_resume.py --kind parse; never Resume_ATS.docx), which every site's rules upload; the PDF résumé and cover letter, only the roles on this job's résumé with their recorded dates (a year alone stays a year), education, facts and the site's rules; approval publishes the frozen input before any kernel call.
       - Bind, start, a lost acknowledgement and Go on send exactly the approved bytes on executor orbit-apply-v1, never a second start of one attempt; another person, no person, a changed packet and a site without rules are refused.
+      - A job's recorded location is on its Location line in the packet's Word résumé and a job with none has no such line; the typed work-history rows hold only the keys the kernel reads; documents made before a location was saved are refused as out of date.
       - A run in progress reads as one line; a kept answer is saved by its question id and a kept month is written through the engine's revision-checked edit only over a year alone, once per card, this run's cards only.
       - An ended attempt keeps only pictures matching the kernel's digest, writes apply-receipt.json with every change and its source, and records Submitted by you only with the verified confirmation; a mismatched result, Not seen and Stop record nothing.
     prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
@@ -4366,6 +4403,7 @@ cases:
       - The headings are exactly Contact Information, Summary, Experience, Education, Certifications, Skills; contact lines are Name, Email, Phone, Address (street, city, state ZIP, country from profile.application_contact) and LinkedIn.
       - Every role appears once with Job Title, Company, Location, Start Date and End Date in that order (the engagement's Company is the client, Through its employer), then its bullets; every date is MM/YYYY, a year alone or Present; schools are School, Degree, Field of Study, Start Date, End Date.
       - The reader recovers all six roles' title, company and dates exactly from the parse résumé (Word paragraphs and PDF text) and none of them from the executive Word résumé; export-packet --kind parse gives the same bytes and refuses PDF.
+      - Location is the recorded role's; a location the generated entry carries never replaces it or stands in for one the record does not hold (no Location line then), and an entry no record anchors keeps its own.
     prerequisites: [runner:node-test, runner:python, fixture:python-engine]
     sideEffects: none
     isolation: {mode: disposable, cleanup: "Every file is written under a temporary folder the contract removes."}
@@ -4403,7 +4441,7 @@ cases:
         - tests/career-parse-resume-live-proof.mjs
     expected:
       - The download is named <Company> - <Job title> - Job <id> - Resume (for upload).docx and holds no tab, table, text box, column, header or footer.
-      - The plain line reader recovers every job on that job's résumé once, with its exact title and employer and its dates as MM/YYYY, a year alone or Present; nothing scrolls sideways; the page makes no write; the check exits 0 and discards the job's documents.
+      - The plain line reader recovers every job on that job's résumé once, with its exact title and employer and its dates as MM/YYYY, a year alone or Present; nothing scrolls sideways; the page makes no write but the cockpit's own record of the application opened (POST /api/cockpit/recents); the check exits 0 and discards the job's documents.
     prerequisites:
       - runner:node
       - runner:python
@@ -4418,6 +4456,22 @@ cases:
         test person's role back and deactivates it.
     limits:
       timeoutMs: 300000
+    installation: never
+  - id: parse-resume-live-check
+    name: The live check of the résumé for upload forms stops every write but the sign-in and the cockpit's recents
+    purpose: >-
+      The live check's own guard and judgement (tests/career-parse-resume-live-proof.mjs) in Chromium against a
+      loopback listener: reads, the sign-in and the cockpit's record of the application opened reach the listener, and
+      every other write, Career's included, is stopped and listed and fails the size.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-parse-resume-live-proof.test.mjs]}
+    expected:
+      - GET, POST /sessions and POST /api/cockpit/recents are answered; POST and DELETE to Career's routes and any other method to the recents are stopped and listed.
+      - A size whose only write was the cockpit's recents has no write failure; a size that tried a write to Career fails with the write named.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the loopback listener and the browser."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 1024}
     installation: never
   - id: regenerate-routes
     name: Generate again for many jobs, one at a time in the background, through the job page's own Generate
@@ -4480,4 +4534,62 @@ cases:
         person's background job off, takes the role back and deactivates the person.
     limits:
       timeoutMs: 300000
+    installation: never
+  - id: strengthen-readonly-store
+    name: Strengthen's list answers its themes from a store the kernel mounts read-only
+    purpose: >-
+      DEMO-03. On the native kernel a read mounts the person's published store read-only, with the shared jobs corpus
+      read-only beside it. Over the compiled GET /strengthen, the launcher's own command mapping and the Python engine on
+      real SQLite files made read-only (files 0444, folders 0555), read a made-up person who never scanned (an empty
+      theme table, a store still marked WAL, a store with no theme table), one who scanned and answered, one with
+      nothing saved, and a store the engine may write.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-strengthen-readonly.test.mjs]
+    expected:
+      - Every read answers 200. A person who never scanned gets the themes counted from their own scores (Kubernetes 2, Terraform 1, degree 1); one who scanned gets the themes and the answer they saved.
+      - A person with nothing saved gets the themes with no jobs. No read changes a byte of the store or the corpus, or creates a file beside them.
+      - A store the engine may write saves its first scan, as before.
+    prerequisites: [runner:node-test, runner:python, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Make the temporary folders writable again and remove them."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: concurrent-writes
+    name: A change made while a résumé is being written waits and saves by itself, in order, and the batch lets it go first
+    purpose: >-
+      Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect..".
+      The shipped tools/career-pending-writes.js, tools/career-job-actions.js and tools/career-bulk-queue.js against a
+      simulated Career that answers every change 409 career_run_in_progress while a résumé is being written, before it runs
+      the change, as the native kernel does (crates/host-process/src/host/career.rs career_busy).
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-concurrent-writes.test.mjs]}
+    expected:
+      - A change refused that way is kept and sent again every few seconds; it reaches Career once, after the run, and the press gets Career's own answer; the page says "Saving — waiting for the résumé being written now…" and then "Saved.".
+      - Any other answer (a conflict, a refusal, a stall that may have run) is the press's own at once; batch work hears the 409 itself; reads, other applications, confirmed actions and question cards pass through.
+      - Changes land in the order they were made across the person's open pages; a page that closes or stops hands its change to another, which saves it and answers its press; one not sent within 30 minutes is dropped with words; a cancelled press is never sent.
+      - My jobs' bulk queue starts no preparation while a change of the person's waits, so the change lands before the next résumé starts.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Nothing to clean: in-memory storage and a simulated Career."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: concurrent-writes-page
+    name: Save, notes and Remove while a résumé is being written, at 1440x900 and 412x915
+    purpose: >-
+      Find jobs' Save, a job page's notes and My jobs' Remove pressed while a résumé is being written, in Chromium at
+      1440x900 and 412x915: the shipped pages over the COMPILED Career routes and the real Python engine for a made-up
+      person, the engine's model calls held so the résumé is being written for as long as the test says. Only the kernel's
+      rule for that time is stood in (every other change answered 409 career_run_in_progress before Career runs it).
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-concurrent-writes-browser.test.mjs]}
+    expected:
+      - The press says it is waiting ("Saving — waiting for the résumé being written now…"), never "try again"; the line fits the screen; nothing reaches Career while the résumé is written.
+      - Once it is written the change reaches Career once, is in the person's store (Saved, the notes, the job removed), the page says Saved and the résumé that was being written is kept.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the model and Chromium are scripted stand-ins."}
+    limits: {timeoutMs: 300000, maxMemoryMb: 1536}
     installation: never

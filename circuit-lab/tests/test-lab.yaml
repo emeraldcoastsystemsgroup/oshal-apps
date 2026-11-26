@@ -24,6 +24,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the open circuit is saved through the lab's own routes before Jarvis or the concierge reads it, a concierge edit made through the part route is drawn on refresh, and an inspector field still being edited survives the refresh and the poll. The surface-editing fixture now serves the real shared document-handoff module, so that case also needs the kernel platform.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0 (ADR-202): the hexapod-power case - the spider-18 power example validates, the STS3215 shared row resolves, and the real engine solves the stance, the stall and the 5 V rail; driver-catalog and board-model texts name the new row and example.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 0.9.6 (BACKLOG B4): update driver-catalog and shared-parts descriptions for all five animatronics servo rows (SG90, MG90S, MG996R, DS3218, STS3215 7.4 V) and the stepper sharedPart reader.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Quote the case circuit-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -446,7 +447,7 @@ cases:
     installation: never
   - id: circuit-bot-tools-contract
     name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
-    purpose: Verify circuit-lab-engineer declares explicit inline posture, chatBot binding, object inputSchemas on all thirteen tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    purpose: 'Verify circuit-lab-engineer declares explicit inline posture, chatBot binding, object inputSchemas on all thirteen tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.'
     level: unit
     runner:
       kind: node-test

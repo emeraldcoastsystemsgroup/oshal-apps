@@ -73,3 +73,56 @@ Defined in `routes/finance-routes.js`, `src-routes/finance-routes.ts` · RLS **f
 | `test_mode` | boolean | no | true |  |
 | `created_at` | timestamp with time zone | no | now() |  |
 | `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_finance_projects`
+
+Defined in `migrations/007-finance-projects.sql` · RLS **forced** - owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `project_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner · UNIQUE `(owner_sub, slug)` |
+| `slug` | text | no |  |  |
+| `name` | text | no |  |  |
+| `currency` | text | no | 'USD' |  |
+| `status` | text | no | 'active' | CHECK (`active`, `paused`, `completed`, `archived`) |
+| `budget_cents` | bigint | no | 0 | CHECK (`budget_cents >= 0`) |
+| `external_ref` | text | yes |  |  |
+| `notes` | text | no | '' |  |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_finance_project_lines`
+
+Defined in `migrations/007-finance-projects.sql` · RLS **forced** - owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `line_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner |
+| `project_id` | uuid | no |  | FK `oshal_finance_projects(project_id)` ON DELETE CASCADE |
+| `name` | text | no |  |  |
+| `channel` | text | no | 'general' |  |
+| `budget_cents` | bigint | no | 0 | CHECK (`budget_cents >= 0`) |
+| `committed_cents` | bigint | no | 0 | CHECK (`committed_cents >= 0`) |
+| `notes` | text | no | '' |  |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_finance_project_actuals`
+
+Defined in `migrations/007-finance-projects.sql` · RLS **forced** - owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `actual_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner |
+| `project_id` | uuid | no |  | FK `oshal_finance_projects(project_id)` ON DELETE CASCADE |
+| `line_id` | uuid | yes |  | FK `oshal_finance_project_lines(line_id)` ON DELETE SET NULL |
+| `source` | text | no |  | CHECK (`manual`, `plaid`, `ads`, `sms`, `email`, `invoice`) |
+| `amount_cents` | bigint | no |  | CHECK (`amount_cents > 0`) |
+| `occurred_on` | date | no |  |  |
+| `reference_id` | text | yes |  |  |
+| `evidence` | jsonb | no | '{}' |  |
+| `note` | text | no | '' |  |
+| `created_at` | timestamp with time zone | no | now() |  |

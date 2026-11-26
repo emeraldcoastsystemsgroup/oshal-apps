@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Measurement handlers for the marketing-engine API, moved verbatim out of marketing-routes.ts at the 800-line decomposition threshold: the stored weekly scorecard read and its current-week rebuild, the experiment lifecycle with its legal-transition graph, the 428-gated budget-proposal decision and the whitelisted apply behind it, and the deterministic UTM builder. Every query, transition, status code and payload is unchanged.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.8 (P2): accept `field = 'channel_allocation'` in decideBudgetProposal and apply campaign channel_allocations, optional linked oshal_finance_project_lines/projects, and oshal_marketing_budget_ledger status='applied' atomically inside one database transaction (rollback leaves both ledgers unchanged on error).
  *
  * @module marketing-measure
  */
@@ -12,6 +13,13 @@ import type { Request, Response } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { hasExplicitWriteConfirmation, confirmationRequiredPayload } from '@/shared/security/explicit-write-confirmation';
 import { buildUtmUrl, scorecardRollup, weekStartOf } from './marketing-model';
+import {
+  applyChannelAllocationMap,
+  channelDisplayName,
+  parseChannelAllocationProposal,
+  type AppliedChannelAllocation,
+  type ParsedChannelAllocationProposal,
+} from './marketing-budget-model';
 import {
   DATE_RE, EXPERIMENT_TRANSITIONS, UUID_RE, logger, rows, safeRows, type QueryablePool,
 } from './marketing-support';
@@ -135,6 +143,137 @@ export async function patchExperiment(ctx: AppContext, sub: string, req: Request
   res.json({ experiment: row });
 }
 
+interface PoolClientLike extends QueryablePool {
+  release(): void;
+}
+type ConnectablePool = QueryablePool & { connect?: () => Promise<PoolClientLike> };
+
+/** Run work inside a single PostgreSQL transaction when pool.connect() is available. */
+async function runInTransaction<T>(
+  pool: QueryablePool,
+  work: (client: QueryablePool) => Promise<T>,
+): Promise<T> {
+  const connectable = pool as ConnectablePool;
+  if (typeof connectable.connect !== 'function') return work(pool);
+  const client = await connectable.connect();
+  let committed = false;
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    committed = true;
+    return result;
+  } catch (err) {
+    if (!committed) {
+      try { await client.query('ROLLBACK'); } catch { /* best-effort rollback */ }
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Sync linked Finance project lines & project budget inside the caller's active transaction. */
+async function syncFinanceLinesInTx(
+  client: QueryablePool,
+  sub: string,
+  financeProjectId: string,
+  applied: AppliedChannelAllocation,
+): Promise<boolean> {
+  let projRows: any[];
+  try {
+    projRows = (await client.query(
+      'SELECT project_id FROM oshal_finance_projects WHERE project_id = $1 AND owner_sub = $2',
+      [financeProjectId, sub],
+    )).rows;
+  } catch (err) {
+    if ((err as { code?: string })?.code === '42P01') return false;
+    throw err;
+  }
+  if (!projRows[0]) return false;
+  for (const [channel, budgetCents] of Object.entries(applied.allocations)) {
+    const updated = await client.query(
+      `UPDATE oshal_finance_project_lines
+          SET budget_cents = $1, updated_at = now()
+        WHERE project_id = $2 AND owner_sub = $3 AND channel = $4
+        RETURNING line_id`,
+      [budgetCents, financeProjectId, sub, channel],
+    );
+    if (!updated.rowCount) {
+      await client.query(
+        `INSERT INTO oshal_finance_project_lines
+           (owner_sub, project_id, name, channel, budget_cents, committed_cents, notes)
+         VALUES ($1,$2,$3,$4,$5,0,'')`,
+        [sub, financeProjectId, `${channelDisplayName(channel)} budget`, channel, budgetCents],
+      );
+    }
+  }
+  await client.query(
+    `UPDATE oshal_finance_projects
+        SET budget_cents = $1, updated_at = now()
+      WHERE project_id = $2 AND owner_sub = $3`,
+    [applied.totalBudgetCents, financeProjectId, sub],
+  );
+  return true;
+}
+
+/** Atomically apply a validated channel_allocation proposal across campaign, optional Finance lines, and budget ledger. */
+async function applyChannelAllocationTx(
+  ctx: AppContext,
+  sub: string,
+  proposalId: string,
+  campaignId: string,
+  parsed: ParsedChannelAllocationProposal,
+): Promise<
+  | { ok: true; proposal: any; campaign: any; applied: AppliedChannelAllocation; financeSynced: boolean }
+  | { ok: false; status: number; error: string; message?: string }
+> {
+  return runInTransaction(ctx.pool, async (client) => {
+    const campRows = (await client.query(
+      'SELECT * FROM oshal_marketing_campaigns WHERE campaign_id = $1 AND user_sub = $2',
+      [campaignId, sub],
+    )).rows;
+    const campaign = campRows[0];
+    if (!campaign) {
+      return { ok: false as const, status: 409, error: 'campaign_not_found' };
+    }
+    const appliedRes = applyChannelAllocationMap(campaign.channel_allocations, parsed);
+    if (!appliedRes.ok) {
+      return { ok: false as const, status: 400, error: appliedRes.error, message: appliedRes.message };
+    }
+    const applied = appliedRes.value;
+    const updatedCampaign = (await client.query(
+      `UPDATE oshal_marketing_campaigns
+          SET channel_allocations = $1::jsonb, budget_monthly_usd = $2, updated_at = now()
+        WHERE campaign_id = $3 AND user_sub = $4
+        RETURNING *`,
+      [JSON.stringify(applied.allocations), applied.budgetMonthlyUsd, campaignId, sub],
+    )).rows[0];
+    if (!updatedCampaign) {
+      return { ok: false as const, status: 409, error: 'campaign_not_found' };
+    }
+    let financeSynced = false;
+    const financeProjectId = updatedCampaign.finance_project_id ? String(updatedCampaign.finance_project_id) : '';
+    if (financeProjectId && UUID_RE.test(financeProjectId)) {
+      const hook = (ctx as { applyFinanceAllocationLines?: (c: QueryablePool, s: string, pid: string, a: AppliedChannelAllocation) => Promise<boolean> }).applyFinanceAllocationLines;
+      financeSynced = typeof hook === 'function'
+        ? await hook(client, sub, financeProjectId, applied)
+        : await syncFinanceLinesInTx(client, sub, financeProjectId, applied);
+    }
+    const finalRows = (await client.query(
+      `UPDATE oshal_marketing_budget_ledger
+          SET status = 'applied', decided_by = $1, decided_at = now()
+        WHERE entry_id = $2 AND user_sub = $3 AND status = 'proposed'
+        RETURNING *`,
+      [sub, proposalId, sub],
+    )).rows;
+    if (!finalRows[0]) {
+      throw Object.assign(new Error('already_decided'), { code: 'ALREADY_DECIDED' });
+    }
+    return { ok: true as const, proposal: finalRows[0], campaign: updatedCampaign, applied, financeSynced };
+  });
+}
+
 /** Apply an approved proposal to its campaign (whitelisted fields only). */
 async function applyBudgetProposal(
   pool: QueryablePool, sub: string, row: any,
@@ -169,6 +308,39 @@ async function applyBudgetProposal(
   return { ok: false, status: 422, error: 'unsupported_field' };
 }
 
+/** Handle confirmed approval of a channel_allocation proposal inside an atomic transaction. */
+async function handleChannelAllocationApproval(
+  ctx: AppContext,
+  sub: string,
+  id: string,
+  row: Record<string, unknown>,
+  res: Response,
+): Promise<void> {
+  if (!row.campaign_id) { res.status(422).json({ error: 'proposal_has_no_campaign' }); return; }
+  const parsed = parseChannelAllocationProposal(row.new_value);
+  if (!parsed.ok) { res.status(400).json({ error: parsed.error, message: parsed.message }); return; }
+  try {
+    const result = await applyChannelAllocationTx(ctx, sub, id, String(row.campaign_id), parsed.value);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error, ...(result.message ? { message: result.message } : {}) });
+      return;
+    }
+    res.json({
+      proposal: result.proposal,
+      campaign: result.campaign,
+      allocations: result.applied.allocations,
+      totalBudgetCents: result.applied.totalBudgetCents,
+      financeSynced: result.financeSynced,
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code === 'ALREADY_DECIDED') {
+      res.status(409).json({ error: 'already_decided' });
+      return;
+    }
+    throw err;
+  }
+}
+
 /**
  * @description POST /budget/proposals/:id/decide — approve (428-gated, then applied) or reject.
  * @param ctx - Framework app context.
@@ -200,6 +372,10 @@ export async function decideBudgetProposal(ctx: AppContext, sub: string, req: Re
   }
   if (!hasExplicitWriteConfirmation(b)) {
     res.status(428).json(confirmationRequiredPayload('marketing-budget', 'budget.apply'));
+    return;
+  }
+  if (row.field === 'channel_allocation') {
+    await handleChannelAllocationApproval(ctx, sub, id, row, res);
     return;
   }
   const approved = (await rows(

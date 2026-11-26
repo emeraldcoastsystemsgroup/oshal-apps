@@ -34,6 +34,11 @@
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | GET /content carries art: { tokens, maps } - the ids of the portraits and maps this package ships - so the table asks only for art that exists. It preloaded a portrait for every monster and drew one for every villain and imported hero, and each id without bundled art answered 404, which the native kernel reports as "application asset not found".
  * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | POST /campaign/delete {campaignId, confirm:true}: the host deletes their own campaign and everything in it.
  * 2026-10-12 05:10:00 | maintainer@emeraldcoastsystemsgroup.com  | K4: an unexpected route failure is journaled through the framework logger when AppContext supplies none. The native kernel's context carries no logger, so a 500 left no journal line.
+ * 2026-11-25 14:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Expose authenticated read-only GET /replay-export (md, html, json) under the existing /api/dnd mount.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve and inline ui/spellcasting.js directly before ui/engine.js for deeper spellcasting rules.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Include SRD 5.1 leveling progression table (Levels 2-5) in GET /content so the tabletop displays live XP progress and thresholds.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Serve cutaway-beats.js and table-cutaway-beats.js, expose read-only GET /cutaway-budget, and include live cutawayBudget on GET /state.
+ * 2026-11-26 01:55:00 | maintainer@emeraldcoastsystemsgroup.com     | Compose game-neutral TabletopRuntime with the D&D 5e SRD ruleset pack and expose authenticated read-only GET /runtime under /api/dnd.
  */
 
 'use strict';
@@ -50,8 +55,12 @@ const { createCampaignService } = require('../lib/dnd-campaign-service');
 const { createDmService, parseDirectives } = require('../lib/dnd-dm-service');
 const { createExplorationService } = require('../lib/dnd-exploration-service');
 const { createMediaService } = require('../lib/dnd-media-service');
+const { exportReplayDocument } = require('../lib/dnd-replay-export');
+const { isRollPayload, normalizeRollPayload } = require('../lib/dnd-roll-payload');
+const { DND_GAME_ID, createDndRulesetPack } = require('../lib/dnd-ruleset-pack');
 const { createStoryMotionService } = require('../lib/dnd-story-motion');
 const { createTimelineService } = require('../lib/dnd-timeline-service');
+const { TabletopRuntimeError, createTabletopRuntime } = require('../lib/tabletop-runtime');
 const {
   activeTokenFor, buildSpatialBrief, campaignParty, importCharacterFile,
   inventoryWithLootWeapon, mergeLegacyInventory, primaryGridDirection, readBody,
@@ -61,10 +70,12 @@ const {
 
 const FALLBACK_ROOT = process.env.OSHAL_APP_PACKAGE_DIR || path.resolve(__dirname, '..');
 const UI_SCRIPTS = [
+  'spellcasting.js',
   'engine.js',
   // Pure lead math (nomination, DC, map spots) — the surface and the authoritative
   // server run this same module, so both agree on who a lead is for.
   'leads.js',
+  'cutaway-beats.js',
   'table-runtime.js',
   'table-voice.js',
   'table-dice.js',
@@ -73,6 +84,7 @@ const UI_SCRIPTS = [
   'table-combat-narration.js',
   'table-automation.js',
   'table-outcomes.js',
+  'table-cutaway-beats.js',
   'table-story.js',
   'table-exploration.js',
   'table-character-sheet.js',
@@ -149,6 +161,21 @@ function bundledArtIds(root, kind, extension) {
     .sort();
 }
 
+/** @description Compose the game-neutral tabletop runtime with the D&D 5e SRD ruleset pack. */
+function buildTabletopRuntime(base, campaign, dm, media, timeline) {
+  const runtime = createTabletopRuntime({
+    defaultGameId: DND_GAME_ID,
+    services: {
+      campaign,
+      media,
+      rolls: { normalizeRollPayload, isRollPayload, rollShared: dm.rollShared },
+      timeline: { ...timeline, exportReplay: exportReplayDocument },
+    },
+  });
+  runtime.registerGame(createDndRulesetPack({ ...base, dm }));
+  return runtime;
+}
+
 /** @description Assemble immutable content helpers and bounded backend services. */
 function buildEnvironment(ctx) {
   const context = ctx || {};
@@ -169,9 +196,15 @@ function buildEnvironment(ctx) {
   const storyMotion = createStoryMotionService({
     pool: context.pool, campaign, media, sceneById, logger: context.logger,
   });
+  const dm = createDmService({
+    ...base, root, campaign, storyMotion, orchestrator: context.orchestrator, logger: context.logger,
+    dndRollD20: context.dndRollD20, dmDeadlineMs: context.dndDmDeadlineMs,
+  });
+  const timeline = createTimelineService({ ...base, campaign });
+  const runtime = buildTabletopRuntime(base, campaign, dm, media, timeline);
   const uiSources = loadUiSources(root);
   return {
-    ...base, context, root, campaign, exploration, uiSources, media,
+    ...base, context, root, campaign, exploration, uiSources, media, dm, timeline, runtime,
     // Content fingerprint of the served client code: reloading the package mints a
     // new value only when the code actually changed. /sync echoes it so a browser
     // that predates a mid-session deploy can tell its player to refresh.
@@ -179,15 +212,10 @@ function buildEnvironment(ctx) {
     contentBundle: {
       heroes: content.heroes, defaultParty: content.defaultParty,
       monsters: content.bestiary, adventure: content.adventure,
-      adventures: content.adventures,
+      adventures: content.adventures, leveling: content.leveling,
       // Which portraits and maps this package ships, so the table asks only for art that exists.
       art: { tokens: bundledArtIds(root, 'tokens', '.png'), maps: bundledArtIds(root, 'maps', '.jpg') },
     },
-    dm: createDmService({
-      ...base, root, campaign, storyMotion, orchestrator: context.orchestrator, logger: context.logger,
-      dndRollD20: context.dndRollD20, dmDeadlineMs: context.dndDmDeadlineMs,
-    }),
-    timeline: createTimelineService({ ...base, campaign }),
   };
 }
 
@@ -337,12 +365,43 @@ async function getCutaway(env, sub, pathname, res) {
   serveFile(res, env.media.cutawayDir(campaignId), file, 'image/png');
 }
 
+/** @description Export one authorized campaign replay as sanitized Markdown, HTML, or JSON. */
+async function getReplayExport(env, sub, res, parsed) {
+  const campaignId = parsed.searchParams.get('campaignId');
+  const rawFormat = parsed.searchParams.get('format');
+  const format = rawFormat === null || rawFormat === '' ? 'md' : String(rawFormat).trim().toLowerCase();
+  if (!['md', 'html', 'json'].includes(format)) {
+    sendJson(res, 400, { ok: false, code: 'INVALID_FORMAT', error: 'Export format must be md, html, or json.' });
+    return;
+  }
+  const feed = await env.timeline.playback(sub, campaignId);
+  if (!feed.ok) {
+    sendJson(res, feed.code === 'NO_ACCESS' ? 403 : feed.code === 'CAMPAIGN_REQUIRED' ? 400 : 404, feed);
+    return;
+  }
+  const sheets = await env.campaign.sheetsOf(campaignId);
+  const adventure = env.adventureById(feed.campaign && feed.campaign.adventure_id);
+  const doc = exportReplayDocument(feed, format, { adventure, sheets });
+  res.statusCode = 200;
+  res.setHeader('content-type', doc.contentType);
+  res.setHeader('content-disposition', `attachment; filename="${doc.filename}"`);
+  res.setHeader('cache-control', 'private, no-store');
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.end(doc.body);
+}
+
 /** @description Dispatch authenticated read endpoints. */
 async function dispatchGet(env, sub, res, parsed) {
   const pathname = parsed.pathname, campaignId = parsed.searchParams.get('campaignId');
   const handlers = {
     '/campaigns': () => env.campaign.listCampaigns(sub),
-    '/state': () => env.campaign.loadState(sub, campaignId),
+    '/state': async () => {
+      const result = await env.campaign.loadState(sub, campaignId);
+      if (result && result.campaign && result.campaign.campaign_id) {
+        result.cutawayBudget = await env.media.budgetSummary(result.campaign.campaign_id);
+      }
+      return result;
+    },
     '/sync': async () => {
       const result = await getSync(env, sub, parsed);
       // Piggyback the served-code fingerprint so a stale tab can announce itself.
@@ -351,12 +410,18 @@ async function dispatchGet(env, sub, res, parsed) {
     },
     '/characters': () => env.campaign.listSavedCharacters(sub),
     '/snapshots': () => env.timeline.listSnapshots(sub, campaignId),
+    '/runtime': () => ({ ok: true, runtime: env.runtime.describeRuntime(parsed.searchParams.get('gameId') || undefined) }),
   };
   if (handlers[pathname]) { sendJson(res, 200, await handlers[pathname]()); return true; }
+  if (pathname === '/cutaway-budget') {
+    const result = await env.media.readCutawayBudget(sub, campaignId, parsed.searchParams.get('cap'));
+    sendJson(res, result.ok ? 200 : result.code === 'NO_ACCESS' ? 403 : 400, result); return true;
+  }
   if (pathname === '/playback') {
     const result = await env.timeline.playback(sub, campaignId);
     sendJson(res, result.code === 'NO_ACCESS' ? 403 : result.code === 'CAMPAIGN_REQUIRED' ? 400 : 200, result); return true;
   }
+  if (pathname === '/replay-export') { await getReplayExport(env, sub, res, parsed); return true; }
   if (pathname === '/archive') {
     const result = await getArchive(env, sub, campaignId);
     sendJson(res, result.status, result.value); return true;
@@ -387,6 +452,11 @@ function logRouteError(env, error) {
 function sendRouteError(env, res, error) {
   if (error instanceof CharacterImportError) {
     sendJson(res, error.statusCode || 400, { ok: false, code: error.code, field: error.field, error: error.message });
+    return;
+  }
+  if (error instanceof TabletopRuntimeError) {
+    const status = error.code === 'GAME_NOT_FOUND' ? 404 : 400;
+    sendJson(res, status, { ok: false, code: error.code, error: error.message });
     return;
   }
   logRouteError(env, error);

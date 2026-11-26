@@ -5,6 +5,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard: register design-standard (tests/browser/design-standard.test.mjs) at 412x743 with touch and 1440x900, and update the phone case to the blank first page, the document menu, the modes bar and the Format sheet.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register rp-pdf-features and rp-pdf-workbench cases for RP-PDF-01..10 and RP-ALL-01, and update design-standard expectations for live controls.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): native-content-browser asks in the window (saved revision and selection on the context, the card waiting in the window while native edits stay local); rp-pdf-workbench presses the window's Summarize this PDF starter.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: register tool-parity-tools and tool-parity-browser cases for CREATE-TOOL-PDF-WORKBENCH-08, -05 and -03.
 version: 1
 cases:
   - id: model
@@ -390,3 +391,59 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 768
+  - id: tool-parity-tools
+    name: Tool parity contracts for export, delete-source, navigate and annotation updates
+    purpose: >-
+      Verify pdf-workbench 0.4.2 manifest schemas, fail-closed authorization bindings, update-annotation
+      geometry remapping and HTTP guards for pdf-export, pdf-delete-source and pdf-go-to-page.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/tool-parity-tools.test.mjs
+    expected:
+      - "Manifest declares pdf-export, pdf-delete-source, pdf-go-to-page and surface custom ops with bounded native schemas."
+      - "update-annotation remaps quadPoints and ink points on rect moves and enforces page bounds."
+    prerequisites:
+      - runner:node
+      - runtime:express-multer
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: No persistent resources are created.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 768
+    installation: never
+  - id: tool-parity-browser
+    name: Browser E2E proof for pdf-workbench 0.4.2 reader, annotations list and concierge parity
+    purpose: >-
+      Prove CREATE-TOOL-PDF-WORKBENCH-08 (pdf-export and pdf-delete-source), CREATE-TOOL-PDF-WORKBENCH-05
+      (annotations list edit/move/delete and update-annotation revisions) and CREATE-TOOL-PDF-WORKBENCH-03
+      (zoom, fit width, pinch zoom, page jump, selectable text copy, print and pdf-go-to-page navigation)
+      at 1440x900 and 412x915 touch in Chromium against real routes, PDF worker and disposable PostgreSQL.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser/tool-parity.test.mjs
+    expected:
+      - "Export links return verified PDF bytes under document.export and unused-source deletion refuses sources retained by history."
+      - "Annotations list edits, moves and deletes annotations into saved revisions; reader zoom, page jump, text copy, print and pdf-go-to-page work cleanly at desktop and 412px phone widths."
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:poppler-tesseract-eng
+      - runtime:chromium
+      - service:postgres-disposable-35689
+      - runtime:kernel-shared-ui
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve shared PostgreSQL 35689.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+    installation: never

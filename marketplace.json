@@ -122,8 +122,8 @@
       "name": "brand-graphics",
       "suite": "ai-creative",
       "displayName": "Brand Graphics",
-      "description": "Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing.",
-      "version": "1.4.2",
+      "description": "Edit and save brand briefs with an AI partner, render motion clips in your brand kit or the Open Swarm look, preview and download MP4s, and hand source into document and video editing.",
+      "version": "1.4.3",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -160,7 +160,7 @@
       "suite": "ai-creative",
       "displayName": "LoRA Studio",
       "description": "Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training.",
-      "version": "1.10.5",
+      "version": "1.10.6",
       "theme": "indigo",
       "dependencies": {
         "apps": [],
@@ -269,7 +269,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Your household money in one place: bring in the statement files your bank lets you download (CSV, OFX or QFX) or link your banks and brokerages via Plaid, to see balances, net worth, bills coming due (found in your repeating payments or, when you turn it on, in your own Gmail), every payment that repeats with what it costs a year, spending by month against your own plan and your goals, with a plain-English brief. Brokerage holdings count toward net worth as of the last sync; investment performance is not tracked here. Finance pays no bill; money movement is explicit-confirm gated.",
-      "version": "1.8.4",
+      "version": "1.8.5",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.75.0",
+      "version": "1.76.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -616,7 +616,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.12",
+      "version": "2.20.14",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -708,7 +708,7 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. It keeps your original photos and saved projects, where you can edit each face crop and the generation settings, and hands finished portraits to the image editor.",
-      "version": "1.17.9",
+      "version": "1.17.10",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1228,7 +1228,7 @@
       "suite": "ai-creative",
       "displayName": "Creative Studio",
       "description": "Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs.",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1276,7 +1276,7 @@
       "suite": "ai-creative",
       "displayName": "Create",
       "description": "Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace.",
-      "version": "1.20.4",
+      "version": "1.20.5",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -1373,7 +1373,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
-      "version": "1.14.5",
+      "version": "1.14.6",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -1419,7 +1419,7 @@
       "suite": "ai-creative",
       "displayName": "Vids Studio",
       "description": "Saved editable video briefs with native AI source operations, recorded clip preview and handoff to the Video editor.",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1659,7 +1659,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.22.5",
+      "version": "0.22.10",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1845,7 +1845,7 @@
       "suite": "ai-productivity",
       "displayName": "Switchboard",
       "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. The Streams desk manages your outbound posts CMS-style: drafts move through review, approval, scheduling, and publish with per-channel variants and revision history. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "theme": "forest",
       "dependencies": {
         "apps": [
@@ -2046,7 +2046,7 @@
       "suite": "ai-finance",
       "displayName": "Venture Plan",
       "description": "Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. Bots supply assumptions with a source, a band and a confidence; a deterministic engine does every calculation. Every number is either computed and traceable, or visibly a labelled guess you should go replace with a quote.",
-      "version": "1.5.4",
+      "version": "1.5.7",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -2117,7 +2117,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built Open Swarm product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.6.1",
+      "version": "0.6.10",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2139,7 +2139,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "finance"
+          ],
           "tools": [],
           "connectors": [
             "linkedin",
@@ -3662,7 +3664,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.9.7",
+      "version": "1.9.8",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3838,7 +3840,7 @@
       "suite": "ai-creative",
       "displayName": "Motion Studio",
       "description": "Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos.",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3871,7 +3873,7 @@
       "suite": "ai-creative",
       "displayName": "PDF Workbench",
       "description": "Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports.",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3905,7 +3907,7 @@
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
       "description": "Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history.",
-      "version": "0.5.5",
+      "version": "0.5.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

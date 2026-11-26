@@ -48,6 +48,15 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.5.11: declare `approvals:` (`/api/marketing/budget/proposals`, `/approvals`) so proposed budget changes appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`) and execute through the existing confirmed `/decide` route.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0, P1 audience store: add migration 003-marketing-audience.sql (`oshal_marketing_contacts`, `oshal_marketing_consents`, `oshal_marketing_lists`, `oshal_marketing_list_members`, `oshal_marketing_suppressions`, all exact-owner FORCE RLS), owner-scoped `/api/marketing/audience/*` routes (contacts list & segmentation, consent evidence capture/export, export-first contact delete, lists & memberships, normalized-hash suppressions), pure model unit tests, and enforcing-role PostgreSQL RLS proof.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1, P1 CSV import with consent attestation: add pure RFC-4180 CSV parser (`marketing-audience-csv`) and `POST /api/marketing/audience/contacts/import-csv` enforcing mandatory consent source per contact (atomic 400 refusal when missing), pending-by-default unless documented prior consent (`confirmed` + non-empty evidence + valid ISO-8601 timestamp) is present, strict refusal to re-subscribe suppressed addresses, and owner-scoped list attachment; proven by `tests/marketing-audience-csv.test.mjs` and extended enforcing-role PostgreSQL 16 FORCE RLS tests.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 0.6.2, P1 HTML email templates & Compliance pane: add migration 004-marketing-compliance.sql (`oshal_marketing_compliance_settings` with exact-owner FORCE RLS plus idempotent `template_id`/`html_body`/`text_body` columns on `oshal_marketing_content`), pure HTML + plain-text template engine and compliance linter (`announcement`, `newsletter`, `launch` with XSS escaping, http(s)-only URLs, unremovable sender identity, physical postal address, and unsubscribe link), owner-scoped `/compliance`, `/templates`, `/templates/render`, and `/content/:id/approve` routes under `/api/marketing`, fail-closed compliance refusal (`422` + `skipped_compliance` ledger row) before Resend email publishing, and the Compliance pane in `tools/marketing-engine.html`.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.6.3, P1 double opt-in sign-up forms: add migration 005-marketing-double-optin.sql (`oshal_marketing_signup_forms` and `oshal_marketing_optin_tokens` with exact-owner FORCE RLS), pure double opt-in model (`marketing-optin-model`: form validation, bounded sliding-window per-IP/per-form rate limiter, HMAC-SHA256 signed single-use expirable confirmation tokens, honeypot screening, UTM capture, static-site HTML/JS embed snippet builder), owner-scoped `/audience/signup-forms*` and `/audience/opt-in/confirm` routes under `/api/marketing`, and the Sign-up forms & double opt-in card in the Compliance pane.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 0.6.4 (NAV-02): keep phone (<=760px) navigation and filter strips (.tabs, .chips, .stages) strictly single-row with horizontal scrolling, nowrap 44px+/48px+ touch targets, active-item reveal, and zero page-level overflow. Presentation only (tools/marketing-engine.html); guarded by tests/marketing-nav-phone.test.mjs.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 0.6.5, P1 one-click unsubscribe and broadcast pipeline: add migration 006-marketing-broadcasts.sql (`oshal_marketing_messages` and `oshal_marketing_deliveries` with exact-owner FORCE RLS), pure broadcast gate engine (`marketing-broadcast-model`: signed per-recipient/per-list HMAC-SHA256 unsubscribe tokens, RFC 8058 List-Unsubscribe/List-Unsubscribe-Post headers, full send gate chain), owner-scoped `/broadcasts*`, `/audience/unsubscribe`, and `/audience/preferences/:contactId` routes under `/api/marketing`, and the Broadcasts & One-Click Unsubscribe card in the Compliance pane.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6, P3 sequences and strict per-sequence standing authorization: add migration 007-marketing-sequences.sql (`oshal_marketing_sequences`, `oshal_marketing_sequence_steps`, `oshal_marketing_enrollments` with exact-owner FORCE RLS), pure sequence model (`marketing-sequence-model`: strict boolean-only standing authorization default OFF bounded by daily cap with one-click disarm, deterministic step advancement re-checking consent and suppression before every step), owner-scoped `/sequences*` routes under `/api/marketing`, welcome-sequence auto-enrollment on double opt-in confirmation, and the Sequences & Standing Authorization card in the Compliance pane.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 0.6.7, P3 launch plans, grounded retros, and unified marketing calendar: add migration 008-marketing-launch-plans.sql (`oshal_marketing_launch_plans` with exact-owner FORCE RLS plus idempotent `scheduled_for` column on `oshal_marketing_content`), pure launch plan/calendar/retro model (`marketing-launch-model`: dated milestones, default launch-coordinator asset checklist, deduplicated chronological unified calendar across engine content, milestones, broadcasts, and optional Switchboard posts, and strictly recorded-numbers-only campaign retro emitting NO DATA where unrecorded), owner-scoped `/launch-plans*` and `/calendar` routes under `/api/marketing`, and Launch Plans & Unified Calendar cards in `#pane-experiments`.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 0.6.8, P2 campaign-to-finance-project link and atomic channel-allocation proposals: add migration 009-marketing-finance-link.sql (`finance_project_id` and `channel_allocations` on `oshal_marketing_campaigns`), declare `create-budget-project` offer to `finance` (optional app, zero change to `dependencies.required`), add owner-scoped `/campaigns/:id/finance-project`, `/campaigns/:id/budget-summary`, and `/campaigns/:id/reallocation-proposals` under `/api/marketing`, wire `reallocationProposals()` into the weekly review, extend `decideBudgetProposal` to apply `channel_allocation` atomically across campaign/Finance lines and budget ledger in one transaction, and add the Create budget in Finance hand-off and live Finance summary in campaign detail.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 0.6.9, P5 attribution and per-campaign engagement: add migration 010-marketing-attribution.sql (`oshal_marketing_conversions` with exact-owner FORCE RLS plus idempotent `clicked_at`/`bounced_at`/`complained_at`/`unsubscribed_at` columns on `oshal_marketing_deliveries`), populate `campaign_slug` and `medium` on every `oshal_marketing_events` ingest INSERT via `extractEventAttribution`, capture automatic first-touch `signup` conversions on UTM sign-ups, add owner-scoped `/attribution/funnel`, `/attribution/conversions`, and `/deliveries/:deliveryId/event` routes under existing `/api/marketing`, and add the Campaign Attribution & Engagement Funnel card to `#pane-scorecard`.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 0.6.10, P4 SMS TCPA/CTIA consent and recipient-local quiet hours: add migration 011-marketing-sms-consent.sql (`oshal_marketing_sms_queue` with exact-owner FORCE RLS plus idempotent `phone_e164`/`phone_hash`/`timezone`/`timezone_inferred` columns on `oshal_marketing_contacts`), pure SMS consent/E.164/area-code timezone/DST-aware quiet-hours/STOP-HELP keyword model (`marketing-sms-model`), owner-scoped `/audience/sms-opt-in`, `/audience/sms/schedule`, `/audience/sms/queue`, and `/audience/sms/keyword` routes under existing `/api/marketing`, and the SMS Consent & Quiet Hours card in `#pane-compliance`.
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -56,7 +65,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.6.1
+version: 0.6.10
 status: active
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -104,7 +113,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [finance]
     tools: []
     # The complete connector allow-list this app's surfaces may offer (ADR-133).
     # twitter + meta-business are offered for account connection and measurement context only —
@@ -349,6 +358,14 @@ migrations:
   - migrations/001-marketing-core.sql
   - migrations/002-marketing-metrics.sql
   - migrations/003-marketing-audience.sql
+  - migrations/004-marketing-compliance.sql
+  - migrations/005-marketing-double-optin.sql
+  - migrations/006-marketing-broadcasts.sql
+  - migrations/007-marketing-sequences.sql
+  - migrations/008-marketing-launch-plans.sql
+  - migrations/009-marketing-finance-link.sql
+  - migrations/010-marketing-attribution.sql
+  - migrations/011-marketing-sms-consent.sql
 
 integrations:
   accepts:
@@ -396,6 +413,12 @@ integrations:
       targetApp: brand-graphics
       targetAction: prepare-brief
       contextType: research-brief
+      version: 1
+    - id: create-budget-project
+      label: Create budget in Finance
+      targetApp: finance
+      targetAction: create-budget-project
+      contextType: budget-project
       version: 1
 
 summary:

@@ -67,7 +67,7 @@ hole; the cross-package suite validates the body against CAD Studio's contract.
 Still open, done when: a meshed pair from one design, printed, fits on the drawn centre distance
 (needs a print and a measurement — evidence, not code).
 
-## B4 — One parts model with the embodied lab (ADR-152 D1) — this lab's half DONE in 0.3.0; the servo half READS in 0.8.2; the motors READ embodied in 0.8.4
+## B4 — One parts model with the embodied lab (ADR-152 D1) — this lab's half DONE in 0.3.0; the servo half READS in 0.8.2; the motors READ embodied in 0.8.4; remaining servos & stepper reader DONE in 0.9.6
 
 `catalog/drivers.json` is the shared declaration: motors, servos and steppers with a nameplate
 that validates against the part contract, the mass and price other packages share, a `source`
@@ -243,7 +243,7 @@ table, the evidence read and a verdict — a BACKLOG item above (B12–B16, plus
 GMAT items that belong to aero-lab and sat-ops) or a recorded no (WebPlotDigitizer as a container,
 SimScale, EES).
 
-## The assistant cannot call its route-backed tools yet (2026-10-06)
+## The assistant cannot call its route-backed tools yet (2026-10-06) — DONE (CLOSED 2026-11-19, 0.9.4)
 
 **CLOSED 2026-11-19 (version 0.9.4).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `0.9.4` verifies explicit `posture: inline` + `chatBot: circuit-lab-engineer`, adds explicit object `inputSchema` declarations to `circuit-capabilities` and `circuit-list-designs`, lists `circuit-restore-run` and `circuit-gear-to-cad` in `personas/circuit-lab-engineer.yaml`, and guards manifest, persona, and route execution in `tests/bot-tools-contract.test.js`.
 

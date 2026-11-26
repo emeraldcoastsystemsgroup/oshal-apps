@@ -12,6 +12,7 @@ exports.CreateProjectStore = void 0;
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Reuse original-client admissions for atomic PSD source, image and project publication.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: count the images a person saved in the last day, for the generation ceiling.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Reuse one database-derived revision timestamp for write, read and list metadata even when the SQL clock advances between statements.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: add restoreRevision to restore an explicit or immediately previous retained revision as a new immutable revision inside the owner/project lock.
  */
 const node_crypto_1 = require("node:crypto");
 const node_crypto_2 = require("node:crypto");
@@ -204,6 +205,30 @@ class CreateProjectStore {
             if (expected >= create_project_types_1.PROJECT_LIMITS.revisions)
                 throw new create_project_types_1.ProjectError(409, 'project_revision_limit_reached');
             return this.appendRevision(client, owner, id, expected, input);
+        }, confirm);
+    }
+    /** Restore an explicit revision or the immediately preceding retained revision as a new immutable revision. */
+    async restoreRevision(owner, id, targetRevision, expectedBaseRevision, validate, confirm) {
+        return this.transaction(owner, true, async (client) => {
+            await this.ownerLock(client, owner);
+            const locked = await client.query(`SELECT ${METADATA} FROM create_projects WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 FOR UPDATE`, [owner.issuer, owner.sub, id]);
+            const current = locked.rows[0];
+            if (!current)
+                throw new create_project_types_1.ProjectError(404, 'project_not_found');
+            if (expectedBaseRevision !== undefined && current.current_revision !== expectedBaseRevision)
+                throw new create_project_types_1.ProjectError(409, 'project_revision_conflict');
+            if (current.current_revision >= create_project_types_1.PROJECT_LIMITS.revisions)
+                throw new create_project_types_1.ProjectError(409, 'project_revision_limit_reached');
+            const revQuery = targetRevision !== undefined
+                ? await client.query('SELECT revision,title,document FROM create_project_revisions WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND revision=$4', [owner.issuer, owner.sub, id, targetRevision])
+                : await client.query('SELECT revision,title,document FROM create_project_revisions WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND revision<$4 ORDER BY revision DESC LIMIT 1', [owner.issuer, owner.sub, id, current.current_revision]);
+            const source = revQuery.rows[0];
+            if (!source) {
+                throw new create_project_types_1.ProjectError(targetRevision !== undefined ? 404 : 409, targetRevision !== undefined ? 'project_revision_not_found' : 'project_no_previous_revision', targetRevision !== undefined ? 'Requested revision was not found' : 'No earlier revision exists to restore');
+            }
+            const document = validate(source.document);
+            const project = await this.appendRevision(client, owner, id, current.current_revision, { title: source.title, document });
+            return { project, restoredFromRevision: source.revision };
         }, confirm);
     }
     async delete(owner, id, expected, confirm) {

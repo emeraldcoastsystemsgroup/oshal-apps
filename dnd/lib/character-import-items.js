@@ -302,10 +302,10 @@ function applyActionExtras(out, raw, field) {
   if (raw.slot !== undefined) out.slot = asInteger(raw.slot, `${field}.slot`, 1, 9);
   if (raw.sneak !== undefined) out.sneak = normalizeDamage(raw.sneak, `${field}.sneak`, false);
   if (raw.aoeShape === undefined) return;
-  if (raw.aoeShape !== 'cone') {
-    fail('INVALID_ACTION', `${field}.aoeShape supports only cone.`, `${field}.aoeShape`);
+  if (raw.aoeShape !== 'cone' && raw.aoeShape !== 'sphere') {
+    fail('INVALID_ACTION', `${field}.aoeShape supports only cone or sphere.`, `${field}.aoeShape`);
   }
-  out.aoeShape = 'cone';
+  out.aoeShape = raw.aoeShape;
   out.aoeSize = requiredInteger(raw.aoeSize, `${field}.aoeSize`, 5, 120);
 }
 

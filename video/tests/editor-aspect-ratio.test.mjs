@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): prove vertical (9:16), square (1:1) and landscape (16:9) projects across timeline validation/model/migration, FFmpeg compiler, concierge routes, real /usr/bin/ffmpeg + /usr/bin/ffprobe MP4 exports (v1 and v2), and real Chromium Playwright UI at 1440x900 and 412x915.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: update contract sourceVersion assertion to 1.14.6.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -126,7 +127,7 @@ test('model, validation, migration, history and dimension table enforce 16:9, 9:
 test('compiler and concierge contract derive exact canvas sizes and accept project aspectRatio patches', () => {
   const contract = editingContract();
   assert.deepEqual(contract.aspectRatios, ['16:9', '9:16', '1:1']);
-  assert.equal(contract.sourceVersion, '1.14.5');
+  assert.equal(contract.sourceVersion, '1.14.6');
   assert.deepEqual(contract.operations.project, ['patch']);
 
   const blank = blankProject({ title: 'Vertical Short', aspectRatio: '9:16' });

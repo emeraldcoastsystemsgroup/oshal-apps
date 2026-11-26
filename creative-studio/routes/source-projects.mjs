@@ -6,12 +6,14 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com | Recheck named source permissions and app/actor identity through registered own-only native resource adapters; generation remains separately privileged.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Return a fresh transient contract edit key without changing saved source or retry semantics.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | Mount Creative Studio 1.5.0 template, comment, storyboard MP4 build, and schedule routes and purge child studio artifacts on project deletion.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com | Mount Creative Studio 1.5.2 story library, story job list, next-story, and custom/library story production routes.
  */
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { SourceProjectStore, uuid, integer, fail, identity } from './vendor/source-project-store.mjs';
 import { validate, apply, sourceContract } from './source-model.mjs';
 import { mountStudioRoutes, purgeProjectStudioRows } from './creative-studio-rp.mjs';
+import { mountStoryProductionRoutes } from './story-production.mjs';
 
 const { Router, json } = createRequire(import.meta.url)('express');
 const APP = 'creative-studio', PREFIX = 'story_source';
@@ -66,6 +68,7 @@ export function createSourceProjectRoutes(ctx) {
   r.get('/source-projects/contract', run(async (_q, res, store) => { await store.guard('read'); res.json(sourceContract()); }));
   r.post('/source-projects', parse, run(async (req, res, store) => res.status(201).json(await store.create(req.body))));
   mountStudioRoutes(r, parse, run, sendModule);
+  mountStoryProductionRoutes(r, parse, ctx, sourceStore, sendModule);
   r.get('/source-projects/:id', run(async (req, res, store) => res.json(await store.get(uuid(req.params.id), req.query.revision === undefined ? undefined : integer(Number(req.query.revision), 1, 100)))));
   r.post('/source-projects/:id/edits', parse, run(async (req, res, store) => res.json(await store.save(uuid(req.params.id), pathBody(req)))));
   r.delete('/source-projects/:id', run(async (req, res, store) => { await purgeProjectStudioRows(store, req.params.id); res.json(await store.remove(uuid(req.params.id))); }));

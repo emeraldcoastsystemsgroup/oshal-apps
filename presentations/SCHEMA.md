@@ -20,6 +20,10 @@ erDiagram
     uuid id PK
     text user_sub "owner"
   }
+  oshal_presentation_recaps {
+    text id PK
+    text owner_sub "owner"
+  }
 ```
 
 ## Tables
@@ -42,3 +46,32 @@ Defined in `routes/bot-presentation-routes.js`, `src-routes/bot-presentation-rou
 | `outline` | jsonb | yes |  |  |
 | `theme` | text | yes |  |  |
 | `format` | text | no | 'pptx' |  |
+
+### `oshal_presentation_recaps`
+
+Defined in `migrations/004-meeting-recap.sql` and `migrations/native/004-meeting-recap.sql` · RLS **forced** - owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | text | no |  | PK (UUID v4) |
+| `owner_sub` | text | no |  | owner |
+| `title` | text | no |  |  |
+| `source_filename` | text | no |  |  |
+| `source_sha256` | text | yes |  |  |
+| `source_bytes` | bigint | no | 0 |  |
+| `duration_seconds` | double precision | yes |  |  |
+| `status` | text | no | 'queued' | `queued\|extracting\|transcribing\|detecting_scenes\|assembling_timeline\|summarizing\|rendering_deck\|completed\|failed` |
+| `stage_message` | text | no | '' |  |
+| `minutes_processed` | double precision | no | 0 |  |
+| `total_minutes` | double precision | no | 0 |  |
+| `keyframes_count` | integer | no | 0 |  |
+| `crop_mode` | text | no | 'right-strip' |  |
+| `sample_interval_sec` | integer | no | 15 |  |
+| `theme` | text | no | 'executive' |  |
+| `saved_deck_path` | text | yes |  |  |
+| `saved_deck_open_url` | text | yes |  |  |
+| `error_code` | text | yes |  |  |
+| `error_message` | text | yes |  |  |
+| `meta_json` | jsonb | no | '{}' |  |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |

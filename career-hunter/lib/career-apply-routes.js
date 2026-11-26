@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: Fill in several on my Chrome. The approval answers the form's site too ({site}), approve, bind, start, Go on, Career's writers and the job's row are exported, and the queue's routes (lib/career-apply-batch-routes.js: GET/POST /apply-batch, /advance, /pause, /go-on, /stop, /skip, /next, /clear) are mounted on this router with its signed-in wrapper, so each queued job is approved and started exactly as a single one.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3 (Roger's Honeycomb run, 2026-11-25: approved before a Job Apply computer was chosen, the kernel refused the start and failed the run's ticket; Go on then failed with "a failed ticket has no phase to dispatch", Stop could not cancel it, and a new approval of the job was refused for a day): Go on on a run that never started, whose ticket has ended, binds a fresh ticket and starts the same approved input on it.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: POST /saved-answers also changes How Career fills in a form ({revision, flags}: input, window, submit), with Undo; the packet reads the settings into task.flags.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the packet's Word résumé is the parse résumé, the one laid out for an employer's résumé parser: the packet's own Resume_Parse.docx when generation wrote it, else rendered from its application.json by docx_resume.py export-packet --kind parse (the same bytes every time). The executive Resume_ATS.docx stays a download and is no longer uploaded.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): the job's row carries its company's engine and token and the posting's engine id, as Career's source recorded them, so a company page that embeds an engine's form is filled at that engine's own address.
@@ -122,12 +123,26 @@ async function start(dir,id,tickets){
  return {ok:true,run:runs.publicRun(runs.update(dir,id,{attemptWork:{n:attempt.n,workId},status:'queued',reason:'',live:null}))};
 }
 /**
+ * @description Whether a run's ticket has ended in the kernel (failed, cancelled or completed), so nothing can be
+ * dispatched on it again. A ticket that cannot be read is taken as not ended. @param {object} tickets The ticket port.
+ * @param {string} id The ticket. @returns {Promise<boolean>}
+ */
+async function ticketEnded(tickets,id){
+ if(typeof tickets?.getTicket!=='function')return false;
+ let ticket;try{ticket=await tickets.getTicket(id);}catch(error){logger.error({err:error,ticketId:id},'apply run ticket read failed');return false;}
+ return ['failed','cancelled','completed'].includes(String(ticket?.status||ticket?.state||''));
+}
+/**
  * @description Go on: a paused run (or one whose computer stopped) starts its next attempt over the same approved task,
  * while the approval lasts; an attempt published but not started (its start was refused) is started as it is. Nothing was submitted, so the next attempt only reads and enters again. @returns {Promise<object>}
  */
-async function goOn(dir,id,tickets){
+async function goOn(dir,id,tickets,sub){
  const run=runs.get(dir,id),last=run.attempts.at(-1);
- if(last&&!last.workId&&run.status==='approved')return start(dir,id,tickets);
+ if(last&&!last.workId&&run.status==='approved'){
+  // A refused start (no Job Apply computer chosen) fails the run's ticket in the kernel: a fresh ticket carries the same approved input.
+  if(run.nativeTicketId&&await ticketEnded(tickets,run.nativeTicketId)){runs.update(dir,id,{nativeTicketId:null});await bind(dir,id,tickets,sub);}
+  return start(dir,id,tickets);
+ }
  if(!['paused','failed'].includes(run.status)||!last?.workId)fail('run_not_paused','This application is not paused.');
  if(Date.parse(run.expiresAt)<=Date.now())fail('approval_expired','This approval ended. Review the application again.');
  const {requestDigest,...bound}=runs.snapshot(dir,id,last.n),next={...bound,attempt:last.n+1};
@@ -194,7 +209,7 @@ function createCareerApplyRoutes(ctx){
  const empty=req=>{if(Object.keys(req.body||{}).length)fail('invalid_request','Select only this application.',400);};
  router.post('/apply-runs/:id/bind',run(async(req,res,sub,dir)=>{empty(req);res.json(await bind(dir,req.params.id,ctx.ticketService,sub));}));
  router.post('/apply-runs/:id/start',run(async(req,res,_sub,dir)=>{empty(req);res.json(await start(dir,req.params.id,ctx.ticketService));}));
- router.post('/apply-runs/:id/go-on',run(async(req,res,_sub,dir)=>{empty(req);res.json(await goOn(dir,req.params.id,ctx.ticketService));}));
+ router.post('/apply-runs/:id/go-on',run(async(req,res,sub,dir)=>{empty(req);res.json(await goOn(dir,req.params.id,ctx.ticketService,sub));}));
  router.post('/apply-runs/:id/sync',run(async(req,res,sub,dir)=>{empty(req);const saved=runs.get(dir,req.params.id);
   res.json({ok:true,run:await applySync.sync(dir,req.params.id,ctx.ticketService,writers(ctx,sub,dir,saved))});}));
  router.post('/apply-runs/:id/kept',run(async(req,res,sub,dir)=>{

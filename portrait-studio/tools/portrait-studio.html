@@ -15,6 +15,7 @@ CHANGE LOG
 12 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06 (F15): "when you get to the last step there is no way to generate the image". Step 3 hid Generate from anyone without the create permission (every trial visitor holds source editing only), leaving Back alone. Generate is now always drawn at Step 3 under its own name, disabled with one plain line beside it that says why and what makes it work (access, no image model, no photo yet, no style, the group's face count). The stepper is numbered circles with the current step in ink, Step 1 says what the next two steps do, each step's sticky bar is marked data-ef-floating so the orb rests above Next and Generate, the asleep line also reads the native kernel's answer (which carries no ready field), and a first press that only wakes the image model waits for it and sends the same portrait again once, instead of asking the person to press twice.
 13 | maintainer@emeraldcoastsystemsgroup.com | 1.17.4: Roger, 2026-11-06: bound Step 1's cropper inside a compact centered frame (#cropStage max-width 520px, #cropCanvas width:auto capped to <=460x340px) so uploading a photo never expands across the full page, and convert Step 3 into a compact two-column stage pairing a live cropped/generated image preview (#step3Preview) with a two-column minor-adjustment grid (#tuneOpts) while keeping Generate on the first screen.
 14 | maintainer@emeraldcoastsystemsgroup.com | 1.17.8: Roger, 2026-11-17 (production): "portrait has a jarvis ball that opens create-editor not a concierge". With no concierge of its own (entry 8 left it to the shell's), Create's Portrait screen opened Create's concierge, because inside Create the shell's concierge is Create's. Every studio now carries its own concierge, the one window: the editor is built with Portrait Studio's (createRegisteredEditorAssistant, the kernel's one Jarvis chat window as portrait-artist, reading the photo source through the document session this page registers, saved before each message), so Today hides its ball and its bar's Concierge opens this pane, alone or inside Create. It starts closed at every width. Your portraits hides the studio where the pane lives, so opening the concierge there brings the studio forward with it open, a phone keeps the editor's bottom bar with Concierge alone there, and leaving the studio for Your portraits closes the concierge.
+15 | maintainer@emeraldcoastsystemsgroup.com | 1.17.10 (CREATE-TOOL-PORTRAIT-03): add Run again button on every finished and failed gallery row calling POST /portraits/:id/rerun with inline #galleryStatus feedback (no alert/confirm) and gallery refresh.
 
   Portrait Studio — upload a photo, crop the head, generate a portrait.
   Three modes: Professional (studio headshot), Character (the fun side:
@@ -256,8 +257,9 @@ CHANGE LOG
   #generateBtn { margin-top: 16px; width: 100%; padding: 13px; border: 0; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; background: var(--accent); color: #06121f; }
   body.mode-character #generateBtn { background: var(--accent2); }
   #generateBtn:disabled { opacity: .45; cursor: not-allowed; }
-  #genStatus { margin-top: 10px; font-size: 13px; color: var(--dim); min-height: 18px; }
-  #genStatus.err { color: var(--err); }
+  #genStatus, #galleryStatus { margin-top: 10px; font-size: 13px; color: var(--dim); min-height: 18px; }
+  #genStatus.err, #galleryStatus.err { color: var(--err); }
+  #galleryStatus { margin: 0 0 10px; }
 
   /* Gallery */
   #gallery { margin-top: 22px; }
@@ -516,6 +518,7 @@ CHANGE LOG
        photo sources as a second row, one New portrait at the bottom right. With none, the studio opens on Step 1 (R2). -->
   <div id="gallery" hidden>
     <h2>Your portraits</h2><p class="hint">Generated portraits are rendered images. Edit or send an image to add editable text, shapes and image layers in an editor.</p>
+    <div id="galleryStatus" role="status" aria-live="polite"></div>
     <div class="g-grid" id="galleryGrid"></div>
     <div class="empty" id="galleryEmpty" style="display:none">Nothing here yet — your generated portraits will appear in this gallery.</div>
     <button type="button" class="new-portrait" id="newPortraitBtn" hidden data-ef-floating>＋ New portrait</button>
@@ -1610,6 +1613,42 @@ if (!window.AppView || !AppView.active()) (function () {
     el.className = isErr ? 'err' : '';
   }
 
+  function setGalleryStatus(msg, isErr) {
+    var el = $('galleryStatus');
+    if (el) { el.textContent = msg || ''; el.className = isErr ? 'err' : ''; }
+    setStatus(msg || '', isErr);
+  }
+
+  function rerunPortrait(id, btn) {
+    if (!can('create') || !id) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+    setGalleryStatus('Starting another run with the same photo and settings…', false);
+    fetch(API + '/portraits/' + encodeURIComponent(id) + '/rerun', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, j: j }; });
+    }).then(function (res) {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Run again'; }
+      if (!res.ok) {
+        setGalleryStatus(refusalText(res.j) || ('Could not run again (' + res.status + ').'), true);
+        if (res.j && res.j.portraitId) refreshGallery();
+        return;
+      }
+      if (res.j && res.j.status === 'done') {
+        setGalleryStatus('Done! Your new portrait is ready in Your portraits.', false);
+        refreshGallery();
+        return;
+      }
+      setGalleryStatus('Queued! Running again with the same photo and settings.', false);
+      refreshGallery(true);
+    }).catch(function (error) {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Run again'; }
+      setGalleryStatus('Run again failed: ' + error.message, true);
+    });
+  }
+
   function cropBlob(maxW, cb) {
     var c = cur();
     var scale = Math.min(1, maxW / c.w);
@@ -1754,19 +1793,23 @@ if (!window.AppView || !AppView.active()) (function () {
           pending = true;
           box = '<div class="imgbox"><div class="spin"></div></div>';
         }
+        var rerunBtn = can('create')
+          ? '<button type="button" data-rerun="' + row.portrait_id + '" title="Run again with the same photo, style and settings">↻ Run again</button>'
+          : '';
         el.innerHTML = box +
           '<div class="meta"><span class="lbl">' + escapeText(row.title || styleLabel(row)) + '<span class="sub2">' + when + '</span></span>' +
           (row.status === 'done' ? '<a href="' + API + '/portraits/' + row.portrait_id + '/image?download=1" download title="Download the original">⬇</a>' : '') +
           '<button data-del="' + row.portrait_id + '" title="Delete">🗑</button></div>' +
           (row.status === 'done' ?
             '<div class="acts">' +
+            rerunBtn +
             '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=600" download title="Passport 600×600 PNG">🪪 600</a>' +
             '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=300" download title="Passport 300×300 PNG">🪪 300</a>' +
             '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=portrait" download title="Portrait 4×6 print PNG (1200×1800)">▯ 4×6</a>' +
             '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=landscape" download title="Landscape 6×4 print PNG (1800×1200)">▭ 6×4</a>' +
             '<button data-email="' + row.portrait_id + '" title="Email this portrait">✉️ Email</button>' +
             '<button data-sendto="' + row.portrait_id + '" title="Open this rendered image in an editor or another app">Edit or send image…</button>' +
-            '</div>' : '');
+            '</div>' : (row.status === 'failed' && rerunBtn ? '<div class="acts">' + rerunBtn + '</div>' : ''));
         if (!can('delete')) el.querySelector('[data-del]').remove();
         if (!can('export')) el.querySelectorAll('a[download], [data-sendto]').forEach(function (node) { node.remove(); });
         if (!can('email') || state.unavailable.email) el.querySelectorAll('[data-email]').forEach(function (node) { node.remove(); });
@@ -1776,9 +1819,12 @@ if (!window.AppView || !AppView.active()) (function () {
         }
         grid.appendChild(el);
       });
+      grid.querySelectorAll('button[data-rerun]').forEach(function (b) {
+        b.onclick = function () { rerunPortrait(b.dataset.rerun, b); };
+      });
       grid.querySelectorAll('button[data-del]').forEach(function (b) {
         b.onclick = function () {
-          fetch(API + '/portraits/' + b.dataset.del, { method: 'DELETE' }).then(function (response) { if (!response.ok) throw new Error('Delete refused (' + response.status + ')'); refreshGallery(); }).catch(function (error) { setStatus(error.message, true); loadAccess(); });
+          fetch(API + '/portraits/' + b.dataset.del, { method: 'DELETE' }).then(function (response) { if (!response.ok) throw new Error('Delete refused (' + response.status + ')'); setGalleryStatus('Portrait deleted.', false); refreshGallery(); }).catch(function (error) { setGalleryStatus(error.message, true); loadAccess(); });
         };
       });
       grid.querySelectorAll('button[data-email]').forEach(function (b) {
@@ -1787,7 +1833,7 @@ if (!window.AppView || !AppView.active()) (function () {
       grid.querySelectorAll('button[data-sendto]').forEach(function (b) {
         b.onclick = function () {
           ensureSendTo().then(function (ok) {
-            if (!ok) { setStatus('Send to… is not available on this deployment yet.', true); return; }
+            if (!ok) { setGalleryStatus('Send to… is not available on this deployment yet.', true); return; }
             window.oshalSendTo({
               type: 'image/png',
               name: 'portrait-' + String(b.dataset.sendto).slice(0, 8) + '.png',

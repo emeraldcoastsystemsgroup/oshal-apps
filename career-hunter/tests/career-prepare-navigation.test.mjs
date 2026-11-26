@@ -1,6 +1,7 @@
 /**
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25): the kernel's busy answer to Prepare application's promotion (409 career_run_in_progress, nothing ran) is no longer a refusal: the promotion waits to save past its 15-second deadline (tools/career-pending-writes.js, careerWaiting), nothing opens until it lands, then the tailoring workspace opens.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Freeze the recovered actual shell transport offline and add shipped writer + application workspace proof, with no native session or network mode.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise real nested Career preparation clicks, bounded unknown-write recovery and admitted-parent navigation; a native companion supplies the actual shell listener and installed owner APIs.
  */
@@ -92,10 +93,17 @@ async function close(f,s){s?.hold?.resolve();s?.readHold?.resolve();s?.profileHo
    await f.button.evaluate(button=>button.dispatchEvent(new MouseEvent('click',{bubbles:true})));assert.equal(s.writes.length,1);
   }finally{await close(f,s);}
  });
- test('known writer refusal restores the same control and never sends navigation',async()=>{
+ test('a promotion Career answers busy waits to save past its 15-second deadline, never navigates until it lands, then opens tailoring',{timeout:60000},async()=>{
   const s=state({refuse:true}),f=await open(s);try{
-   await f.button.click();await f.frame.locator('#actionState').getByText(/working on your account/i).waitFor();
-   assert.equal(await f.button.isEnabled(),true);assert.equal(s.profiles,0);assert.equal(s.writes.length,1);
+   await f.button.click();
+   await f.frame.locator('.career-pending-writes').getByText(/^Saving — waiting for the résumé being written now\./).waitFor({timeout:5000});
+   assert.doesNotMatch(await f.frame.locator('#actionState').textContent(),/working on your account|Could not confirm/i);
+   await f.page.waitForTimeout(16000);
+   assert.doesNotMatch(await f.frame.locator('#actionState').textContent(),/Could not confirm/i,'the promotion is still waiting, not cancelled');
+   assert.equal(s.profiles,0,'nothing opens before it lands');assert.ok(s.writes.length>=2,'sent again by itself');
+   s.refuse=false;
+   await f.frame.getByRole('heading',{name:'Application tailoring workspace'}).waitFor({timeout:8000});
+   assert.deepEqual(s.writes.at(-1),{status:'promoted',favorite:true});assert.equal(s.job.status,'promoted');
   }finally{await close(f,s);}
  });
  test('refused native parent leaves Open application usable without repeating acknowledged promotion',async()=>{

@@ -25,6 +25,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add immutable FX evidence, preserve original and reporting-currency quote amounts, and replace the last scenario cents field with integer micros.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add scheduled rebaseline run kind, trigger provenance, UTC idempotency slot, and exact micro-USD cost evidence.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Name which live assumption rows an analyst may not supersede (heldAgainstAnalysts): a person's own entry and any row carrying outside evidence (user-entered, vendor-quote, published-source). The analysts' required slots write the exact keys the model computes with, and a re-run replaced a recorded freight quote with the analyst's guess.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Add QuoteInboxStatus and QuoteInboxItem DTOs for the 1.5.7 Saved-quote inbox.
  *
  * @module venture-types
  */
@@ -217,6 +218,35 @@ export interface Quote {
   notes: string | null;
   assumptionId: string | null;
   receivedAt: string;
+}
+
+/** Lifecycle status of an attached quote document awaiting operator review. */
+export type QuoteInboxStatus = 'pending' | 'promoted' | 'dismissed';
+
+/** A deterministically parsed supplier quote document in the owner's inbox. */
+export interface QuoteInboxItem {
+  id: string;
+  ventureId: string;
+  filename: string;
+  mimeType: string;
+  byteSize: number;
+  sha256: string;
+  rawExcerpt: string;
+  extracted: {
+    vendorName: string | null;
+    itemLabel: string | null;
+    unitPriceMicros: number | null;
+    currency: string | null;
+    moq: number | null;
+    leadTimeDays: number | null;
+    incoterm: string | null;
+    quoteRef: string | null;
+    extractionNotes: string[];
+  };
+  status: QuoteInboxStatus;
+  promotedQuoteId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** An append-only rate snapshot used to convert one or more foreign quotes. */

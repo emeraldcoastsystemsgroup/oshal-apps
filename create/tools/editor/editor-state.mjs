@@ -9,8 +9,9 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Track unsaved document identity and pending shared properties without changing stored project data.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: track active inline canvas text editing layer identity cleanly across document resets.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: add commitDocument helper so multi-layer actions such as Apply my brand commit as a single undoable step.
  */
-import { createProject, applyOperation, serializeProject } from './model.mjs';
+import { createProject, applyOperation, serializeProject, validateProject } from './model.mjs';
 import { createHistory } from './history.mjs';
 
 export const $ = id => document.getElementById(id);
@@ -51,6 +52,15 @@ const API_MESSAGES = {
 export function edit(operation) {
   if (!canEdit()) throw new Error('Your role does not allow changing this project.');
   state.project = state.history.commit(applyOperation(state.project, operation));
+  state.saveFailed = false;
+  if (!state.project.layers.some(layer => layer.id === state.selected)) state.selected = null;
+  error(''); notify();
+}
+
+/** Commit one validated multi-layer snapshot as a single undoable history entry. */
+export function commitDocument(next) {
+  if (!canEdit()) throw new Error('Your role does not allow changing this project.');
+  state.project = state.history.commit(validateProject(next));
   state.saveFailed = false;
   if (!state.project.layers.some(layer => layer.id === state.selected)) state.selected = null;
   error(''); notify();

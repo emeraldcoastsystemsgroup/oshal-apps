@@ -2,9 +2,9 @@
 
 # Venture Plan (`venture-plan`) - database schema
 
-Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 13 tables in the reference database.
+Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 14 tables in the reference database.
 
-**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-venture-core.sql`, `migrations/002-venture-supply-chain.sql`, `migrations/003-venture-outputs.sql`, `migrations/004-venture-fx.sql`, `migrations/005-venture-rebaseline.sql`
+**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-venture-core.sql`, `migrations/002-venture-supply-chain.sql`, `migrations/003-venture-outputs.sql`, `migrations/004-venture-fx.sql`, `migrations/005-venture-rebaseline.sql`, `migrations/006-venture-quote-inbox.sql`
 
 **Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/venture-schema.js`, `src-routes/venture-schema.ts`
 
@@ -60,6 +60,12 @@ erDiagram
     uuid assumption_id FK
     uuid fx_assumption_id FK
   }
+  venture_quote_inbox {
+    uuid id PK
+    uuid venture_id FK
+    varchar owner_sub "owner"
+    uuid promoted_quote_id FK
+  }
   venture_rebaseline_policies {
     uuid venture_id PK, FK
     varchar owner_sub "owner"
@@ -104,6 +110,8 @@ erDiagram
   venture_fx_assumptions |o--o{ venture_quotes : "fx_assumption_id"
   venture_vendors ||--o{ venture_quotes : "vendor_id"
   venture_ventures ||--o{ venture_quotes : "venture_id"
+  venture_quotes |o--o{ venture_quote_inbox : "promoted_quote_id"
+  venture_ventures ||--o{ venture_quote_inbox : "venture_id"
   venture_ventures ||--o| venture_rebaseline_policies : "venture_id"
   venture_ventures ||--o{ venture_runs : "venture_id"
   venture_ventures ||--o{ venture_scenarios : "venture_id"
@@ -287,6 +295,26 @@ Defined in `migrations/002-venture-supply-chain.sql`, `routes/venture-schema.js`
 | `reporting_unit_cost_micros` | bigint | yes |  |  |
 | `reporting_tooling_cost_micros` | bigint | yes |  |  |
 | `fx_assumption_id` | uuid | yes |  | FK → [`venture_fx_assumptions.id`](#venture_fx_assumptions) |
+
+### `venture_quote_inbox`
+
+Defined in `migrations/006-venture-quote-inbox.sql`, `routes/venture-schema.js`, `src-routes/venture-schema.ts` · RLS **forced** - owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | character varying(255) | no |  | owner |
+| `venture_id` | uuid | no |  | FK → [`venture_ventures.id`](#venture_ventures) |
+| `filename` | text | no |  |  |
+| `mime_type` | character varying(120) | no | 'text/plain' |  |
+| `byte_size` | integer | no | 0 |  |
+| `sha256` | character(64) | no |  |  |
+| `raw_excerpt` | text | no | '' |  |
+| `extracted_json` | jsonb | no | '{}' |  |
+| `status` | character varying(16) | no | 'pending' |  |
+| `promoted_quote_id` | uuid | yes |  | FK → [`venture_quotes.id`](#venture_quotes) |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
 
 ### `venture_rebaseline_policies`
 

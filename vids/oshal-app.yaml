@@ -13,6 +13,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: single brief form (remove duplicate Generation source/settings Properties), withhold Generate clip when no worker is online with setup in Help, close inline Concierge on load, and replace Save brief / Reload saved with one top row (New brief, Undo/Redo icons, Saved caption) and automatic saving.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.6 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.7 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16): on a phone the brief starts within the top 30% of the screen instead of 485 px down (53%): the description under the title is hidden again (its rule stopped matching when the Studio moved it into a <header>; hidden at every size, as the rule meant), the brief row (title, New brief, Undo, Redo) is one line and the empty preview is one line of text instead of a 200 px band. Guard tests/vids-phone-first-screen.test.cjs (412/390/360/1440, the kernel's shared editor from OSHAL_KERNEL_PLATFORM). Presentation only: no route, read, write, permission or data change.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8: tool parity for orientation enum/normalization (CREATE-TOOL-VIDS-03), insertMode + vids-generate-story + Brand/Story screen controls (CREATE-TOOL-VIDS-05), finished-export concierge tools vids-export-status/vids-publish-export/vids-revoke-export/vids-remove-export (CREATE-TOOL-VIDS-07), and job cancel/retry routes + tools vids-cancel-job/vids-retry-job (CREATE-TOOL-VIDS-08).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — vids ("Vids Studio")
@@ -71,7 +72,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.6.7
+version: 1.6.8
 authorization:
   version: 1
   catalog: authorization.yaml
@@ -236,7 +237,8 @@ tools:
       type: object
       properties:
         prompt: { type: string, minLength: 1, maxLength: 10000, description: The shaped Veo prompt (subject, action, setting, camera, lighting, mood). }
-        orientation: { type: string, description: landscape or portrait. }
+        orientation: { type: string, enum: [Landscape, Portrait, Square], description: "Landscape, Portrait, or Square." }
+        insertMode: { type: string, enum: [Insert, Extend, none], description: "How to place the clip on the timeline: Insert (new scene), Extend (continue last scene), or none (do not place)." }
       required: [prompt]
     usageInstructions: >-
       Shape the prompt first, then call this once for the clip the person asked for; the approval card is their
@@ -258,9 +260,154 @@ tools:
       properties:
         confirm: { type: boolean, const: true }
         brief: { type: string, minLength: 1, maxLength: 2000 }
-        brandMode: { type: string, description: intro or graphic. }
+        brandMode: { type: string, enum: [intro, graphic], description: "intro or graphic." }
       required: [confirm, brief]
     usageInstructions: Call once with {"confirm":true,"brief":...,"brandMode":"intro"|"graphic"}. A 503 answer means no Vids worker is online; say so.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-generate-story
+    displayName: Produce a multi-scene story
+    cardText: Queues a multi-scene story video on your Vids worker. Story generation uses your Google Vids generation quota.
+    type: api
+    category: creative
+    description: Produce a multi-scene Extend story on the person's registered Vids worker. Supply a library storyId, a custom title and script, or leave both empty for the next unproduced library story. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/story" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        storyId: { type: string, minLength: 1, maxLength: 256, description: "Library story slug (e.g. tortoise-and-hare). Omit to use title and script or the next library story." }
+        title: { type: string, minLength: 1, maxLength: 1000, description: "Custom story title (pair with script)." }
+        script: { type: string, minLength: 1, maxLength: 50000, description: "Custom story script (pair with title)." }
+        orientation: { type: string, enum: [Landscape, Portrait, Square], description: "Landscape, Portrait, or Square." }
+        beats: { type: integer, minimum: 1, maximum: 100, description: "Optional scene count (1 to 100)." }
+      additionalProperties: false
+    usageInstructions: >-
+      Call once with storyId, title and script, or {} for the next library story; the approval card is their
+      confirmation. A 503 answer means no Vids worker is online: say so plainly. Never say a story was made until
+      vids-jobs shows it done.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-export-status
+    displayName: Finished export status
+    type: api
+    category: creative
+    description: Read the attach and publication status (including SHA-256 digest, previewUrl and publicUrl) for a finished Vids job's export. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/vids/jobs/{input.id}/artifact" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "The finished job's job_id UUID from vids-jobs." }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Call with the finished job's job_id from vids-jobs before proposing publish, revoke, or remove. Report whether an export is attached, whether attachments are supported on this installation, and whether a public link is active.
+    tags: [vids, route-backed]
+
+  - name: vids-publish-export
+    displayName: Publish a finished export link
+    cardText: Publishes a revocable public link for this finished video export after verifying its SHA-256 digest.
+    type: api
+    category: creative
+    description: Publish a revocable public video link for a finished Vids job export using its reviewed SHA-256 digest. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/jobs/{input.id}/artifact/publish" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "The finished job's job_id UUID." }
+        confirm: { type: boolean, const: true }
+        sha256: { type: string, minLength: 64, maxLength: 64, pattern: '^[a-f0-9]{64}$', description: "The exact 64-hex SHA-256 digest returned by vids-export-status." }
+      required: [id, confirm, sha256]
+      additionalProperties: false
+    usageInstructions: >-
+      Call vids-export-status first to read the attached export's exact sha256, then call vids-publish-export
+      once with {"id":...,"confirm":true,"sha256":...}. Never invent a digest.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-revoke-export
+    displayName: Revoke a published export link
+    cardText: Revokes the public link for this finished video export immediately.
+    type: api
+    category: creative
+    description: Revoke the active public video link for a finished Vids job export. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/jobs/{input.id}/artifact/unpublish" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "The finished job's job_id UUID." }
+        confirm: { type: boolean, const: true }
+      required: [id, confirm]
+      additionalProperties: false
+    usageInstructions: >-
+      Call vids-export-status first to confirm the export has a public link, then call vids-revoke-export
+      once with {"id":...,"confirm":true}.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-remove-export
+    displayName: Remove an attached finished export
+    cardText: Permanently removes the private finished MP4 export attached to this job. Revoke any public link first.
+    type: api
+    category: creative
+    description: Remove the attached private finished MP4 export for a Vids job (must be unpublished first). Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/vids/jobs/{input.id}/artifact" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "The finished job's job_id UUID." }
+        confirm: { type: boolean, const: true }
+      required: [id, confirm]
+      additionalProperties: false
+    usageInstructions: >-
+      Call vids-export-status first. If publicUrl is active, revoke it with vids-revoke-export before calling
+      vids-remove-export with {"id":...,"confirm":true}.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-cancel-job
+    displayName: Cancel a Vids job
+    cardText: Cancels this queued or running Vids job and asks the worker to stop it.
+    type: api
+    category: creative
+    description: Cancel an owned queued or running Vids job by job_id. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/jobs/{input.id}/cancel" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "The queued or running job's job_id UUID from vids-jobs." }
+        reason: { type: string, minLength: 1, maxLength: 500, description: "Optional reason for cancelling the job." }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: >-
+      Call vids-jobs first to confirm the job_id and that it is queued or running, then call vids-cancel-job once.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-retry-job
+    displayName: Retry a Vids job
+    cardText: Retries this failed or cancelled Vids job as a new queued job on your Vids worker.
+    type: api
+    category: creative
+    description: Retry an owned failed or cancelled Vids job by job_id, queuing a new job while preserving the original job row. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/jobs/{input.id}/retry" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "The failed or cancelled job's job_id UUID from vids-jobs." }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: >-
+      Call vids-jobs first to confirm the job_id and that its status is failed or cancelled, then call
+      vids-retry-job once. A 503 box_required answer means no Vids worker is online: say so plainly.
     tags: [vids, route-backed, approval-required]
 
   - name: vids_generate

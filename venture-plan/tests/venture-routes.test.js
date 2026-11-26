@@ -39,6 +39,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard owner-scoped rebaseline policy CRUD and mutation-free forced-dry-run preview behavior.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel GET /runs/:runId, GET /ventures/:id/runs and GET /ventures/:id answer a run whose request was abandoned as interrupted without any write (the kernel refuses SQL mutations on a read request: the first version wrote and every such read answered 500), and a fresh one as running.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/inversion answers plannedRunUnits beside the thresholds without a bot call (the console's "smallest run that breaks even" row had no plan side).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: cover GET /ventures/:id/scenarios/compare in foreign-owner 404 isolation sweep.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: cover Saved-quote inbox routes in anonymous 401 and foreign-owner 404 isolation sweeps.
  */
 'use strict';
 
@@ -219,10 +221,15 @@ test('a foreign caller cannot start a run, read documents, or export', async () 
     ['get', '/ventures/:id/rebaseline-policy'],
     ['put', '/ventures/:id/rebaseline-policy'],
     ['post', '/ventures/:id/rebaseline-policy/preview'],
+    ['get', '/ventures/:id/scenarios/compare'],
+    ['get', '/ventures/:id/quote-inbox'],
+    ['post', '/ventures/:id/quote-inbox'],
+    ['post', '/ventures/:id/quote-inbox/:itemId/promote'],
+    ['post', '/ventures/:id/quote-inbox/:itemId/dismiss'],
   ]) {
     const pool = ownedBy('alice');
     const before = bot.calls.length;
-    const res = await call(pool, method, route, Object.assign({ params: { id: 'v1' } }, FOREIGN));
+    const res = await call(pool, method, route, Object.assign({ params: { id: 'v1', itemId: 'qi-1' } }, FOREIGN));
     assert.equal(res.statusCode, 404, `${method} ${route} must 404 for a foreign caller`);
     assert.equal(bot.calls.length, before, `${method} ${route} must not spend for a foreign caller`);
   }

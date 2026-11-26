@@ -30,11 +30,13 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Verify all 15 studio, editor, and device packages that mount registerDocumentSession conform strictly to the Create concierge pattern.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2a: ten more side-chat bots run inline, are registered in CONCIERGES and carry Create's persona rules, with the tool_call fence exactly when the package offers route tools.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Create's region-edit spend and LoRA's routes name their package's own declared bot (create-editor, lora-director) in source and compiled routes, and no route problem names those files.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Update expected Create API tool count from 10 to 15 for create 1.20.5 (create-list-revisions, create-restore-revision, create-read-brand-kit, create-update-brand-kit, create-apply-brand).
  * 13 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): the Movies and Spotify concierges run inline as their packages' chatBots with Create's persona rules, the fence exactly when the package offers route tools, and the rule that returns their chat route's reply object with the prose in its "say" field; their route files raise no problem.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Commons, Orbit and Studio name jarvis's oshal-assistant, Classroom Little Monsters' class-tutor and Job Apply Career's career-concierge, each imported from a required member that declares it inline; every Classroom role template maps Little Monsters to a role granting class-tutor's binding, and Job Apply's workflow keeps its imported career-hunter worker.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Life, System, the Developer Workspace Index and Hello OSHAL borrow jarvis's oshal-assistant by name: no bot, workflow or bot import of their own, and no concierge binding problem.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2b: Intelligent Operations and Kalshi. Each side-chat bot runs inline, is registered in CONCIERGES and carries Create's persona rules with the tool_call fence (both packages offer route tools), and none is a bot its package's workflow runs: Operations' front desk is ops-concierge, not its RCA investigator ops-rca-specialist, whose phases stay as they were.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit (T15), the batch after 2b: Intelligent Processing. Its chatBot is a bot it declares itself (the kernel runs a bot with its owner's tools, so the imported ops-rca-specialist answered with Operations' tools and no read of this queue), inline, registered in CONCIERGES, with Create's persona rules and the tool_call fence over its own route tool; it is no worker of the workflow, which still runs the imported specialist and reviewer, and Operations' ops-concierge is not imported in its place.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Video 1.14.6: update expected Video route-backed API tool count from 12 to 15 (video-list-media, video-list-revisions, video-restore-revision).
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -231,7 +233,7 @@ test('Create and Video editing agents bind actual bounded API tools, immutable m
   const persona=yaml.load(fs.readFileSync(path.join(ROOT,pkg,bot.persona),'utf8'));
   assert.equal(persona.agent_id,bot.agentId);assert.match(persona.perspective,/```tool_call/);assert.match(persona.perspective,/baseRevision/);
   const module=await import(pathToFileURL(path.join(ROOT,pkg,'tools/editor/agent-tools.mjs')).href);
-  const tools=manifest.tools.filter(tool=>tool.executor?.executorType==='api');assert.equal(tools.length,pkg==='create'?10:12);
+  const tools=manifest.tools.filter(tool=>tool.executor?.executorType==='api');assert.equal(tools.length,pkg==='create'?15:15);
   const edit=tools.find(tool=>tool.name===pkg+'-apply-edits');assert.deepEqual(edit.inputSchema.properties.operations.items,module.operationSchema);
   assert.equal(edit.inputSchema.additionalProperties,false);assert.deepEqual(edit.inputSchema.required,['id','baseRevision','operations']);
   const catalog=yaml.load(fs.readFileSync(path.join(ROOT,pkg,'authorization.yaml'),'utf8'));

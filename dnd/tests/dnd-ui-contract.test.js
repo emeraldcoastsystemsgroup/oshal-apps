@@ -56,6 +56,8 @@
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Load campaign selection and shared exploration in the ordered tabletop bundle.
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Admit exactly one inline script in table.html, the audience-view boot (ADR-164 D6): it must sit in the head after the shared kit, boot the kit for this application and name no tabletop function, so game logic still lives only in the ordered classic bundle.
  * 2026-11-07 05:10:00 | maintainer@emeraldcoastsystemsgroup.com     | Allow the kernel speech service as the native narrator (0.22.2) while browser speech stays banned.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Include spellcasting.js before engine.js in the shared classic-script global binding check.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Include cutaway-beats.js and table-cutaway-beats.js in the ordered classic-script bundle and shared global binding check.
  */
 
 'use strict';
@@ -69,8 +71,8 @@ const assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'ui', 'table.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'ui', 'dnd.css'), 'utf8');
-const tableScriptFiles = ['table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js', 'table-outcomes.js', 'table-story.js', 'table-exploration.js', 'table-character-sheet.js', 'table-campaigns.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-dock.js', 'table-screens.js'];
-const classicScriptFiles = ['engine.js'].concat(tableScriptFiles);
+const tableScriptFiles = ['table-runtime.js', 'table-voice.js', 'table-dice.js', 'table-presentation.js', 'table-turns.js', 'table-combat-narration.js', 'table-automation.js', 'table-outcomes.js', 'table-cutaway-beats.js', 'table-story.js', 'table-exploration.js', 'table-character-sheet.js', 'table-campaigns.js', 'table-seats.js', 'table-playback.js', 'table-immersive.js', 'table-dock.js', 'table-screens.js'];
+const classicScriptFiles = ['spellcasting.js', 'engine.js', 'leads.js', 'cutaway-beats.js'].concat(tableScriptFiles);
 const tableScriptSources = tableScriptFiles.map((file) => fs.readFileSync(path.join(root, 'ui', file), 'utf8'));
 const voiceSource = fs.readFileSync(path.join(root, 'ui', 'table-voice.js'), 'utf8');
 const diceSource = fs.readFileSync(path.join(root, 'ui', 'table-dice.js'), 'utf8');

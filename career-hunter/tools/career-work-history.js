@@ -6,6 +6,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience ... it covers like 20 different companies over a 4 year span when i was consulting in the field"): the edits a client engagement's form, its bullets, "Place all under" and a client account group's form ask for (fields engagement, engagement-bullet and accounts of POST /resume/master-edit), and how an engagement's months and length read (engagementSpan, lengthLabel).
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "we are missing the page to put in my expierence and when it is avialbe the concierge should be able to make the changes and reflct them on the screen in my resume"). The Work history page: the jobs the main résumé is built from, each a card with its title, employer, months and bullets, in the order the résumé shows them. Edit opens the card as a form (job title, employer, start and end month and year, I work here now, bullets you add, edit, move and remove); Add a job puts a new one first; a job moves up or down or is removed. The layout follows where LinkedIn's Experience section and the résumé builders (Indeed, Resume.io, Zety) agree: newest job first, one card per job, a month and year for each date with a "currently work here" box, bullets as their own lines. Each save is turned into the exact edits the engine's revision-checked main-résumé edit takes (POST /resume/master-edit; at most 20 a request, chained on each answer's revision) and shows the changed-with-Undo bar; the concierge's approved changes arrive through the registered document refresh and show the same bar. A change also brings the Word document on My résumé up to date when it still matched (CareerResumeOffice.syncDocument).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: a job's form and a client engagement's form also ask for their location (field role key location; engagement value location), changed against the exact saved text and taken away when emptied, like the employer.
  */
 (function (root) {
   'use strict';
@@ -68,14 +69,15 @@
   }
 
   /**
-   * @description The edits a saved job's form asks for: its bullets, then its employer and months, then its title last,
-   * so every edit before names the job by the title it still has.
-   * @param {number} index the job's position @param {{title:string,org:string,start:string,end:string,bullets:string[]}} role as saved
-   * @param {{title:string,org:string,start:string,end:string,bullets:Array}} form as edited @returns {object[]} edits
+   * @description The edits a saved job's form asks for: its bullets, then its employer, location and months, then its
+   * title last, so every edit before names the job by the title it still has. A location the form leaves as saved asks
+   * for nothing; an emptied one asks for it to be taken away.
+   * @param {number} index the job's position @param {{title:string,org:string,start:string,end:string,location?:string,bullets:string[]}} role as saved
+   * @param {{title:string,org:string,start:string,end:string,location:string,bullets:Array}} form as edited @returns {object[]} edits
    */
   function roleEdits(index, role, form) {
     var title = role.title, edits = bulletEdits(index, title, role.bullets || [], form.bullets);
-    ['org', 'start', 'end'].forEach(function (key) {
+    ['org', 'location', 'start', 'end'].forEach(function (key) {
       var before = String(role[key] == null ? '' : role[key]), value = String(form[key] || '').trim();
       if (value !== before.trim()) edits.push(anchor(index, title, { op: 'set', field: 'role', key: key, before: before, value: value }));
     });
@@ -88,10 +90,10 @@
     return edits;
   }
 
-  /** @description The edits that add a new job first, with its employer, months and bullets. @param {object} form @returns {object[]} */
+  /** @description The edits that add a new job first, with its employer, location, months and bullets. @param {object} form @returns {object[]} */
   function newRoleEdits(form) {
     var title = String(form.title || '').trim(), edits = [{ op: 'add', field: 'role', index: 0, before: '', value: title }];
-    ['org', 'start', 'end'].forEach(function (key) {
+    ['org', 'location', 'start', 'end'].forEach(function (key) {
       var value = String(form[key] || '').trim();
       if (value) edits.push(anchor(0, title, { op: 'set', field: 'role', key: key, before: '', value: value }));
     });
@@ -150,15 +152,15 @@
 
   /**
    * @description The edits a saved engagement's form asks for: its bullets first (named by the name it still has), then one
-   * change of every detail that differs (name, role, industry, months, length, technology, the job it was done under,
-   * marked not public). A form that changes nothing asks for nothing.
+   * change of every detail that differs (name, role, industry, location, months, length, technology, the job it was done
+   * under, marked not public). A form that changes nothing asks for nothing.
    * @param {object} saved the engagement as Work history read it (expanded.engagements[n])
-   * @param {{project:string,role:string,industry:string,start:string,end:string,months:number|null,tech:string[],job:{index:number,title:string}|null,public:boolean,bullets:Array}} form
+   * @param {{project:string,role:string,industry:string,location:string,start:string,end:string,months:number|null,tech:string[],job:{index:number,title:string}|null,public:boolean,bullets:Array}} form
    * @returns {object[]}
    */
   function engagementEdits(saved, form) {
     var edits = engagementBulletEdits(saved.index, saved.project, saved.bullets || [], form.bullets), value = {};
-    ['project', 'role', 'industry', 'start', 'end'].forEach(function (key) { if (String(form[key] || '').trim() !== String(saved[key] || '').trim()) value[key] = String(form[key] || '').trim(); });
+    ['project', 'role', 'industry', 'location', 'start', 'end'].forEach(function (key) { if (String(form[key] || '').trim() !== String(saved[key] || '').trim()) value[key] = String(form[key] || '').trim(); });
     if ((form.months == null ? null : form.months) !== (saved.months == null ? null : saved.months)) value.months = form.months;
     if (!sameList(form.tech, saved.tech || [])) value.tech = form.tech;
     if ((form.job ? form.job.index : null) !== (saved.job ? saved.job.index : null)) value.job = form.job;
@@ -170,7 +172,7 @@
   /** @description The edits that add a new engagement at place `at` (the end of the list), then its bullets. @param {number} at @param {object} form @returns {object[]} */
   function newEngagementEdits(at, form) {
     var name = String(form.project || '').trim(), value = { project: name };
-    ['role', 'industry', 'start', 'end'].forEach(function (key) { if (String(form[key] || '').trim()) value[key] = String(form[key]).trim(); });
+    ['role', 'industry', 'location', 'start', 'end'].forEach(function (key) { if (String(form[key] || '').trim()) value[key] = String(form[key]).trim(); });
     if (form.months != null) value.months = form.months;
     if (form.tech.length) value.tech = form.tech;
     if (form.job) value.job = form.job;

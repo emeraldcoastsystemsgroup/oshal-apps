@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Finance 1.8.0 (Lane FINH2, the design's slice 3): Recurring through the compiled routes on a disposable PostgreSQL after a synthetic statement is applied (only Express's Router and the logger are doubled). Every monthly charge is listed with what it costs a year as an estimate with its source and date, and a price that went up says so; the totals a month and a year leave out what the person marked to cancel. Each is answered once: Keep; Track as a bill (only with confirm: true) makes it a bill; Mark to cancel records it, and a later charge says it was charged again; Review again takes the answer back. A GET writes nothing, and a second person sees and answers nothing. Migration 006 is plain and the module creates no table and moves no money. Every person, payee and figure is invented. Run: OSHAL_TEST_POSTGRES=... node --test tests/recurring.test.cjs
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Finance 1.8.5: verify migration 006 remains declared after 005 rather than asserting it is the last migration now that 007-finance-projects.sql follows it.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -90,7 +91,9 @@ test('a payment marked to cancel that is charged again says so', async (t) => {
 });
 
 test('migration 006 is plain and the recurring module keeps the kernel\'s statement shapes, creates no table and moves no money', () => {
-  assert.deepEqual(declaredMigrations().slice(-1), ['migrations/006-recurring.sql']);
+  const migrations = declaredMigrations();
+  assert.ok(migrations.includes('migrations/006-recurring.sql'), 'migration 006 is declared');
+  assert.ok(migrations.indexOf('migrations/006-recurring.sql') > migrations.indexOf('migrations/005-mail.sql'), 'migration 006 follows 005');
   const sql = fs.readFileSync(path.join(PKG, 'migrations', '006-recurring.sql'), 'utf8').replace(/^--.*$/gm, '');
   assert.ok(sql.split(';').map((s) => s.trim()).filter(Boolean).every((s) => /^CREATE TABLE IF NOT EXISTS |^CREATE INDEX IF NOT EXISTS /.test(s)));
   assert.doesNotMatch(sql, /ROW LEVEL SECURITY|POLICY|\bUNIQUE\b|\bREFERENCES\b|FOREIGN KEY|\bDO \$\$|\bTRIGGER\b|\bSERIAL\b/i);

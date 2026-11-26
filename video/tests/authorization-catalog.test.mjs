@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the shipped Video catalog the way the native kernel reads it: a bot turn is admitted only when the catalog binds the bot by name or agent id (crates/packages/src/operation_authorization.rs refuses 'operation has no explicit permission binding' otherwise), and a permission is held only when one of the caller's named roles grants it. The dock concierge video-editor was refused on every question because only the studio bots were bound; owners could not delete their own editor projects because editor.delete was admin-only. The roles a workspace member holds come from the real studio-experience role template, not a copy.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard closed Writer-only automatic Motion discovery and approved job import under unchanged own permissions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Match Vids roleTemplate version 2 named admin grant and cover auto-caption, voice TTS and CC0 sound-library bindings.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: cover video-list-media, video-list-revisions, and video-restore-revision bindings under existing own editor permissions.
  *
  * Reads the actual package files; js-yaml from the store's pinned gate toolchain. No network, no database.
  */
@@ -57,7 +58,7 @@ test('every bot the package declares is bound, and an undeclared bot is still re
 
 test('each route-backed tool carries exactly the permissions of the route it calls', () => {
   const tools = manifest.tools.filter((tool) => tool.executor?.executorType === 'api');
-  assert.equal(tools.length, 12);
+  assert.equal(tools.length, 15);
   for (const tool of tools) {
     const [method, endpoint] = tool.executor.apiEndpoint.split(' ');
     assert.ok(endpoint.startsWith(MOUNT + '/'), tool.name);
@@ -67,6 +68,19 @@ test('each route-backed tool carries exactly the permissions of the route it cal
     assert.deepEqual(bound.allOf, route.allOf, `${tool.name} matches ${route.id}`);
   }
   assert.equal(catalog.bindings.tools.length, tools.length, 'no tools binding names an undeclared tool');
+});
+
+test('media listing and revision history/restore tools use existing own editor permissions with proper approval modes', () => {
+  const listMedia = manifest.tools.find((t) => t.name === 'video-list-media');
+  const listRev = manifest.tools.find((t) => t.name === 'video-list-revisions');
+  const restoreRev = manifest.tools.find((t) => t.name === 'video-restore-revision');
+  assert.equal(listMedia.defaultAuthMode, 'auto'); assert.equal(listMedia.requiresApproval, false);
+  assert.equal(listRev.defaultAuthMode, 'auto'); assert.equal(listRev.requiresApproval, false);
+  assert.equal(restoreRev.defaultAuthMode, 'ask'); assert.equal(restoreRev.requiresApproval, true);
+  assert.ok(String(restoreRev.cardText).length > 10, 'restore tool has clear cardText');
+  assert.deepEqual(catalog.bindings.tools.find((b) => b.id === 'video-list-media').allOf, ['editor.view', 'editor.read']);
+  assert.deepEqual(catalog.bindings.tools.find((b) => b.id === 'video-list-revisions').allOf, ['editor.view', 'editor.read']);
+  assert.deepEqual(catalog.bindings.tools.find((b) => b.id === 'video-restore-revision').allOf, ['editor.view', 'editor.read', 'editor.change']);
 });
 
 test('an owner deletes their own editor projects and uploads; nothing reaches beyond their own rows', () => {

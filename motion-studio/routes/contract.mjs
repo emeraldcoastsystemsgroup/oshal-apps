@@ -7,6 +7,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Include the executable native whole-text command and controller-held approval semantics without changing validation.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Return a fresh transient contract edit key without changing saved source or retry semantics.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: document bounded video/audio footage assets, audio/levels keyframes and composition/layer motion blur controls.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-05): document motion-preview bounded visual frame inspection in the agent contract.
  */
 import { randomUUID } from 'node:crypto';
 import { stringifyNative } from '../tools/native-json.mjs';
@@ -69,6 +70,7 @@ export async function agentContract(ctx) {
     effectStringEdits: 'properties.patchAt supports mutually exclusive value or textPatch {start,end,text}; exact UTF16 bounds cannot split surrogate pairs. Existing approval-held exact edits support small edits to large strings. Protected human multipart effect-values saves a full native batch in one revision; full oversized agent replacements use approved bounded value-upload staging.',
     effectPropertiesInspection: 'motion-read-effect-properties marks incomplete large values for motion-read-effect-value exact bounded chunks; the human full binding retains original native capacity. Read one actual effect instance at exact composition ticks before expressions. properties.patchAt with effect seals changed targets to that same-layer instance and preserves native key semantics.',
     propertiesInspection: 'motion-read-properties returns actual transform/camera/light/audio values before expressions at exact decimal composition ticks. properties.patchAt uses sealed decimal target properties and changed-only original native setters.',
+    previewInspection: 'motion-preview returns one bounded revision-pinned PNG frame (dataUrl, sha256, bytes, width, height) under 60 KiB so the concierge can visually verify saved edits before reporting completion.',
     agentInputBytes: 16384, agentObservationBytes: AGENT_RESPONSE_BYTES,
     instructions: 'For whole-text replacement the included textReplacement example is the complete existing native command shape. For other commands fetch the exact command schema before constructing parameters. The manual editing contract retains the complete registry schemas. Large document observations require bounded inspection; never infer truncated data.'
   });

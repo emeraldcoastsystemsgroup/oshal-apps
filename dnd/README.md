@@ -747,17 +747,27 @@ dnd/
 
 Tracked so this stays honest about what is and isn't built:
 
-1. **Extract a game-neutral tabletop runtime after the D&D release.** Preserve
-   the proven session, seat, turn, shared-roll, story, media, and rewind loops
-   behind a versioned `GameDefinition` plus rules/narrator adapters. D&D remains
-   the first ruleset pack; character import, death saves, spells, and goblin
-   tactics stay in that adapter instead of leaking into the generic core.
-2. **Richer end-of-game replay and export.** The shipped baseline offers
-   authenticated read-only play/pause, step, speed, selection, and scrubbing
-   across persisted archive/roll facts plus exact snapshot and final-board
-   frames. The next increment persists every board revision and cutaway link so
-   currently labeled board gaps can become a continuous visual replay and a
-   shareable recap. Restore remains a separate confirmed playable branch.
+1. ~~**Extract a game-neutral tabletop runtime after the D&D release.**~~ **Shipped in v0.22.10** —
+   extracted game-neutral `lib/tabletop-runtime.js` behind a versioned `GameDefinition`
+   (`schemaVersion: 1`) contract and `TabletopRuntime` registry preserving the proven
+   session, seat, turn, shared-roll, story, media, and rewind delegation loops with zero
+   D&D-specific terms, rules, or imports (guarded statically in `tests/dnd-tabletop-runtime.test.js`).
+   D&D 5e SRD (`dnd-5e-srd`) registers as the first ruleset pack via `lib/dnd-ruleset-pack.js`
+   (keeping character import, death saves, spellcasting, Level 2–5 SRD progression, monster
+   tactics, and Dungeon Master folklore narration strictly inside the pack), authenticated
+   read-only `GET /api/dnd/runtime` exposes active runtime and pack metadata with zero DB writes,
+   and a synthetic non-D&D `starship-skirmish` ruleset pack proves multi-ruleset execution end to end.
+2. ~~**Richer end-of-game replay and export.**~~ **Shipped in v0.22.6** —
+   lightweight deduplicated board revisions (`rev:*`) are captured across
+   campaign start, board state saves, exploration commits, conversation walks,
+   scene advances, and archived story beats while manual save listings stay
+   uncluttered and legacy beats without revisions remain honestly labeled
+   `archive-only`. Persisted cutaway artwork correlates directly onto playback
+   frames and summary metadata, `GET /api/dnd/replay-export` exports sanitized
+   read-only Markdown (`.md`), self-contained script-free HTML (`.html`), and
+   canonical JSON (`.json`) recaps, and Timeline Playback surfaces inline
+   cutaway previews, coverage counts, and Export Recap controls while Restore
+   remains a separate confirmed playable branch.
 3. **Per-character voices (hardened men, ethereal women).** Operator direction
    (2026-07-20): the narration should match the period — a gravelly, weathered
    Dungeon Master, and distinct voices when he speaks *as* NPCs (ethereal for the
@@ -780,11 +790,28 @@ Tracked so this stays honest about what is and isn't built:
 6. **More generated battle maps** — two bundled painterly scene backgrounds and
    milestone cutaways ship today; generating and caching arbitrary encounter
    maps remains open.
-7. **Deeper spellcasting** — sphere templates (fireball), concentration,
-   conditions, reactions (cones shipped in v0.3).
-8. **Level 3+ and a longer campaign arc** — My Games already provides the
-   multi-campaign library; higher-level deltas and more connected scenes remain
-   open.
+7. ~~**Deeper spellcasting**~~ **Shipped in v0.22.7** — deterministic sphere AoE
+   templates (`Fireball`, `Shatter`, `Entangle`, `Faerie Fire`) with shared damage
+   rolls and map radius previews, concentration tracking with Constitution saves
+   (`DC = max(10, floor(damage / 2))`) and automatic linked-condition cleanup,
+   canonical SRD 5.1 conditions (`prone`, `poisoned`, `blinded`, `restrained`,
+   `frightened`, `blessed`, `invisible`, `incapacitated`) enforcing advantage,
+   disadvantage, cancellation, `+1d4` Bless bonuses, and movement limits, plus
+   per-round reactions (`Shield` +5 AC, Opportunity Attacks, and `Counterspell`)
+   with server guard persistence and tabletop status badges (cones shipped in v0.3).
+8. ~~**Level 3+ and a longer campaign arc**~~ **Shipped in v0.22.8** — full
+   SRD 5.1 Level 2–5 progression in `data/srd-leveling.json` for all eight hero
+   classes (fixed HP, 2nd/3rd-level spell slot pools, `Shatter`, `Hold Person`,
+   `Spiritual Weapon`, `Fireball`, `Counterspell`, `Spirit Guardians`,
+   `Mass Healing Word`, `Hypnotic Pattern`, `Hail of Thorns`, `Branding Smite`,
+   `Aid`, Level 4 ASI, Level 5 Proficiency `+3`, `Extra Attack`, and `2d6`/`3d6`
+   Sneak Attack), unified multi-threshold advancement shared by
+   `lib/dnd-timeline-service.js` and `ui/engine.js`, seven higher-tier SRD 5.1
+   monsters in `data/srd-monsters.json`, and **The Ashen Citadel**
+   (`data/adventure-ashen-citadel.json`), a five-chapter connected Levels 1–5
+   campaign arc whose chapter XP awards carry a party cleanly from Level 1
+   through Level 5 with live XP progress and multi-tier spell slot display on
+   the character sheet and dock.
 9. **Fire TV stick launcher** — the paired-stick APK loads the Jarvis home only;
    add a clickable app chip there (core `tvView()` change) so the board is one
    D-pad click away. Any signed-in TV browser already works via `?mode=tv`.
@@ -799,18 +826,23 @@ Tracked so this stays honest about what is and isn't built:
    client animation), and already-discovered leads reconcile on every action.
    Still true to the original ask's spirit but narrower: *undiscovered* leads
    deliberately have no board presence — a clue not yet found is not on the map.
-12. **Many more cutaways.** The operator's ask was roughly nineteen times the
-   v0.17.0 cinematic density. Shipped so far: per-discovery and chapter-complete
-   art (v0.17.0), first-meeting portraits under a deduped `meet:` key and the
-   every-fourth-story-beat cadence (v0.18.0) — all keyed so replays never
-   regenerate art. Still open: the big combat beats (a natural 20, a natural 1,
-   first blood, a hero dropping, a level-up, a boss reveal), cheap local
-   transitions for the common beats, and a per-campaign cap.
-   **Done when:** those beats each request a keyed cutaway, local transitions
-   cover the common ones, generated art is reserved for the big ones, and a
-   per-campaign cap is enforced and visible. (Budget math: generated art is
-   about $0.04 per image, so ~20 beats is under a dollar a session — the cap
-   exists to stop a runaway, not to ration the drama.)
+12. ~~**Many more cutaways.**~~ **Shipped in v0.22.9** — builds on per-discovery
+    and chapter-complete art (v0.17.0) plus first-meeting `meet:` portraits and
+    every-fourth-story-beat art (v0.18.0) with a shared combat beat classifier
+    (`ui/cutaway-beats.js` / `lib/dnd-cutaway-beats.js`) that requests keyed,
+    replay-safe generated cutaways for all six big combat beats (`nat20`,
+    `nat1`, `first-blood`, `hero-down`, `level-up`, and `boss-reveal`), routes
+    common beats (`hit`, `miss`, `spell`, `heal`, `advance`) to cheap local
+    non-blocking CSS/DOM transitions (`#localBeatBanner`, honoring
+    `prefers-reduced-motion`) without ever calling the image provider, enforces
+    a per-campaign cutaway cap (`DEFAULT_CUTAWAY_CAP = 20`, bounded `1..50`)
+    checked after deduplication and before provider calls in
+    `lib/dnd-media-service.js` (answering fail-soft `capped: true` with local
+    transition fallback while cached replays still succeed), exposes read-only
+    seat-checked `GET /api/dnd/cutaway-budget` plus live `cutawayBudget` on
+    `GET /state`, `GET /playback`, and `POST /cutaway`, and surfaces a visible
+    `Art X/20` (and `Art 20/20 (cap reached)`) budget indicator in the tabletop
+    HUD, More menu, and Timeline Playback header.
 13. ~~**Put the lead roll on the big d20.**~~ **Shipped in v0.19.0** — a lead
    attempt opens the shared d20 for the acting player, every device watches it
    land via the requested/rolled/resolved protocol, and the exploration

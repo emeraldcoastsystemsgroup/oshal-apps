@@ -7,7 +7,9 @@
 <!-- CHANGE LOG
      1 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-stage): navigate /api/switchboard/stage
        to /api/switchboard/compose; keep solid disabled Tailor per channel and Use as-is buttons with a visible reason beside them,
-       withhold unconnected channels, show the Connect accounts empty state when none are connected, and use solid accent fills. -->
+       withhold unconnected channels, show the Connect accounts empty state when none are connected, and use solid accent fills.
+     2 | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): render the channel selector strip (.plats) as a single-row
+       horizontal scrollable strip on phone viewports (<=760px) with 44px nowrap touch targets. -->
 <!-- ONE link gives this standalone surface every OSHAL theme; the active one is chosen by the
      data-theme on <html> above (and kept in sync live by surface-theme.js). Every colour below is
      DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
@@ -208,6 +210,15 @@
   .footnote { margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
   .footnote svg { width:13px; height:13px; color:var(--accent); }
 
+  @media (max-width:760px) {
+    .plats {
+      flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; max-width:100%; padding-bottom:2px;
+    }
+    .plats::-webkit-scrollbar { display:none; }
+    .plat { flex:0 0 auto; white-space:nowrap; min-height:44px; }
+  }
   @media (max-width:640px) {
     .wrap { padding:20px 15px 70px; }
     .greet { font-size:23px; }

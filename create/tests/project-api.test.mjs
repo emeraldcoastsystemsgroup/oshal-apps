@@ -7,6 +7,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: a refused agent project says why in `detail`, over the real route, before any query.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify compiled GET /editing-contract advertises 1.20.3 and flipX/flipY conventions.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: verify compiled GET /editing-contract advertises 1.20.4 and textStyling conventions.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: verify compiled GET /editing-contract advertises 1.20.5, 8192 px size parity, revision restore and apply-brand admission guards.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -107,7 +108,7 @@ test('agent edits need both read and change before decoding a body; contract doe
   assert.equal(pool.queries.length,0);
  }
  const pool=emptyPool(),api=await startApi(t,pool);
- const contract=await api.call('/editing-contract');assert.equal(contract.status,200);assert.equal(contract.body.editor,'create');assert.equal(contract.body.sourceVersion,'1.20.4');assert.match(contract.body.conventions.flip,/flipX.*flipY/);assert.match(contract.body.conventions.textStyling,/italic.*underline.*lineHeight.*letterSpacing/);assert.equal(pool.queries.length,0);
+ const contract=await api.call('/editing-contract');assert.equal(contract.status,200);assert.equal(contract.body.editor,'create');assert.equal(contract.body.sourceVersion,'1.20.5');assert.match(contract.body.conventions.flip,/flipX.*flipY/);assert.match(contract.body.conventions.textStyling,/italic.*underline.*lineHeight.*letterSpacing/);assert.match(contract.body.conventions.canvas,/8192/);assert.equal(pool.queries.length,0);
  assert.equal((await api.call(`/projects/${ID}/operations`,'POST',{id:'00000000-0000-4000-8000-000000000002',baseRevision:1,operations:[]})).status,400);
  assert.equal((await api.call('/agent-projects','POST',{title:'x',owner:'bob'})).status,400);assert.equal(pool.queries.length,0);
 });
@@ -117,4 +118,43 @@ test('a refused agent project says why, so the concierge can correct the call', 
  const refused=await api.call('/agent-projects','POST',{title:'Rocket',background:'rocket red'});
  assert.equal(refused.status,400);assert.deepEqual(refused.body,{error:'invalid_project_document',detail:'Use a hex color or transparent'});
  assert.equal(pool.queries.length,0);
+});
+
+test('1.20.5 canvas size parity: agent-projects and projects refuse >8192 px or >32MP with identical wording', async t => {
+ const pool=emptyPool(),api=await startApi(t,pool);
+ const wideAgent=await api.call('/agent-projects','POST',{title:'Too wide',width:8193,height:100});
+ const wideDoc=input('Too wide'); wideDoc.document.width=8193; wideDoc.document.height=100;
+ const wideEditor=await api.call('/projects','POST',wideDoc);
+ assert.equal(wideAgent.status,400); assert.equal(wideEditor.status,400);
+ assert.deepEqual(wideAgent.body,wideEditor.body);
+ assert.equal(wideAgent.body.detail,'Canvas width is out of range');
+ const bigAgent=await api.call('/agent-projects','POST',{title:'Too many pixels',width:8192,height:8192});
+ const bigDoc=input('Too many pixels'); bigDoc.document.width=8192; bigDoc.document.height=8192;
+ const bigEditor=await api.call('/projects','POST',bigDoc);
+ assert.equal(bigAgent.status,400); assert.equal(bigEditor.status,400);
+ assert.deepEqual(bigAgent.body,bigEditor.body);
+ assert.equal(bigAgent.body.detail,'Canvas dimensions are too large');
+ assert.equal(pool.queries.length,0);
+});
+
+test('1.20.5 revision restore and apply-brand enforce permissions and input bounds before database writes', async t => {
+ for (const permission of ['project.read', 'project.change']) {
+  const pool=emptyPool(),api=await startApi(t,pool,{denied:[permission]});
+  assert.equal((await api.call(`/projects/${ID}/revisions/restore`,'POST',{id:ID})).status,403);
+  assert.equal((await api.call(`/projects/${ID}/apply-brand`,'POST',{id:ID})).status,403);
+  assert.equal(pool.queries.length,0);
+ }
+ const noBrandPool=emptyPool(),noBrandApi=await startApi(t,noBrandPool,{denied:['brand.read']});
+ assert.equal((await noBrandApi.call(`/projects/${ID}/apply-brand`,'POST',{id:ID})).status,403);
+ assert.equal(noBrandPool.queries.length,0);
+ const pool=emptyPool(),api=await startApi(t,pool);
+ assert.equal((await api.call(`/projects/${ID}/revisions/restore`,'POST',{id:ID,revision:'bad'})).status,400);
+ assert.equal((await api.call(`/projects/${ID}/revisions/restore`,'POST',{id:ID,owner:'bob'})).status,400);
+ assert.equal((await api.call(`/projects/${ID}/apply-brand`,'POST',{id:'00000000-0000-4000-8000-000000000002'})).status,400);
+ assert.equal((await api.call(`/projects/${ID}/apply-brand`,'POST',{id:ID,owner:'bob'})).status,400);
+ assert.equal(pool.queries.length,0);
+ assert.equal((await api.call(`/projects/${ID}/revisions/restore`,'POST',{id:ID})).status,503);
+ assert.ok(pool.queries.some(row => /BEGIN/.test(row.sql)));
+ const noKit=await api.call(`/projects/${ID}/apply-brand`,'POST',{id:ID});
+ assert.equal(noKit.status,404); assert.equal(noKit.body.error,'brand_kit_not_found');
 });

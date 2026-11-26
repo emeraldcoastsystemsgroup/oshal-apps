@@ -22,6 +22,7 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | upsert_company: an employer an administrator removed stays removed when a seed list or an import names it again; the list's tag is still recorded.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | A new person's recruiter tracker starts empty: init_db no longer writes eighteen recruiting firms (cleared government work, executive search, SAP) into every person's list, which presented one person's job search as every customer's own. The seed list and seed_recruiters are removed; rows a person already has are not touched. Guard: tests/career-recruiters-start-empty.test.mjs.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Add PAY_USD_INDEX_SQL (idx_corpus_pay_usd) created on writable ingests and skipped cleanly on read-only snapshots so Highest salary walks normalized annual USD pay across currencies with zero temp B-tree sort.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | DEMO-03: a read opens what it may not write mode=ro and writes nothing. A person with nothing saved reads an empty read-only folder: the engine tried to create their database there ("unable to open database file", a 500 on Strengthen); it now reads an empty store in memory and creates no file. A read-only store attaches a corpus it may not write mode=ro, and ANALYZE runs only on a database this process may write.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -336,7 +337,7 @@ def connect():
             _portable_at_exit(config.USER_DB)
             conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA foreign_keys = OFF")  # FKs aren't enforced across an ATTACH boundary
-        conn.execute("ATTACH DATABASE ? AS corpus", (str(config.CORPUS_DB),))
+        _attach_corpus(conn, read_only)
         _ensure_multiuser(conn)
         try:
             yield conn
@@ -358,18 +359,41 @@ def connect():
 
 
 def store_read_only() -> bool:
-    """This person's store exists and this process may not write it: the kernel publishes it and
-    mounts it read-only for a read. W_OK sees both file modes and a read-only mount."""
-    return config.USER_DB.exists() and not os.access(config.USER_DB, os.W_OK)
+    """This process may not write this person's store: the kernel publishes it and mounts it read-only
+    for a read, and a person with nothing saved reads an empty read-only folder. W_OK sees both file
+    modes and a read-only mount. Only the multi-user SQLite store is such a file."""
+    if config.POSTGRES or not config.MULTIUSER:
+        return False
+    if config.USER_DB.exists():
+        return not os.access(config.USER_DB, os.W_OK)
+    folder = config.USER_DB.parent
+    return folder.exists() and not os.access(folder, os.W_OK)
 
 
 def _open_read_only_store():
-    """A read of a published store. A file still marked WAL with nothing pending cannot create its
-    -shm here, so it opens immutable, as the board's own reader does. A pending WAL is never bypassed."""
+    """A read of a published store, opened mode=ro so no statement can write it. A file still marked
+    WAL with nothing pending cannot create its -shm here, so it opens immutable, as the board's own
+    reader does; a pending WAL is never bypassed. A person with nothing saved has no file to open:
+    they read an empty store in memory, and nothing is created in their folder."""
+    if not config.USER_DB.exists():
+        conn = sqlite3.connect("file::memory:", uri=True, timeout=120)
+        conn.executescript(USER_SCHEMA)
+        return conn
+    uri = f"{config.USER_DB.resolve().as_uri()}?mode=ro"
     wal = config.USER_DB.with_name(config.USER_DB.name + "-wal")
-    if wal.exists() and wal.stat().st_size > 0:
-        return sqlite3.connect(config.USER_DB, timeout=120)
-    return sqlite3.connect(f"{config.USER_DB.resolve().as_uri()}?immutable=1", uri=True, timeout=120)
+    if not (wal.exists() and wal.stat().st_size > 0):
+        uri += "&immutable=1"
+    return sqlite3.connect(uri, uri=True, timeout=120)
+
+
+def _attach_corpus(conn, read_only: bool) -> None:
+    """ATTACH the shared jobs corpus as `corpus`. On a read (the read-only store's connection, which
+    reads URIs) a corpus this process may not write, as the kernel binds the published one into every
+    request, attaches mode=ro. Elsewhere SQLite opens a file it may not write read-only by itself."""
+    if read_only and config.CORPUS_DB.exists() and not os.access(config.CORPUS_DB, os.W_OK):
+        conn.execute("ATTACH DATABASE ? AS corpus", (f"{config.CORPUS_DB.resolve().as_uri()}?mode=ro",))
+        return
+    conn.execute("ATTACH DATABASE ? AS corpus", (str(config.CORPUS_DB),))
 
 
 _portable_paths: set = set()
@@ -1052,7 +1076,9 @@ def _ensure_planner_stats(conn) -> None:
     whole result. ANALYZE is a full pass, so it runs only when stats are genuinely absent —
     refreshing them after bulk ingest is the ingest path's job, not something to pay on connect.
     """
-    for schema in ("main", "corpus"):
+    for schema, writable in (("main", not store_read_only()), ("corpus", corpus_writable())):
+        if not writable:
+            continue  # ANALYZE writes sqlite_stat1, and a read writes nothing
         try:
             row = conn.execute(
                 f"SELECT COUNT(*) FROM {schema}.sqlite_master WHERE name='sqlite_stat1'"

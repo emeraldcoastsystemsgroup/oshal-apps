@@ -5,6 +5,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0 (Roger, 2026-11-21: "making sure there is a version of the resume that fills their stuff accurately .. we keep getting offset"). The check of the résumé for upload forms on an installed Career, on a test slot, as a test person. `person` makes a test person with a made-up résumé of four jobs (one held by year only). `check` prepares one job with the slot's real model, signs in as that person on the slot's own sign-in page at 1440x900 and 412x915, opens the job's Step 3 · Send, presses For upload forms (.docx) and keeps the file it downloads; the file must be named <Company> - <Job title> - Job <id> - Resume (for upload).docx, hold no tab, table, text box, column, header or footer, and the plain line reader of tests/helpers/resume_line_parser.py must recover every job on that job's résumé with its exact title and employer and its dates as MM/YYYY, a year alone or Present. Every request that is not a read or the sign-in is stopped and listed; the check discards the job's documents at the end. `remove` takes the test person's role back and deactivates it.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-PROOFS (blue, 2026-11-25): the check read every job back exactly at 1440x900 and 412x915 and still exited 1, "the page tried a write: POST /api/cockpit/recents". That write is the cockpit recording the application a person opens (platform cockpit-view-controller.js, RP-SHL-01), not Career's, and the check stopped it as if it were. The guard now lets it through, as tests/career-regenerate-live-proof.mjs does; every other write is still stopped, listed and fails the size. The command also runs only when it is the program started, so tests/career-parse-resume-live-proof.test.mjs imports the guard and the judgement and proves both in Chromium.
  *
  * Usage (a loopback kernel only; the administrator credential is read by name from the env file and never printed, the
  * person's credential stays in its 0600 file and is typed only into the slot's own sign-in page; all three refuse port 38788):
@@ -17,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { playwright } from './helpers/ux-page.mjs';
 
 const BOARD_LINK = '/cockpit/?app=career-hunter&screen=career-board';
@@ -184,11 +186,14 @@ function readFile(file) {
   return { faults: faults.stdout.trim() ? faults.stdout.trim().split(',') : [], roles: JSON.parse(roles.stdout) };
 }
 
-/** @description Stop every request of this context that is not a read or the sign-in. */
+/**
+ * @description Stop every request of this context that is not a read, the sign-in or the cockpit's own record of the
+ * application opened (POST /api/cockpit/recents, a platform write when an application opens, not Career's).
+ */
 async function guard(context, origin, row) {
   await context.route((url) => new URL(url).origin === origin, (route) => {
     const request = route.request(), where = new URL(request.url()).pathname, method = request.method();
-    if (method === 'GET' || method === 'HEAD' || (method === 'POST' && where === '/sessions')) return route.continue();
+    if (method === 'GET' || method === 'HEAD' || (method === 'POST' && (where === '/sessions' || where === '/api/cockpit/recents'))) return route.continue();
     row.stopped.push(`${method} ${where}`);
     return route.abort();
   });
@@ -291,14 +296,18 @@ async function remove(origin, envFile, file) {
   say('test person removed', { subject: person.subject, grantsRevoked: (person.grants || []).length });
 }
 
-const [mode, base, second, third] = process.argv.slice(2);
-try {
-  if (!['person', 'check', 'remove'].includes(mode) || !base || !second || !third) throw new Error('usage: person <base> <env file> <person file> | check <base> <person file> <out folder> | remove <base> <env file> <person file>');
-  const origin = testSlot(base);
-  if (mode === 'person') await makePerson(origin, second, third);
-  else if (mode === 'check') process.exitCode = await check(origin, second, third);
-  else await remove(origin, second, third);
-} catch (error) {
-  console.error(`career-parse-resume-live-proof: ${message(error)}`);
-  process.exitCode = 1;
+// The proof is a command; its guard and its judgement are also imported by tests/career-parse-resume-live-proof.test.mjs.
+export { guard, judge };
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const [mode, base, second, third] = process.argv.slice(2);
+  try {
+    if (!['person', 'check', 'remove'].includes(mode) || !base || !second || !third) throw new Error('usage: person <base> <env file> <person file> | check <base> <person file> <out folder> | remove <base> <env file> <person file>');
+    const origin = testSlot(base);
+    if (mode === 'person') await makePerson(origin, second, third);
+    else if (mode === 'check') process.exitCode = await check(origin, second, third);
+    else await remove(origin, second, third);
+  } catch (error) {
+    console.error(`career-parse-resume-live-proof: ${message(error)}`);
+    process.exitCode = 1;
+  }
 }

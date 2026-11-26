@@ -35,6 +35,8 @@
  * 2026-11-06 08:10:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): a My Games row has one action, Resume (or Playback); Delete Campaign and Leave Campaign moved into the row's ⋯ menu and still confirm in the page. No campaign hides End Turn and Move. The row's ⋯ menu also has ⟲ Recap (dnd-review MERGE): it opens the campaign and the DM & Story drawer's recap.
  * 2026-11-06 09:30:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-help, dnd-party, dnd-tv): How to play is four short sections in upright type (Your turn, Combat, Companions, Playing with friends) with a ✕ and a footer that stays in view, and the copy names DM & Story and TV Mode as they are now. My Characters cards have one action, Use in new game, with Delete in their ⋯ menu; the manual import saves straight away, so its button says Save character (or Add character for a party) instead of Create Import Preview. A TV with more than one running campaign on the account asks once which one to show. A hero card without bundled art shows the hero's initials.
  * 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-party): My Characters card ⋯ menu includes View sheet to inspect stats, spells, actions and inventory read-only before starting a game.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Resolve scene.mapId on intro title cards for multi-chapter arcs sharing bundled map art.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Synchronize live per-campaign cutaway budget indicators across campaign creation, resume, and menu exit.
  */
 
 'use strict';
@@ -54,7 +56,7 @@ function playIntro(onDone) {
   const partyToks = board.tokens.filter((t) => t.kind === 'pc');
   const villains = [...new Set(board.tokens.filter((t) => t.kind === 'monster').map((t) => t.ref))];
   const cards = [];
-  cards.push({ html: introCard(`<div class="intro-kicker">${esc(content.adventure.theme && content.adventure.theme.label || 'An OSHAL Dungeon Master adventure')}</div><h1 class="intro-title">${esc(content.adventure.title)}</h1><div class="intro-sub">${esc(scene.objective || '')}</div>`, mapArtUrl(scene.id)), say: content.adventure.title });
+  cards.push({ html: introCard(`<div class="intro-kicker">${esc(content.adventure.theme && content.adventure.theme.label || 'An OSHAL Dungeon Master adventure')}</div><h1 class="intro-title">${esc(content.adventure.title)}</h1><div class="intro-sub">${esc(scene.objective || '')}</div>`, mapArtUrl(scene.mapId || scene.id)), say: content.adventure.title });
   partyToks.forEach((t) => {
     const h = boardSheets[t.slug] || sheetOf(t) || {};
     const ab = h.abilities ? `<div class="intro-stats">${['str','dex','con','int','wis','cha'].map((k) => `<span><b>${k.toUpperCase()}</b> ${h.abilities[k]}</span>`).join('')}</div>` : '';
@@ -176,6 +178,8 @@ function clearSessionSurface() {
   $('actions').innerHTML = ''; ['endTurn','stayBtn','moveBtn'].forEach((id) => { if ($(id)) $(id).disabled = true; });
   $('turnctl').classList.add('idle');
   $('log').innerHTML = ''; renderChoices([]); renderGameplayRail(); setStoryOpen(false);
+  if (typeof resetCutawayBeatState === 'function') resetCutawayBeatState();
+  if (typeof setCutawayBudget === 'function') setCutawayBudget(null);
 }
 async function quitToGameMenu() {
   if (campaign && board && (saveTimer || saveInFlight || saveAgain)) {
@@ -573,7 +577,9 @@ async function newCampaign(partySlugs) {
   }) });
   if (!r || !r.campaign) { overlay(`<h1>Could not create the table</h1><p>${esc((r && r.error) || 'Try again in a moment.')}</p><button class="big" id="ovRetryCreate">Back</button>`); $('ovRetryCreate').onclick = showPartyBuilder; return; }
   resetCampaignPipelines();
+  if (typeof resetCutawayBeatState === 'function') resetCutawayBeatState();
   campaign = r.campaign; board = r.state; rev = r.rev || 1; players = []; boardSheets = r.sheets || {}; sheetsRev = r.sheetsRev || ''; localArchiveEchoes = [];
+  if (typeof setCutawayBudget === 'function') setCutawayBudget(r.cutawayBudget || { used: 0, cap: 20, remaining: 20 });
   activateAdventure(campaign.adventure_id || board.adventureId);
   applyLocalVoicePreference();
   rememberConfirmedBoard(board, rev);
@@ -598,7 +604,9 @@ async function enterCampaign(campaignId) {
   const st = await api('/state' + (campaignId ? `?campaignId=${campaignId}` : ''));
   if (!st || !st.campaign) return false;
   resetCampaignPipelines();
+  if (typeof resetCutawayBeatState === 'function') resetCutawayBeatState();
   campaign = st.campaign; board = st.state; rev = st.rev || 0; players = st.players || []; boardSheets = st.sheets || {}; sheetsRev = st.sheetsRev || ''; localArchiveEchoes = [];
+  if (typeof setCutawayBudget === 'function') setCutawayBudget(st.cutawayBudget || (typeof inferCutawayBudgetFromArchive === 'function' ? inferCutawayBudgetFromArchive(st.archive) : null));
   activateAdventure(campaign.adventure_id || board.adventureId);
   rememberConfirmedBoard(board, rev);
   lastTurnAnnouncement = '';

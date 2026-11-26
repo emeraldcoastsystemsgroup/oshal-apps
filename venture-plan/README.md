@@ -2,8 +2,17 @@
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (1.4.1).
 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the schema bootstrap runs under a package-owned advisory lock; the disposable-PostgreSQL boot suite, its Test Lab case and the build-state rows.
+3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: deliver pure side-by-side scenario compare (src-routes/venture-compare.ts, GET /api/venture/ventures/:id/scenarios/compare, Compare tab in tools/venture.html), update build-state counts, and move scenario compare out of Next increments.
+4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: deliver FX Evidence Console and foreign-currency supplier quote binding (tools/venture-fx-console.js + tools/venture.html over existing bound FX and quote routes), update build-state counts, and narrow Next increments to automated live FX rate ingestion and saved-quote inbox.
+5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: deliver Saved-quote inbox (pure parser src-routes/venture-quote-parser.ts, owner-scoped venture_quote_inbox table with forced RLS, bound GET/POST/promote/dismiss routes using existing permissions, and review/promote/dismiss UI in tools/venture.html), update build-state counts, and remove Saved-quote inbox from Next increments.
 -->
 # Venture Plan
+
+1.5.7 adds the **Saved-quote inbox** inside the **Assumptions** tab of `tools/venture.html`, backed by the pure deterministic quote document parser (`src-routes/venture-quote-parser.ts` / `routes/venture-quote-parser.js`) and the owner-scoped `venture_quote_inbox` table (`migrations/006-venture-quote-inbox.sql` + `migrations/native/002-venture-quote-inbox.sql`). Operators attach or paste supplier quotes (`.txt`, `.csv`, `.md`, `.eml`, or selectable-text `.pdf`; image-only PDFs honestly note that no selectable text was found), review the extracted candidate fields (vendor, exact integer micro-currency unit price, currency, MOQ, lead time days, incoterm, quote ref, SHA-256 digest, and plain-English extraction notes) — nothing ever auto-commits — and explicitly **Promote to Quotes** (enforcing the exact foreign-currency `fxAssumptionId` contract and stamping the quote's provenance notes with the source filename and SHA-256) or **Dismiss**. All four routes bind in `authorization.yaml` strictly to existing `[venture.read]` and `[venture.change]` permissions. Proven by `tests/venture-quote-inbox.test.js` and `tests/venture-quote-inbox-browser.test.mjs` (registered in `tests/test-lab.yaml`).
+
+1.5.6 adds the **FX Evidence Console and foreign-currency quote binding** inside the **Assumptions** tab of `tools/venture.html`, backed by the pure decimal-string helper `tools/venture-fx-console.js`. Operators record immutable, sourced exchange-rate snapshots (`POST /api/venture/ventures/:id/fx-assumptions`) using exact string-to-integer nano-unit parsing (`1.085` -> `1085000000`, zero floating-point error), inspect saved snapshots (`GET /api/venture/ventures/:id/fx-assumptions/:fxId`) with safe `http:`/`https:` link handling and zero Edit/Delete actions, and bind foreign-currency supplier quotes (`POST /api/venture/ventures/:id/quotes`) to a recorded FX snapshot with live exact BigInt conversion previews matching `routes/venture-currency.js`. Saved foreign quote rows display both the original supplier currency amount and the converted reporting-currency amount alongside the FX snapshot provenance badge; quotes in a currency lacking a recorded snapshot are refused inline. No route, schema, or `authorization.yaml` changes were needed. Proven by `tests/venture-fx-console.test.js` and `tests/venture-fx-console-browser.test.mjs` (registered in `tests/test-lab.yaml`).
+
+1.5.5 adds **side-by-side scenario compare** across 2 to 10 saved scenarios for a venture. The pure deterministic module (`src-routes/venture-compare.ts` / `routes/venture-compare.js`) runs each selected scenario through `buildVentureModel` with zero model calls and zero floats in financial math, computes exact integer micro-currency and basis-point deltas against a chosen baseline, rolls up publishability and weakest-confidence posture per scenario, and surfaces every differing assumption (value or confidence) and scenario lever. The owner-scoped read-only route `GET /api/venture/ventures/:id/scenarios/compare` is bound in `authorization.yaml` to existing `[app.open, venture.read]` permissions, and the **Compare** tab in `tools/venture.html` renders selection checkboxes, baseline switching, deltas, and differing assumptions via `textContent`. Proven by `tests/venture-compare.test.js` and `tests/venture-compare-browser.test.mjs` (registered in `tests/test-lab.yaml`).
 
 1.5.1 makes the schema setup at api boot safe to run twice at once. Every boot builds the console and the rebaseline-tick routers in one go and each starts the package's whole schema bootstrap; the two ran side by side and PostgreSQL sometimes aborted one with `deadlock detected` (40P01), logged as "venture rebaseline schema bootstrap failed" (the tick router keeps that failure, so an activated scheduled tick would then fail on every run until the package's routes are mounted again). On a first install the same pair failed on duplicate catalog rows (23505). The bootstrap now runs in one transaction behind a package-owned advisory lock (`VENTURE_SCHEMA_LOCK_KEY`), so the second run waits for the first. Proven against a disposable PostgreSQL by `tests/venture-schema-postgres.test.mjs` (Test Lab case `schema-bootstrap-postgres`): 1.5.0 fails it, 1.5.1 passes. No route, migration or authorization change.
 
@@ -133,14 +142,14 @@ Counts below were produced by running the command in the last column, not typed 
 
 | | Value | Derived by |
 |---|---:|---|
-| Modules (source) | 36 | `ls src-routes/*.ts \| wc -l` |
-| Compiled modules (what the framework loads) | 36 | `ls routes/*.js \| wc -l` |
-| Test suites | 23 | `ls tests/*.test.js \| wc -l` |
-| Tests, passing | 294 / 294 | `node --test "tests/*.test.js"` |
+| Modules (source) | 42 | `ls src-routes/*.ts \| wc -l` |
+| Compiled modules (what the framework loads) | 42 | `ls routes/*.js \| wc -l` |
+| Test suites | 35 | `ls tests/*.test.js \| wc -l` |
+| Tests, passing | 371 / 371 | `node --test "tests/*.test.js"` |
 | Kernel-boundary tests, passing | 12 / 12 | `OSHAL_CORE_ROOT=<core checkout> node --test tests/venture-catalog-kernel.core.spec.mjs` |
 | Boot-time schema bootstrap on a disposable PostgreSQL, passing | 3 / 3 (20 installed + 20 first-install boots) | `OSHAL_CORE_ROOT=<core checkout> node --test tests/venture-schema-postgres.test.mjs` (Docker, local `postgres:16-alpine` image) |
 | Personas | 4 | `ls personas/*.yaml \| wc -l` |
-| Migrations | 5 | `ls migrations/*.sql \| wc -l` |
+| Migrations | 6 | `ls migrations/*.sql \| wc -l` |
 | Documents in the worked example | 23 | `ls examples/pumpkin/[0-9]*.md \| wc -l` |
 | Scenarios in the worked example | 21 | `node examples/pumpkin/regenerate.js` (first line) |
 | Channel shapes modelled | 4 | direct, marketplace, big-box, distributor |
@@ -192,9 +201,7 @@ A plausible number is the failure mode this application is built around. If it e
 ## Next increments (not built)
 
 - **Live acceptance for rebaseline scheduling.** The package policy, dry-run service tick, idempotent run, measured-cost gate, first-class kernel service-route schedule and the 1.5.0 catalog are built and locally exercised. The dated live walk is automated (`tests/rebaseline-live-acceptance.mjs`, registered as `rebaseline-live-acceptance`) and has not run; until the service-class decision above is made it fails at the opted-in run's first analyst call, by design of the kernel's owner pin. Real forced-RLS, provider, and deployed scheduler evidence still require an authorized environment; no local test is represented as that live proof.
-- **FX console workflow and automated rate ingestion.** The backend accepts immutable, sourced FX evidence and binds foreign quotes today; the cockpit still needs an evidence-entry/selection view. Any future rate feed must save the observed response as a new snapshot rather than mutate prior quotes.
-- **Side-by-side scenario compare.** Scenarios exist and compute; comparing N of them in one view does not.
-- **A saved-quote inbox.** Today a quote is entered by hand. Attaching the quote document and reading the figure off it is the obvious next step and the point where the register stops being tedious.
+- **Automated live FX rate ingestion.** The 1.5.6 FX Evidence Console lets operators record immutable, sourced FX snapshots and bind foreign-currency supplier quotes in the cockpit today. Automated ingestion from an external rate feed is not built yet; any future rate feed must save the observed response as a new append-only snapshot rather than mutate prior quotes.
 - **Live supplier directory lookups.** Deliberately absent: a directory search that returns plausible-looking suppliers nobody has contacted would re-introduce exactly the confidence this package exists to remove.
 
 ## AI Test Lab registration

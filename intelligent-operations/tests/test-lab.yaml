@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 48 | maintainer@emeraldcoastsystemsgroup.com | 1.9.8 (NAV-02): register operations-nav-phone (tests/operations-nav-phone.test.cjs: single-row phone horizontal scrollable navigation and tab strips with >=44px nowrap touch targets, <=60px primary nav height, active-item reveal and zero document overflow at 412x915 and 360x800, plus embedded phone and 1440x900 desktop checks).
 # 47 | maintainer@emeraldcoastsystemsgroup.com | 1.9.7 (R21): register response-manifest-diff (tests/response-manifest.test.cjs: deterministic response-plan manifest builder, bounded line-by-line unified diff, plan-to-plan comparison, explicit non-authorization notice, XSS-safe textContent diff rendering, stale-response guard, 403 refusal clearing, and 1440x900/412x915 layout fit).
 # 46 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): register kubernetes-node-alerts (tests/node-alerts.test.cjs: kubernetes-node alert schema/intake, Alertmanager ingest mapping, OTLP telemetry & evidence inventory facts, temporal graph RUNS_ON correlation, historical as-of fidelity, automatic tick correlation, sandbox replay, and Systems/Explorer UI projection).
 # 45 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 (Option 1 — Ticket + Per-User Workspace + Workflow): register ops-specialist-workflow (tests/ops-specialist-workflow.test.cjs: untrimmed >4,000-char packets up to 64 KiB on ops-specialist tickets, getAcceptedWork digest verification, confirmed Stop ticket cancellation, access-clear safety, and ops-concierge chat window) replacing ops-chat-turn-contract, and update ops-one-chat-window for ops-concierge.
@@ -1039,5 +1040,20 @@ cases:
     prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:express, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role and close the browser and loopback server. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: operations-nav-phone
+    name: Phone single-row navigation and tab strips (NAV-02)
+    purpose: "Guard 1.9.8 (NAV-02) in headless Chromium at 412x915, 360x800 and 1440x900: verify primary Operations nav, topbar, .operator-tabs, .seg-tabs, .git-tabs, .ticket-filters, .replay-choices, .console-chips and ui/index.html nav render on one horizontally scrollable row on phones with >=44px nowrap touch targets, <=60px primary nav height, active-item reveal, zero horizontal page overflow, clean embedded framing, and preserved desktop sidebar layout."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/operations-nav-phone.test.cjs] }
+    expected:
+      - "At 412x915 and 360x800, every visible primary and secondary navigation strip renders on strictly 1 row (distinctTopRows === 1) with flex-wrap nowrap."
+      - "Primary Operations nav height stays at or below 60px, every nav and tab item has >=44px touch target height and single-line text, and active items scroll horizontally into view."
+      - "Embedded iframe mode hides the standalone primary nav while keeping secondary tab strips single-row with zero document horizontal overflow."
+      - "Desktop 1440x900 preserves the vertical sidebar navigation with zero horizontal overflow and zero page errors."
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "Close the headless Chromium browser and loopback fixture server." }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never

@@ -3,6 +3,8 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | First Venture Plan authorization catalog (ADR-149, 1.5.0). A system activation of the hourly rebaseline tick (ADR-157) is refused 409 authorization_service_catalog_required for a protected package with no catalog, so the package now declares one: every route it mounts is bound once, its four bots are bound, and the tick has its own permission, venture.rebaseline, which no role grants: only the application's service principal holds it, and only while a swarm administrator's system activation of rebaseline-policy-tick is live. Until now the package had no catalog and, under enforce, admitted only callers holding the application's @app-admin assignment; that posture is mirrored, not widened: one member role carries the whole app.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: bind read-only GET /ventures/:id/scenarios/compare to existing [app.open, venture.read] permissions (no new permissions, roles, or resources).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: bind Saved-quote inbox routes (GET/POST /ventures/:id/quote-inbox, POST promote/dismiss) to existing [venture.read] and [venture.change] permissions (no new permissions, roles, or resources).
 #
 # One resource with `own` scope only. Row ownership stays where it always was: every handler
 # resolves the caller's subject before any query and puts it in every statement, and the tables
@@ -84,8 +86,13 @@ bindings:
     - { id: fx-assumption-create, method: POST, path: /ventures/:id/fx-assumptions, allOf: [venture.change] }
     - { id: quotes, method: GET, path: /ventures/:id/quotes, allOf: [venture.read] }
     - { id: quote-create, method: POST, path: /ventures/:id/quotes, allOf: [venture.change] }
+    - { id: quote-inbox, method: GET, path: /ventures/:id/quote-inbox, allOf: [venture.read] }
+    - { id: quote-inbox-create, method: POST, path: /ventures/:id/quote-inbox, allOf: [venture.change] }
+    - { id: quote-inbox-promote, method: POST, path: /ventures/:id/quote-inbox/:itemId/promote, allOf: [venture.change] }
+    - { id: quote-inbox-dismiss, method: POST, path: /ventures/:id/quote-inbox/:itemId/dismiss, allOf: [venture.change] }
     # Scenarios and the free deterministic engine.
     - { id: scenarios, method: GET, path: /ventures/:id/scenarios, allOf: [venture.read] }
+    - { id: scenario-compare, method: GET, path: /ventures/:id/scenarios/compare, allOf: [app.open, venture.read] }
     - { id: scenario-create, method: POST, path: /ventures/:id/scenarios, allOf: [venture.change] }
     - { id: scenario-update, method: PATCH, path: /ventures/:id/scenarios/:scenarioId, allOf: [venture.change] }
     - { id: model-compute, method: POST, path: /ventures/:id/model, allOf: [venture.change] }

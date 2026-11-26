@@ -210,3 +210,25 @@ cases:
       cleanup: Close Chromium, servers, pools, disposable container and temporary package data directory.
     limits: {timeoutMs: 180000, maxMemoryMb: 2048}
     installation: never
+
+  - id: story-parity
+    name: Creative Studio 1.5.2 story production parity and persona tool audit
+    purpose: >-
+      Verify CREATE-TOOL-CREATIVE-STUDIO-01 through -05 end to end across route-backed API tools, all three persona
+      files, owner-scoped PostgreSQL 16 forced-RLS story production routes, and real Chromium desktop and mobile UI.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/story-parity.test.mjs]}
+    expected:
+      - "Every creative-studio tool uses executorType api under /api/creative-studio with matching authorization bindings."
+      - "Every persona in creative-studio/personas names only real API tools declared in oshal-app.yaml."
+      - "Make the next story reports no-worker plainly on 503 and queues/records stories into Recorded work when a worker is online."
+      - "Story library shows Made and Not made yet badges and lets people or tools choose any story by slug or title."
+      - "Custom story form and POST /stories/produce persist title, script, sceneCount 1..12, and shape 16:9, 9:16, or 1:1 with zero horizontal overflow at 1440x900 and 412x915."
+    prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, service:docker-local-postgres16, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/fixtures/editor-source-postgres.fixture.mjs]
+      cleanup: Close Chromium, servers, pools, and the disposable PostgreSQL container.
+    limits: {timeoutMs: 180000, maxMemoryMb: 2048}
+    installation: never

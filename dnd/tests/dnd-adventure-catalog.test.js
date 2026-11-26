@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove the multi-campaign catalog has complete story arcs, valid shared clue graphs, distinct themes, and packaged map art.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Cover The Ashen Citadel 5-chapter Level 1-5 campaign arc and scene.mapId map resolution.
  */
 
 'use strict';
@@ -41,10 +42,15 @@ function validateLeadGraph(scene) {
   });
 }
 
-test('catalog preserves the starter and adds four original campaign worlds', () => {
+test('catalog preserves the starter and adds five original campaign worlds', () => {
   assert.equal(catalog.adventure.id, 'goblin-ambush');
   addedIds.forEach((id) => assert.equal(resolveAdventure(catalog, id).id, id));
-  assert.equal(new Set(catalog.adventures.map((entry) => entry.theme && entry.theme.id)).size, 5);
+  const arc = resolveAdventure(catalog, 'ashen-citadel');
+  assert.equal(arc.id, 'ashen-citadel');
+  assert.equal(arc.scenes.length, 5);
+  assert.equal(arc.scenes.at(-1).next, null);
+  assert.equal(new Set(catalog.adventures.map((entry) => entry.theme && entry.theme.id)).size, catalog.adventures.length);
+  assert.ok(catalog.adventures.length >= 6);
 });
 
 test('every added campaign has beginning, middle, climax, and falling action', () => {
@@ -66,7 +72,8 @@ test('investigations package valid shared clues and every scene has map art', ()
   for (const adventure of catalog.adventures) {
     for (const scene of adventure.scenes || []) {
       assert.equal(resolveScene(catalog, scene.id).id, scene.id);
-      assert.ok(fs.existsSync(path.join(dataDir, 'maps', `${scene.id}.jpg`)), `${scene.id} map`);
+      const mapId = scene.mapId || scene.id;
+      assert.ok(fs.existsSync(path.join(dataDir, 'maps', `${mapId}.jpg`)), `${scene.id} map (${mapId})`);
       if (scene.kind === 'exploration') {
         validateLeadGraph(scene);
         assert.ok(scene.exploration.required <= scene.exploration.leads.length);

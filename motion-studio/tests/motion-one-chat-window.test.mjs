@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard every concierge entry on Motion Studio inside Today, both standalone (/cockpit/?app=motion-studio) and as Create's Motion Studio screen (/cockpit/?app=create&screen=create-motion-studio), at 412x915 with touch and at 1440x900 with a mouse. Each visible concierge entry is pressed with Playwright's own pointer actionability (never forced, never a script click) and must open Motion Studio's own one Jarvis chat window (/api/jarvis/?concierge=motion-studio&bot=motion-editor); pressing the window's own Close (.jc-header .jc-panel-close) must close the phone's Concierge sheet and leave the editor free to take the next press on Layers.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4: serve canvas-overlay.mjs, timeline-drag.mjs and history-sheet.mjs alongside existing workbench UI modules in the fixture.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +32,8 @@ const PLACES = [
 const UI_FILES = [
   'workbench.mjs', 'editor-foundation-adapter.mjs', 'editor-handoff.mjs', 'workbench.css',
   'native-json.mjs', 'bundle-client.mjs', 'sha256-stream.mjs', 'value-patch.mjs',
-  'render-client.mjs', 'media-workbench.mjs', 'busy-retry.mjs',
+  'render-client.mjs', 'media-workbench.mjs', 'canvas-overlay.mjs', 'timeline-drag.mjs',
+  'history-sheet.mjs', 'busy-retry.mjs',
 ];
 
 let browser;

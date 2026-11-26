@@ -1,6 +1,8 @@
 # ADR 0016: TriageNorth is the product; the platform is a dependency
 
-Status: Product/foundation boundary directed by the operator, 20 October 2026. TriageNorth is the proposed product name; submission documents updated.
+Status: Deferred 2026-11-25 (owner): the product name matters only for a submission or a sale; the screens keep saying "Intelligent Operations" meanwhile.
+
+Status history: 2026-11-25, deferred by the owner (owner decisions review of 2026-11-25, item 21). Earlier status: Product/foundation boundary directed by the operator, 20 October 2026. TriageNorth is the proposed product name; submission documents updated.
 
 This supersedes the product naming and submission framing of ADR0001, while retaining
 its shared-framework architecture and stable `intelligent-operations` identifiers.

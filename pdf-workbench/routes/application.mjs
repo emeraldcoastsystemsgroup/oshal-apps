@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Human and held-agent requests share original PDF authority and durable revisions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Find exact saved field values through the same original-owner read boundary without exhausting model steps.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Return fresh transient contract edit keys and mount word-box, signature, view-preference, photo-to-PDF, size-reduction and OOXML export routes.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Mount guarded POST /documents/:document/export link receipt and GET /documents/:document/navigate page-jump route for concierge parity.
  */
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
@@ -75,6 +76,23 @@ function mountExtensionRoutes(router,run){
   const out=await store.convertDocument(docId,{format:body.format,revision:rev});
   return{format:out.format,type:out.type,bytes:out.bytes,sha256:out.sha256,filename:out.filename,approximateLayout:true,downloadUrl:`/api/pdf-workbench/documents/${docId}/export/${out.format}`+(rev?`?revision=${rev}`:'')};
  },true));
+ router.post('/documents/:document/export',run('export',async(req,store)=>{
+  const body=pathBody(req,'document');exact(body,['revision']);
+  const rev=body.revision===undefined?undefined:integer(body.revision,1,100),docId=id(req.params.document);
+  const saved=await store.content(docId,rev,'export');
+  const base=saved.title.replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'document';
+  const filename=base.toLowerCase().endsWith('.pdf')?base:`${base}.pdf`;
+  return{ok:true,documentId:docId,revision:saved.revision,sha256:digest(saved.data),bytes:saved.data.length,filename,downloadUrl:`/api/pdf-workbench/documents/${docId}/revisions/${saved.revision}/content`};
+ },true));
+ router.get('/documents/:document/navigate',run('read',async(req,store)=>{
+  const docId=id(req.params.document),rev=revision(req.query.revision),rawPage=req.query.page;
+  if(typeof rawPage!=='string'||!/^[1-9][0-9]*$/.test(rawPage))fail(400,'pdf_invalid_page_selection');
+  const pageNum=integer(Number(rawPage),1,LIMITS.pages);
+  const d=(await store.get(docId,rev)).document,totalPages=d.model.pages.length;
+  if(pageNum>totalPages)fail(400,'pdf_invalid_page_selection');
+  const pageObj=d.model.pages[pageNum-1];
+  return{ok:true,documentId:d.id,revision:d.revision,page:pageNum,pageId:pageObj.id,totalPages,openUrl:`/api/pdf-workbench/app?document=${d.id}&page=${pageNum}`,surfaceOp:{op:'custom',name:'pdf:go-to-page',data:{documentId:d.id,page:pageNum,pageId:pageObj.id}}};
+ }));
  router.get('/documents/:document/export/:format',run('export',async(req,store)=>{
   const out=await store.convertDocument(id(req.params.document),{format:req.params.format,revision:revision(req.query.revision)});
   return{send:res=>{res.setHeader('Content-Disposition',`attachment; filename="${out.filename}"`);res.type(out.type).send(out.data);}};

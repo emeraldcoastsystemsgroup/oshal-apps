@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): the shared inspector is the one Format inspector. With nothing selected it shows the canvas (width, height, background, transparent) and edits it through the same project operation Canvas settings used; the Font field offers the brand, basic and Office faces the deleted duplicate form listed. The navigation pane is named Layers, the status strip is gone (the Saved caption lives in the app row), the concierge says image and starts closed so the canvas keeps a third column.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: mount Flip horizontal and Flip vertical controls directly in the Format inspector and restore them on teardown.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: expose text italic, underline, line height, letter spacing, outline width and outline color in the Format inspector.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: mount Left/Center/Right text alignment buttons (#textAlignControls) inside the Format inspector beside Flip controls and restore them on teardown.
  */
 import { $, state, canEdit, dirty, edit, notify, subscribe } from './editor-state.mjs';
 import { saveProject } from './editor-projects.mjs';
@@ -132,15 +133,17 @@ export async function bindEditorFoundation() {
     subscribe, actions: { undo: () => $('undo').click(), redo: () => $('redo').click(), save: () => saveProject() } });
   // The canvas keeps its column: the concierge opens from its one entry (the Today bar's Concierge, or the pane bar) instead of starting open.
   root.querySelector('[data-editor-foundation]')?.dispatchEvent(new CustomEvent('editor-concierge:hide'));
-  const flipControls = $('flipControls'), commonProperties = root.querySelector('.ef-common-properties');
+  const flipControls = $('flipControls'), textAlignControls = $('textAlignControls'), commonProperties = root.querySelector('.ef-common-properties');
   const flipMarker = flipControls && commonProperties ? document.createComment('flip controls original position') : null;
+  const alignMarker = textAlignControls && commonProperties ? document.createComment('text align controls original position') : null;
   if (flipMarker) { flipControls.before(flipMarker); commonProperties.after(flipControls); }
+  if (alignMarker) { textAlignControls.before(alignMarker); (flipMarker ? flipControls : commonProperties).after(textAlignControls); }
   if (document.activeElement?.closest?.('.ef-panes')) document.activeElement.blur();
   state.foundation = foundation;
   const pendingFields = () => notify();
   root.addEventListener('editor-foundation:draft', pendingFields);
   window.addEventListener('pagehide', event => {
-    if (!event.persisted) { if (flipMarker?.parentNode) flipMarker.replaceWith(flipControls); root.removeEventListener('editor-foundation:draft', pendingFields);releaseAssistant();assistant.destroy(); foundation.destroy(); }
+    if (!event.persisted) { if (alignMarker?.parentNode) alignMarker.replaceWith(textAlignControls); if (flipMarker?.parentNode) flipMarker.replaceWith(flipControls); root.removeEventListener('editor-foundation:draft', pendingFields);releaseAssistant();assistant.destroy(); foundation.destroy(); }
   }, { once: true });
   return foundation;
 }

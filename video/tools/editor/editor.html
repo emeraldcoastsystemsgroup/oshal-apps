@@ -5,6 +5,7 @@
 3 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): add live preview composite canvas, underlay video element, SVG sticker overlay layer and timed caption overlay inside the preview screen.
 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: run editor-concierge-early.js synchronously before the editor module graph so Today steps its floating ball aside at first paint and preserves any Concierge press that arrives while modules load.
 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: add #projectAspectRatio selector (16:9 Landscape, 9:16 Vertical, 1:1 Square) and .screen-stage aspect-ratio preview wrapper.
+6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: add uploaded media library panel (#uploadedMediaSection), #duplicateSegment and #multiDuplicate clip controls.
 -->
 <html lang="en" data-theme="graphite" data-ds-category="editor" data-ds-first-action="file:video">
 <head>
@@ -58,6 +59,11 @@
         <p id="motionImportStatus" class="muted small" role="status">Motion renders must be H.264 MP4, up to 30 seconds and 100 MB.</p>
         <ul id="motionSources" class="list"></ul>
       </details>
+      <div id="uploadedMediaSection" class="uploaded-media-section">
+        <div class="row"><h3>Uploaded library</h3><button id="refreshUploadedMedia" type="button">Refresh uploads</button></div>
+        <p id="uploadedMediaStatus" class="muted small" role="status"></p>
+        <ul id="uploadedMedia" class="list"></ul>
+      </div>
       <ul id="sources" class="list"></ul>
     </section>
     <section class="panel preview" aria-labelledby="previewHeading">
@@ -98,6 +104,7 @@
         <label>Clip volume <input id="segmentVolume" type="range" min="0" max="200" step="5"> <output id="segmentVolumeValue">100%</output></label>
         <div class="row">
           <button id="split" type="button">Split at playhead (S)</button>
+          <button id="duplicateSegment" type="button">Duplicate clip</button>
           <button id="moveLeft" type="button">Move earlier ([)</button>
           <button id="moveRight" type="button">Move later (])</button>
           <button id="removeSegment" type="button">Remove (Delete)</button>
@@ -130,7 +137,7 @@
           <label>Fade in frames<input id="multi-fadeIn" type="number" min="0" max="1800" step="1"></label>
           <label>Fade out frames<input id="multi-fadeOut" type="number" min="0" max="1800" step="1"></label>
           <div id="multiVideoEffects" class="row"><label>X %<input id="multi-x" type="number" min="-100" max="100" step="1"></label><label>Y %<input id="multi-y" type="number" min="-100" max="100" step="1"></label><label>Scale %<input id="multi-scale" type="number" min="10" max="200" step="1"></label><label>Opacity %<input id="multi-opacity" type="number" min="0" max="100" step="1"></label><label>Brightness<input id="multi-brightness" type="number" min="-100" max="100" step="1"></label><label>Contrast %<input id="multi-contrast" type="number" min="0" max="300" step="1"></label><label>Saturation %<input id="multi-saturation" type="number" min="0" max="300" step="1"></label><label>Fade style<select id="multi-transition"><option value="dissolve">Dissolve</option><option value="black">Fade through black</option></select></label><label><input id="multi-audioEnabled" type="checkbox">Include source sound</label></div>
-          <div class="row"><label>Split at timeline frame<input id="multiSplitFrame" type="number" min="1" max="1799" value="30"></label><button id="multiSplit" type="button">Split</button><button id="multiRemove" type="button">Remove</button><button id="multiRipple" type="button">Ripple delete</button></div>
+          <div class="row"><label>Split at timeline frame<input id="multiSplitFrame" type="number" min="1" max="1799" value="30"></label><button id="multiSplit" type="button">Split</button><button id="multiDuplicate" type="button">Duplicate clip</button><button id="multiRemove" type="button">Remove</button><button id="multiRipple" type="button">Ripple delete</button></div>
           <p class="muted small">Ripple removes the same time range across tracks. Split any other clips crossing that range first.</p>
           <div class="row"><label>Linked audio track<select id="multiAudioTrack"></select></label><button id="multiExtractAudio" type="button">Extract linked audio</button><button id="multiUnlink" type="button">Unlink</button></div>
           <div class="row"><label>Keyframe property<select id="multiKeyProperty"><option value="x">X %</option><option value="y">Y %</option><option value="scale">Scale %</option><option value="opacity">Opacity %</option><option value="volume">Volume %</option></select></label><label>Clip-local frame<input id="multiKeyFrame" type="number" min="0" max="1799" value="0"></label><label>Value<input id="multiKeyValue" type="number" value="100"></label><label>Interpolation<select id="multiKeyInterpolation"><option value="linear">Linear</option><option value="hold">Hold</option></select></label><button id="multiAddKey" type="button">Set keyframe</button></div><ul id="multiKeys" class="list"></ul>

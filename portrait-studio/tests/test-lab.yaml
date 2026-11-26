@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.17.8 (Roger, 2026-11-17, production: Create's Portrait screen opened Create's concierge): register one-chat-window (every concierge entry on Portrait Studio, alone and as Create's Portrait screen, on the studio and on Your portraits, opens Portrait Studio's own chat window), and restate studio-steps and durable-source-projects for the page's own concierge.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.17.10: register portrait-tool-parity and portrait-gallery-parity test suites covering CREATE-TOOL-PORTRAIT-01, -02, -03, and -09.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -363,4 +364,43 @@ cases:
     sideEffects: none
     isolation: {mode: none}
     limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never
+
+  - id: portrait-tool-parity
+    name: Portrait Studio concierge tool parity and API controls
+    purpose: "Verify all 10 new concierge tools, existing-permission bindings, owned JSON portrait creation, finished and failed row reruns with daily cap enforcement, and gallery rename, delete, export-link, and handoff routes."
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/portrait-tool-parity.test.cjs]
+    expected:
+      - "All 10 parity tools (portrait-list, portrait-read, portrait-catalog, portrait-provider-status, portrait-create, portrait-rerun, portrait-rename, portrait-delete, portrait-export, portrait-handoff) are bound to existing permissions only."
+      - Owned JSON creation and finished/failed reruns enforce ownership, scope-spoof rejection, and daily cap limits.
+      - Gallery rename, delete, named export links, and cross-app handoff links validate closed catalogs and reject foreign or missing IDs.
+    prerequisites: [runner:node-test, runtime:canonical-store-toolchain]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Closes the ephemeral loopback server and deletes its temporary fixture directory.
+    limits: {timeoutMs: 30000, maxMemoryMb: 512}
+    installation: never
+
+  - id: portrait-gallery-parity
+    name: Portrait Studio gallery Run again and controls in Chromium
+    purpose: "Drive tools/portrait-studio.html in Chromium at 1440x900 and 412x915 to prove Run again on finished and failed rows with inline status feedback and gallery actions."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/portrait-gallery-parity.test.mjs]
+    expected:
+      - Run again renders on both finished and failed gallery rows for callers with create permission and refreshes the gallery with inline status feedback.
+      - Readers without create permission see no Run again button; zero horizontal overflow and zero page errors occur at desktop and mobile viewports.
+    prerequisites: [runner:node-test, browser:chromium, runtime:canonical-store-toolchain, source:kernel-shared-ui]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Closes disposable Chromium contexts and the loopback fixture server.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
     installation: never

@@ -3,6 +3,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "we are missing the page to put in my experience"): the job-level edits the Work history page and the concierge's approved patch make to the main résumé. A job's title, employer, start and end month change against their exact current text; a job is added, moved or removed; a bullet is moved. Every edit runs inside master_edit.apply_edits, so it is revision-checked, all or nothing, backed up and audited like every other main-résumé edit, and restore() is Undo: it puts back the exact earlier profile from that backup only while nothing changed after it.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: a Work history card of four edits answered "item index must be an integer from 0 to 0"): an edit finds its job and its bullet through card_targets (the exact title, and employer when named, where the concierge read it or where the card's earlier edits left it; the bullet by its exact text), so a later edit of one card is never numbered off by an earlier one. A job removal or move may repeat its place as index. A new job's place, a move's new place, a set's quoted value and a check of a touched job refuse in words that name the job.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION (BACKLOG "A role's location"; employer forms such as Workday ask where each job was): a job's location is one more job detail a change sets against its exact current text (key location), through the same revision-checked, backed-up, audited edit with Undo. It is optional free text (City, State as the person writes it, a state abbreviation kept as typed), its spacing tidied, at most LOCATION_MAX_CHARS; an empty one takes the key away, so a job with no location reads exactly as before.
 """Job-level (work history) edits of the owner's master profile, and Undo."""
 from __future__ import annotations
 
@@ -13,12 +14,14 @@ import re
 from . import card_targets, config, profile, role_hierarchy
 from .card_targets import CardRefusal, plural, shown
 
-ROLE_KEYS = ('title', 'org', 'start', 'end')
-KEY_WORDS = {'title': 'job title', 'org': 'employer', 'start': 'start month', 'end': 'end month'}
+ROLE_KEYS = ('title', 'org', 'start', 'end', 'location')
+KEY_WORDS = {'title': 'job title', 'org': 'employer', 'start': 'start month', 'end': 'end month', 'location': 'location'}
 MAX_ROLES = 60
 ANCHOR_MAX_CHARS = 200
+LOCATION_MAX_CHARS = 120
 UNDO_SEARCH = 30
 _MONTH = re.compile(r'[0-9]{4}(-(0[1-9]|1[0-2]))?')
+_CONTROL = re.compile(r'[\x00-\x1f\x7f]')
 
 
 def role_value(role: dict, key: str) -> str:
@@ -35,20 +38,43 @@ def _new_id(roles: list) -> str:
     return f'r{number}'
 
 
+def location_text(value) -> str:
+    """@description A location as it is saved: the person's own words on one line with its spacing tidied, at most
+    LOCATION_MAX_CHARS. Nothing is looked up, expanded or guessed: "Austin, TX" stays "Austin, TX".
+    @param value the typed location @returns str; raises ValueError"""
+    if not isinstance(value, str):
+        raise ValueError('location must be a string')
+    text = ' '.join(value.split())
+    if _CONTROL.search(text):
+        raise ValueError('a location is one line of plain text')
+    if len(text) > LOCATION_MAX_CHARS:
+        raise ValueError(f'location exceeds {LOCATION_MAX_CHARS} characters')
+    return text
+
+
+def _anchor_value(key: str, value) -> str:
+    if key == 'location':
+        return location_text(value)
+    return profile._bounded_master_str(value, ANCHOR_MAX_CHARS, KEY_WORDS[key])
+
+
 def _set_anchor(raw: dict, edit: dict, changelog: list, touched: list, card) -> bool:
     index, role = card_targets.find_job(card, raw, edit)
     key = edit.get('key')
     if key not in ROLE_KEYS:
-        raise CardRefusal('a job change sets its job title, employer, start month or end month')
+        raise CardRefusal('a job change sets its job title, employer, start month, end month or location')
     current = role_value(role, key)
     if edit['before'] != current:
         raise CardRefusal(f'the {KEY_WORDS[key]} of {card.name(role)} reads "{shown(current) or "nothing"}" now, '
                           f'not "{shown(edit["before"]) or "nothing"}"')
-    value = profile._bounded_master_str(edit['value'], ANCHOR_MAX_CHARS, KEY_WORDS[key])
+    value = _anchor_value(key, edit['value'])
     touched.append(role)
     if value == current:
         return False
-    role[key] = None if key == 'end' and value == '' else value
+    if key == 'location' and value == '':
+        role.pop('location', None)
+    else:
+        role[key] = None if key == 'end' and value == '' else value
     changelog.append(f'role {index + 1} ({role_value(role, "title")}) {key} set')
     return True
 

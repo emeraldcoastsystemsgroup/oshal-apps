@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bind read-only native effect index/schema tools on existing view grants.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind original-read exact key metadata and tick previews.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: bind revision-pinned composition audio window previews on own read grants.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-05): bind preview-frame HTTP route and motion-preview tool on existing own view/read grants.
 version: 1
 resources:
   projects:
@@ -303,6 +304,12 @@ bindings:
     - id: exact-preview
       method: GET
       path: /projects/:id/revisions/:revision/preview-ticks/:timeTicks/:compId/:maxSide/:transparent
+      allOf:
+        - project.view
+        - project.read
+    - id: preview-frame
+      method: GET
+      path: /projects/:id/revisions/:revision/preview-frame/:timeTicks/:compId/:maxSide
       allOf:
         - project.view
         - project.read
@@ -622,6 +629,8 @@ bindings:
       allOf: [project.view, project.read, project.export]
     - id: motion-list-renders
       allOf: [project.view, project.read, project.export]
+    - id: motion-preview
+      allOf: [project.view, project.read]
   bots:
     - id: f14c20b6-15c5-4c5c-930d-2cc4b28c1d7f
       allOf:

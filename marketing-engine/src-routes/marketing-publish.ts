@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Publish rails and channel consent for the marketing-engine API, moved verbatim out of marketing-routes.ts at the 800-line decomposition threshold: the LinkedIn/Mastodon/Bluesky/email rails and the shared connector-action invocation behind them, the rail dispatcher, the consent→cap→confirm gate with its run-ledger outcome mapping, and the 428-gated per-channel consent PUT. Gate order, status codes, error codes and hints are unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.9: default email fallback subject names Open Swarm update.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: enforce owner compliance settings (sender identity, physical postal address, unsubscribe link) and multipart HTML + plain-text email lint before calling Resend; refuse 422 with skipped_compliance ledger outcome when incomplete.
  *
  * @module marketing-publish
  */
@@ -19,6 +20,7 @@ import {
   type ConnectorActionAuditPool, type ConnectorSpec,
 } from '@/app/connectors/runtime';
 import { postToBluesky } from './marketing-bluesky-operation';
+import { resolveEmailComplianceForItem } from './marketing-compliance';
 import { publishDecision } from './marketing-model';
 import {
   CHANNELS, EMAIL_RE, countLedgerToday, loadSpecSafe, rows, specHasAction, type RailResult,
@@ -65,11 +67,30 @@ async function publishBlueskyRail(ctx: AppContext, sub: string, text: string): P
   return { ok: false, status: 502, error: result.error || 'bluesky_failed' };
 }
 
-/** One email via the Resend connector write action; from is deployment config, to is explicit. */
+/** Format sender From header from deployment config or saved compliance identity. */
+function resolveEmailFrom(senderName: string, senderEmail: string): string {
+  const envFrom = (process.env.MARKETING_EMAIL_FROM || '').trim();
+  if (envFrom) return envFrom;
+  if (!senderEmail) return '';
+  return senderName ? `${senderName} <${senderEmail}>` : senderEmail;
+}
+
+/** One email via the Resend connector write action; compliance lint runs fail-closed before send. */
 async function publishEmail(ctx: AppContext, sub: string, item: any, body: Record<string, unknown>): Promise<RailResult> {
-  const from = (process.env.MARKETING_EMAIL_FROM || '').trim();
+  const resolved = await resolveEmailComplianceForItem(ctx.pool, sub, item, { unsubscribeUrl: body.unsubscribeUrl });
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      status: 422,
+      error: resolved.publishError || 'template_compliance_failed',
+      hint: resolved.hint,
+      outcome: 'skipped_compliance',
+      reasons: resolved.reasons,
+    };
+  }
+  const from = resolveEmailFrom(resolved.settings.senderName, resolved.settings.senderEmail);
   if (!from) {
-    return { ok: false, status: 503, error: 'email_from_unconfigured', hint: 'Set MARKETING_EMAIL_FROM to a verified sender address.' };
+    return { ok: false, status: 503, error: 'email_from_unconfigured', hint: 'Set MARKETING_EMAIL_FROM or a Compliance sender email address.' };
   }
   const to = typeof body.to === 'string' ? body.to.trim() : '';
   if (!EMAIL_RE.test(to)) return { ok: false, status: 400, error: 'invalid_recipient', hint: 'Pass a single valid email address as "to".' };
@@ -77,8 +98,8 @@ async function publishEmail(ctx: AppContext, sub: string, item: any, body: Recor
   if (!spec || !specHasAction(spec, 'send-email')) {
     return { ok: false, status: 503, error: 'channel_unavailable', hint: 'core connector spec missing send-email' };
   }
-  const subject = String(item.title || '').trim() || 'Open Swarm update';
-  return runSpecAction(ctx, sub, spec, 'send-email', { from, to, subject, text: String(item.body) }, 'email_rejected');
+  const subject = String(resolved.subject || item.title || '').trim() || 'Open Swarm update';
+  return runSpecAction(ctx, sub, spec, 'send-email', { from, to, subject, html: resolved.html, text: resolved.text }, 'email_rejected');
 }
 
 /** Shared connector-action invocation → RailResult (confirm:true only ever passed post-gate). */

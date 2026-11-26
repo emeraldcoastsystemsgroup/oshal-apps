@@ -14,6 +14,7 @@
   10 | maintainer@emeraldcoastsystemsgroup.com | + New character carries data-ef-floating (kernel PR #197), so on a phone the shell orb rests above it instead of on it.
   11 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01 and design-standard sweep: add multi-photo Upload photos from this device (file picker, drag-and-drop, modal crop/framing canvas, per-photo captioning, owner-scoped preview thumbnails) in Step 2 Dataset while keeping Send-to import alongside; align controls, radii, type scale, focus rings, overscroll, inline discard confirmation, and phone Back drawer dismissal with DS-00..DS-45.
   12 | maintainer@emeraldcoastsystemsgroup.com | 1.10.5: LoRA Studio carries its own concierge, the kernel's one Jarvis chat window (createRegisteredEditorAssistant as lora-director), starting closed at every width so Today hides its floating ball and its bar's Concierge (and the phone's bottom bar Concierge) opens LoRA Studio's own window both standalone and inside Create (create-lora). New character start and the phone character list name no document so general character and model turns reach lora-director directly; selecting a saved character hands over its UUID, subject and revision; + New character steps aside while a phone sheet or panel is open.
+  13 | maintainer@emeraldcoastsystemsgroup.com | 1.10.6 (CREATE-TOOL-LORA-02, CREATE-TOOL-LORA-13): surface per-character datasetCount and trainingState badges on #chars and #phoneChars, and add an inline-confirmed Delete version button (with explicit active-version warning, no native browser confirm dialog) on every version card in #vers.
 -->
 <html lang="en" data-theme="light-blue" data-ds-category="studio" data-ds-first-action="tap">
 <head>
@@ -175,8 +176,8 @@
   .ver .vh { display:flex; align-items:center; gap:10px; }
   .ver .vn { font-weight:700; font-size:14px; }
   .badge { font-size:12px; text-transform:uppercase; letter-spacing:.4px; padding:2px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted); }
-  .badge.scored { color:var(--accent2); border-color:var(--accent2); }
-  .badge.training { color:var(--status-warning,#b26b00); border-color:var(--status-warning,#b26b00); }
+  .badge.scored, .badge.ready { color:var(--accent2); border-color:var(--accent2); }
+  .badge.training, .badge.validating { color:var(--status-warning,#b26b00); border-color:var(--status-warning,#b26b00); }
   .badge.failed { color:var(--status-error,#dc2626); border-color:var(--status-error,#dc2626); }
   .badge.active { color:var(--text-on-accent,#fff); background:var(--accent); border-color:var(--accent); }
   .scores { display:flex; gap:16px; margin:10px 0 4px; }
@@ -620,7 +621,7 @@ async function mountLoraWorkspace(){
     getSubject:()=>SEL,
     getDefaultCaption:()=>$('datasetCaption').value.trim()||(CHARS.find(c=>c.subject===SEL)?.trigger_word||''),
     showStatus:(kind,msg)=>showResult(kind,msg),
-    onUploaded:async(_count,msg)=>{showResult('ok',msg);if(SEL)await loadDataset(SEL);},
+    onUploaded:async(_count,msg)=>{showResult('ok',msg);if(SEL){await loadChars();await loadDataset(SEL);}},
   })).catch(()=>{});
   window.addEventListener('pagehide',event=>{if(!event.persisted){loraAssistant?.destroy();loraEditor.destroy();}},{once:true});
 }
@@ -640,6 +641,7 @@ function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;'
 function fmt(n){ const value=Number(n); return Number.isFinite(value)?value.toFixed(2):'—'; }
 function safeInt(n){ const value=Number(n); return Number.isInteger(value)?value:null; }
 function safeStatus(v){ const value=String(v||'unknown'); return ['queued','training','trained','scored','failed'].includes(value)?value:'unknown'; }
+function safeTrainingState(v){ const value=String(v||'idle'); return ['idle','queued','training','validating','ready','failed'].includes(value)?value:'idle'; }
 function safeDatasetStatus(v){ const value=String(v||'unknown'); return ['queued','ready','failed'].includes(value)?value:'unknown'; }
 function safeImageUrl(v){
   if(typeof v!=='string'||v.length>2048) return '';
@@ -840,7 +842,7 @@ async function importIncomingArtifact(){
   showResult('warn','Queueing the owner-bound image for '+SEL+'…');
   const caption=$('datasetCaption').value.trim();
   const {ok,j}=await api('/dataset/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ref:ARTIFACT_REF,subject:SEL,caption})});
-  if(ok){ showResult('ok',j.message||'Image queued for the GPU worker.'); $('datasetCaption').value=''; await loadDataset(SEL); }
+  if(ok){ showResult('ok',j.message||'Image queued for the GPU worker.'); $('datasetCaption').value=''; await loadChars(); await loadDataset(SEL); }
   else { showResult(j.status===503?'warn':'err',j.message||j.error||'Image import failed.'); $('importArtifactBtn').disabled=false; }
 }
 
@@ -864,23 +866,33 @@ async function loadChars(){
   if(!ok){ empty('chars',j.error||'Failed to load'); return false; }
   CHARS = Array.isArray(j.characters)?j.characters:[];
   if(!CHARS.length){ renderNoCharacters(); $('phoneChars').innerHTML=''; paintSteps(); return true; }
-  $('chars').innerHTML = CHARS.map((c,index)=>`
+  $('chars').innerHTML = CHARS.map((c,index)=>{
+    const dsCount=safeInt(c.datasetCount??c.dataset_count)??0;
+    const tState=safeTrainingState(c.trainingState??c.training_state);
+    return `
     <div class="card ${SEL===c.subject?'sel':''}" data-char-index="${index}">
       <div class="ch">
         <div class="avatar">🧿</div>
         <div><div class="nm">${esc(c.display_name)}</div><div class="tg">trigger: <b>${esc(c.trigger_word)}</b></div></div>
+        <span class="badge ${tState}" style="margin-left:auto" data-char-state="${tState}">${esc(tState)}</span>
       </div>
       <div class="meta">
+        <span><b>${dsCount}</b> ${dsCount===1?'image':'images'}</span>
         <span><b>${safeInt(c.version_count)??0}</b> versions</span>
         <span>latest <b>v${safeInt(c.latest_version)??'—'}</b></span>
         <span>active <b>v${safeInt(c.active_version)??'—'}</b></span>
         <span>best score <b>${fmt(c.latest_score)}</b></span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   $('chars').querySelectorAll('[data-char-index]').forEach((node)=>{
     node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.charIndex)]; if(c) void select(c.subject); });
   });
-  $('phoneChars').innerHTML=CHARS.map((c,index)=>'<button type="button" class="lora-row" data-no-glass data-home-index="'+index+'"><span class="avatar" aria-hidden="true">🧿</span><span><span class="nm">'+esc(c.display_name)+'</span><span class="tg">'+(safeInt(c.version_count)??0)+' versions · best score '+esc(fmt(c.latest_score))+'</span></span></button>').join('');
+  $('phoneChars').innerHTML=CHARS.map((c,index)=>{
+    const dsCount=safeInt(c.datasetCount??c.dataset_count)??0;
+    const tState=safeTrainingState(c.trainingState??c.training_state);
+    return '<button type="button" class="lora-row" data-no-glass data-home-index="'+index+'"><span class="avatar" aria-hidden="true">🧿</span><span><span class="nm">'+esc(c.display_name)+'</span><span class="tg">'+(safeInt(c.version_count)??0)+' versions · best score '+esc(fmt(c.latest_score))+' · '+dsCount+' '+(dsCount===1?'image':'images')+' · '+esc(tState)+'</span></span></button>';
+  }).join('');
   $('phoneChars').querySelectorAll('[data-home-index]').forEach((node)=>{
     node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.homeIndex)]; if(c) void select(c.subject); });
   });
@@ -900,6 +912,7 @@ async function select(subject){
   loraEditor?.discardPending();captionObject=null;identitySource=incomingIdentity.ok?incomingIdentity.j:null;sourceUnavailableReason=incomingIdentity.ok?'':String(incomingIdentity.j.error||'The saved source editor is unavailable.');datasetObjects=incomingDataset.j.images??[];
   if($('editIdentityName')){$('editIdentityName').value=identitySource?.displayName??'';$('editIdentityName').disabled=!identitySource?.canConfigure;}
   if(DELETE_ARMED!==subject) resetDeleteCharacter();
+  DELETE_VER_ARMED=null;
   creationDraft=false; SEL = subject; HOME=false; if(fromNew&&STEP==='identity') STEP='dataset'; const c = CHARS.find(x=>x.subject===subject);
   if(!c) return;
   await loadChars();
@@ -916,20 +929,24 @@ async function select(subject){
   await loadVersions(subject); paintSteps(); loraEditor?.refresh();
 }
 
-async function loadVersions(subject){
-  $('verMeta').textContent = '· '+subject;
-  $('gallery').innerHTML=''; delete $('gallery').dataset.version;
-  const { ok, j } = await api('/models?subject='+encodeURIComponent(subject));
-  if(!ok){ empty('vers',j.error||'Failed'); return; }
-  const models = Array.isArray(j.models)?j.models:[];currentModels=models;notifySource();
+let DELETE_VER_ARMED=null;
+function deleteVersionWarning(subject, version, isActive){
+  return isActive
+    ? 'Warning: v'+version+' is the active version for '+subject+'. Deleting it clears the active version and removes its scorecard and thumbnails while leaving other versions intact. Tap "Yes, delete v'+version+'" to confirm.'
+    : 'Delete v'+version+' of '+subject+' along with its scorecard and thumbnails? Other versions remain intact. Tap "Yes, delete v'+version+'" to confirm.';
+}
+
+function renderVersions(subject){
   const c = CHARS.find(x=>x.subject===subject);
-  if(!models.length){ $('vers').innerHTML='<div class="empty">'+esc(noVersionsText())+'</div>'; return; }
-  $('vers').innerHTML = models.map((m,index)=>{
+  if(!currentModels.length){ $('vers').innerHTML='<div class="empty">'+esc(noVersionsText())+'</div>'; return; }
+  $('vers').innerHTML = currentModels.map((m,index)=>{
     const version=safeInt(m.version);
     const active = c && safeInt(c.active_version)===version;
     const status=safeStatus(m.status);
+    const key=version!=null?subject+':'+version:'';
+    const armed=Boolean(key&&DELETE_VER_ARMED===key);
     const weak = (Array.isArray(m.weak_cells)?m.weak_cells:[]).slice(0,3).map(w=>`<span>${esc(w&&w.value)}</span>`).join(', ');
-    return `<div class="ver">
+    return `<div class="ver" data-version="${version??''}">
       <div class="vh">
         <span class="vn">v${version??'—'}</span>
         <span class="badge ${status}">${esc(m.status)}</span>
@@ -947,15 +964,52 @@ async function loadVersions(subject){
       <div class="bar">
         ${m.overall!=null&&version!=null?`<button class="btn ghost sm" data-no-glass data-gallery-index="${index}">View scorecard</button>`:''}
         ${(status==='scored'&&!active&&version!=null)?`<button class="btn ghost sm" data-no-glass data-active-index="${index}">Keep as active</button>`:''}
+        ${version!=null?`<button class="btn ghost sm" data-no-glass data-delete-version="${version}" data-delete-active="${active?'1':'0'}">${armed?'Yes, delete v'+version:'Delete version'}</button>`:''}
+        ${armed?`<button class="btn ghost sm" data-no-glass data-delete-version-cancel="1">Keep v${version}</button>`:''}
       </div>
     </div>`;
   }).join('');
   $('vers').querySelectorAll('[data-gallery-index]').forEach((node)=>{
-    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.galleryIndex)]; const v=safeInt(m&&m.version); if(v!=null){ void gallery(subject,v); showStep('scorecards'); } });
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=currentModels[Number(node.dataset.galleryIndex)]; const v=safeInt(m&&m.version); if(v!=null){ void gallery(subject,v); showStep('scorecards'); } });
   });
   $('vers').querySelectorAll('[data-active-index]').forEach((node)=>{
-    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.activeIndex)]; const v=safeInt(m&&m.version); if(v!=null) void keepBest(subject,v); });
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=currentModels[Number(node.dataset.activeIndex)]; const v=safeInt(m&&m.version); if(v!=null) void keepBest(subject,v); });
   });
+  $('vers').querySelectorAll('[data-delete-version]').forEach((node)=>{
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); const v=safeInt(node.dataset.deleteVersion); if(v!=null) void deleteVersion(subject,v,node.dataset.deleteActive==='1'); });
+  });
+  $('vers').querySelectorAll('[data-delete-version-cancel]').forEach((node)=>{
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); DELETE_VER_ARMED=null; $('result').className='result'; $('result').style.display='none'; renderVersions(subject); });
+  });
+}
+
+async function deleteVersion(subject, version, isActive){
+  const key=subject+':'+version;
+  if(DELETE_VER_ARMED!==key){
+    DELETE_VER_ARMED=key;
+    renderVersions(subject);
+    showResult('warn', deleteVersionWarning(subject, version, isActive));
+    return;
+  }
+  DELETE_VER_ARMED=null;
+  showResult('warn', 'Deleting v'+version+' of '+subject+'…');
+  const { ok, j } = await api('/models/'+encodeURIComponent(subject)+'/'+version, { method:'DELETE' });
+  if(!ok){ showResult('err', j.message||j.error||'The version could not be deleted.'); renderVersions(subject); return; }
+  if($('gallery').dataset.version===String(version)){ $('gallery').innerHTML=''; delete $('gallery').dataset.version; }
+  await loadChars();
+  await loadVersions(subject);
+  showResult('ok', 'Deleted v'+version+' of '+subject+'.');
+}
+
+async function loadVersions(subject){
+  $('verMeta').textContent = '· '+subject;
+  $('gallery').innerHTML=''; delete $('gallery').dataset.version;
+  DELETE_VER_ARMED=null;
+  const { ok, j } = await api('/models?subject='+encodeURIComponent(subject));
+  if(!ok){ empty('vers',j.error||'Failed'); return; }
+  currentModels = Array.isArray(j.models)?j.models:[];
+  notifySource();
+  renderVersions(subject);
 }
 
 async function gallery(subject, version){

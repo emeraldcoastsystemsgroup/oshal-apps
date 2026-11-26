@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6, phones (Roger, trial.oswarm.ai, 2026-11-06, F6, and the trial check: no visible first action, a two-row toolbar, two empty-looking boxes): with no publication open the empty state's one primary action is New publication (the rail's own Create publication form, its defaults), with Your publications as a text link; the dead document buttons, the history and the empty-page text wait until a publication is open; the first pane is named Publications.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: the planned-control helper is optional: a platform without it opens the studio without its placeholders.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: forward board decoration and document-open hooks from the publishing shell (RP-PUB-06, RP-PUB-08).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: forward parity hooks and support editing selected master items in place via set-master (CREATE-TOOL-PUBLISHING-STUDIO-06, -07).
  */
 const geometry = ['x', 'y', 'width', 'height'];
 const textOf = paragraph => paragraph?.runs?.map(run => run.text).join('') ?? '';
@@ -74,7 +75,10 @@ export async function bindPublishingFoundation(adapter) {
   const {createPublishingShell} = await import('./publishing-shell.mjs');
   const {state, selected, page, hasDraft, requireAppliedFields, edit, actions} = adapter;
   const root = document.body, main = document.querySelector('main');
-  const selection = () => publishingSelection(state.document, page(), selected());
+  const activeItem = () => state.editingMaster
+    ? state.model?.masters.find(m => m.id === state.editingMaster)?.objects.find(o => o.id === state.masterItem) ?? null
+    : selected();
+  const selection = () => publishingSelection(state.document, page(), activeItem());
   const assistant = createEditorAssistant({app:'publishing-studio',bot:'publishing-editor',title:'Publishing concierge',root,
     prepare:adapter.prepare,refresh:adapter.refreshDocument,
     getState:()=>({documentId:state.document?.id??null,revision:state.document?.revision??null,
@@ -97,13 +101,22 @@ export async function bindPublishingFoundation(adapter) {
       error: document.getElementById('status').dataset.error === 'true' ? document.getElementById('status').textContent : null}),
     getSelection: selection,
     // One inspector (design standard §5.1): a frame's story text is edited in the Text sheet, so Arrange shows its geometry.
-    getProperties: () => publishingProperties(state.model, page(), selected()).filter(field => !(field.key === 'text' && selected()?.storyId)),
+    getProperties: () => publishingProperties(state.model, page(), activeItem()).filter(field => !(field.key === 'text' && activeItem()?.storyId)),
     applyProperty: (key, value, context) => {
       const current = selection();
       if (context.documentId !== state.document?.id || context.revision !== state.document?.revision
           || JSON.stringify(context.selection) !== JSON.stringify(current)) throw new Error('The selection changed. Select the item again before editing.');
       requireAppliedFields();
-      edit(publishingPropertyOperation(state.model, page(), selected(), key, value));
+      const item = activeItem();
+      const op = publishingPropertyOperation(state.model, page(), item, key, value);
+      if (state.editingMaster && op.op === 'set-object') {
+        const master = state.model.masters.find(m => m.id === state.editingMaster);
+        const objects = structuredClone(master.objects);
+        Object.assign(objects.find(o => o.id === item.id), op.values);
+        edit({op: 'set-master', master: master.id, objects});
+        return;
+      }
+      edit(op);
     }, actions,
   });
   main.hidden = true;
@@ -111,7 +124,7 @@ export async function bindPublishingFoundation(adapter) {
   // The typed inspector is the Arrange section's (one inspector, not a second geometry form).
   document.getElementById('pub-arrange-host').append(root.querySelector('.ef-common-properties'));
   const shell = createPublishingShell(adapter, {foundation, assistant, plannedControl});
-  Object.assign(adapter.ui, {confirm: shell.confirm, float: shell.float, painted: shell.painted, placed: shell.placed, decorateBoard: shell.decorateBoard, onDocumentLoaded: shell.onDocumentLoaded});
+  Object.assign(adapter.ui, {confirm: shell.confirm, float: shell.float, painted: shell.painted, placed: shell.placed, decorateBoard: shell.decorateBoard, onDocumentLoaded: shell.onDocumentLoaded, wirePageThumb: shell.wirePageThumb, syncParity: shell.syncParity, syncParityDisabled: shell.syncParityDisabled});
   root.dataset.editorFoundation = 'ready';
   const refresh = foundation.refresh, destroy = foundation.destroy;
   foundation.refresh = () => {assistant.refresh();refresh();};

@@ -22,11 +22,11 @@ How to read it:
 | New document with page count and size | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | `#new` (title, pages), then Trim width and height in Page, guides and master | `publishing-create-document`; `set-page` | both |
 | More than 8 pages | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked; books [I10][F8] | none. `LIMITS.pages` is 8 | none, same limit | missing |
 | Add or remove a page | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | `#add-page`, `#remove-page` | `replace-layout` | both |
-| Reorder pages | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | none. `#page-rail` only selects | `replace-layout`; linked frames must be relinked in the same edit, because `validate()` refuses backward reading order | concierge only |
+| Reorder pages | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | Drag-and-drop in `#page-rail` plus `#move-page-up` / `#move-page-down` (0.5.6) | `move-page` (auto-relinks stories in reading order) and `replace-layout` | both |
 | Facing pages | basic | ID none; Aff iPad? | ID: unchecked. Aff: yes [F1] | `#page-view` | `set-view` | both |
 | Margins, bleed, guides | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | `#page-properties`; guides typed as comma lists | `set-page` | both |
-| Edit master page items | basic | ID none; Aff iPad? | ID: yes [I1]. Aff: yes [F1] | `#master-objects`: typed JSON, then `#apply-master` | `set-master` | both |
-| Create a new master or apply one per page | basic | ID none; Aff iPad? | ID: yes [I1]. Aff: yes [F1] | Apply yes, in `#master`; create none. `initial()` makes one master, no control adds another | `replace-layout` adds a master; `set-page` applies | concierge only |
+| Edit master page items | basic | ID none; Aff iPad? | ID: yes [I1]. Aff: yes [F1] | Master canvas mode (`#toggle-master-edit`, `#master-add-*`, drag/edit on canvas); raw JSON collapsed in `#master-json-details` (0.5.6) | `set-master` | both |
+| Create a new master or apply one per page | basic | ID none; Aff iPad? | ID: yes [I1]. Aff: yes [F1] | `#new-master-name` + `#create-master`, `#apply-master-to-page`, `#master` (0.5.6) | `create-master`, `replace-layout`, `set-page` | both |
 | Page numbers | basic | ID none; Aff iPad? | ID: yes [I1]. Aff: unchecked | Place an object, Kind = Page number | `replace-layout`, `set-master` | both |
 | Linked text frames | basic | ID none; Aff iPad? | ID: unchecked. Aff: unchecked [F6] | Kind = Linked text frame; `#next-frame`, `#link-frame` | `set-link`, `set-frame`, `replace-layout` | both |
 | Move and resize items | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | Drag on the page moves (`tools/workbench.mjs`); size typed in `#geometry` | `set-frame`, `set-object` | both |
@@ -34,10 +34,10 @@ How to read it:
 | Write and replace story text | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | `#story-text`, `#replace-story`; one paragraph and one character style for the whole story | `replace-story` | both |
 | Mixed styles inside a story: a bold word, a heading paragraph then body | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | none. `#replace-story` writes one style to every line, and discards existing runs | `replace-story` with per-paragraph and per-run `style` | concierge only |
 | Change character and paragraph styles | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | Typography panel: `#character-properties`, `#paragraph-properties` | `set-character-style`, `set-paragraph-style` | both |
-| Create a new named style | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | none. Selects list existing styles only | `set-character-style` or `set-paragraph-style` with a new name | concierge only |
+| Create a new named style | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | `#new-character-style-name` + `#create-character-style`, `#new-paragraph-style-name` + `#create-paragraph-style` (0.5.6) | `set-character-style` or `set-paragraph-style` with a new name | both |
 | Fonts other than Libertinus Serif | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | none. `#font` is a field, but `validate()` refuses anything else | none, same validator | missing |
 | Place a picture | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | `#asset-upload`, Kind = Image; PNG and JPEG to 4 MiB | `publishing-import-artifact`, `publishing-list-assets`, `replace-layout` | both |
-| Replace a picture or recolour a placed item | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | none. `set-object` from the screen sends position and size only; remove and place again | `set-object` with `assetId`, `color` | concierge only |
+| Replace a picture or recolour a placed item | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | In-place `#pub-item-inplace` controls (`#item-color`, `#item-text-value`, `#replace-image-asset`) preserving geometry (0.5.6) | `set-object` (`color`, `paragraph`, `style`, `assetId`), `replace-image` | both |
 | Crop or fit a picture inside its frame | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | none | none. Object has no crop field | missing |
 | Shapes beyond rectangles; lines; stroke; opacity | basic | ID none; Aff iPad? | ID, Aff: yes, unchecked | Rectangle only, filled | Rectangle only, `kind` closed in `validate()` | missing |
 | Text wrap | basic | ID none; Aff iPad? | ID: yes [I2]. Aff: not confirmed | none | none | missing |
@@ -45,11 +45,11 @@ How to read it:
 | Tables | pro | ID none; Aff iPad? | ID: unchecked. Aff: mentioned for import [F1] | none. `CONTRACT.unsupported` | none | missing |
 | Footnotes, table of contents, index, books, cross-references | pro | ID none; Aff iPad? | ID: footnotes [I3], contents [I4], books [I10]. Aff: books [F1], contents and index [F8], cross-references [F4] | none. `CONTRACT.unsupported` names footnotes | none | missing |
 | Preflight | pro | ID none; Aff iPad? | ID: yes [I6]. Aff: yes [F7] | `#render`, `#preflight`; checks text overflow, fonts, image resolution, geometry (`engine/worker.py`) | `publishing-start-render`, `publishing-job-status` | both |
-| Export PDF and page pictures | basic | ID none; Aff iPad? | ID: yes [I7]. Aff: yes [F1] | `#export-pdf`, `#export-layout`; no button for one PNG page | `publishing-export` (`pdf`, `layout`, `preview`) | both |
+| Export PDF and page pictures | basic | ID none; Aff iPad? | ID: yes [I7]. Aff: yes [F1] | `#export-pdf`, `#export-png` (Download page PNG), `#export-layout` (0.5.6) | `publishing-export` (`pdf`, `layout`, `preview`) | both |
 | CMYK, PDF/X, spot colour | pro | ID none; Aff iPad? | ID: PDF/X [I7]. Aff: PDF/X and CMYK [F5] | none. RGB only | none | missing |
 | Package, IDML, EPUB, data merge | pro | ID none; Aff iPad? | ID: package and IDML [I5], EPUB [I8], merge [I9]. Aff: IDML import only, merge [F1]; EPUB not confirmed | none. Layout JSON download only | none | missing |
 
-Outside the table because no industry row applies: saved history works both ways (`#history`, `#restore-history`, `publishing-restore-revision`); undo and redo of a draft is UX only (`#undo`, `#redo`); deleting a publication works both ways (`#delete-document`, `publishing-delete-document`); deleting an unused asset is UX only (Delete in `#asset-list`, route `DELETE /assets/:asset`, no tool); cancelling a render works both ways (`#cancel-render`, `publishing-cancel-render`).
+Outside the table because no industry row applies: saved history works both ways (`#history`, `#restore-history`, `publishing-restore-revision`); undo and redo of a draft is UX only (`#undo`, `#redo`); deleting a publication works both ways (`#delete-document`, `publishing-delete-document`); deleting an unused asset works both ways (Delete in `#asset-list`, `DELETE /assets/:asset`, `publishing-delete-asset` in 0.5.6); cancelling a render works both ways (`#cancel-render`, `publishing-cancel-render`).
 
 ## 3. Backlog, in the order people hit it
 
@@ -65,9 +65,9 @@ Every entry must end with a control on screen and a concierge operation, per the
   Done when: a person chooses a sans serif and uploads an OTF, and the PDF embeds both; `set-character-style` accepts them; a missing font is named.
 - **CREATE-TOOL-PUBLISHING-STUDIO-05.** More than 8 pages, and no 15,000-character wall for the concierge on full documents: add page-scoped operations `add-page`, `remove-page`, `move-page`, `add-object`, `remove-object` so it stops resending the whole layout.
   Done when: a 64-page booklet is built, rendered and exported; the concierge adds a page to it in one small edit.
-- **CREATE-TOOL-PUBLISHING-STUDIO-06.** Page and master controls on screen: drag to reorder pages, create and name a master, edit master items on the canvas rather than JSON.
+- **CREATE-TOOL-PUBLISHING-STUDIO-06.** *(Delivered in 0.5.6.)* Page and master controls on screen: drag to reorder pages (`#page-rail` drag-and-drop plus `#move-page-up`/`#move-page-down` and concierge `move-page`), create and name a master (`#new-master-name`/`#create-master` and `create-master`), edit master items on the canvas (`#toggle-master-edit` and `set-master`) with raw JSON hidden by default (`#master-json-details`).
   Done when: a person does each with no typed JSON; the JSON box can be hidden.
-- **CREATE-TOOL-PUBLISHING-STUDIO-07.** Style and object controls on screen: new named style; recolour, retext or replace a placed item in place.
+- **CREATE-TOOL-PUBLISHING-STUDIO-07.** *(Delivered in 0.5.6.)* Style and object controls on screen: new named character and paragraph styles (`#new-character-style-name`, `#new-paragraph-style-name`, `set-character-style`, `set-paragraph-style`); recolour, retext or replace a placed item in place (`#pub-item-inplace`, `set-object`, `replace-image`).
   Done when: a person changes a placed rectangle's colour and swaps a picture without removing it; a new style appears in both style lists.
 - **CREATE-TOOL-PUBLISHING-STUDIO-08.** Pictures: crop, fit to frame, more file types.
   Done when: a person drags a crop on the page and the PDF matches; an operation does the same; a SVG or TIFF places.
@@ -83,7 +83,7 @@ Every entry must end with a control on screen and a concierge operation, per the
   Done when: a table of contents updates after a heading moves; footnotes number across frames; by control and by operation.
 - **CREATE-TOOL-PUBLISHING-STUDIO-14.** Interchange and reuse: IDML import, package for print, EPUB, data merge.
   Done when: a person imports a simple IDML with its text frames intact, downloads a package with fonts and images, and merges a CSV into a card template; each has a concierge tool.
-- **CREATE-TOOL-PUBLISHING-STUDIO-15.** Close the small concierge and screen gaps: `publishing-delete-asset` tool; a Download page PNG button.
+- **CREATE-TOOL-PUBLISHING-STUDIO-15.** *(Delivered in 0.5.6.)* Close the small concierge and screen gaps: `publishing-delete-asset` tool (`DELETE /api/publishing-studio/assets/{input.asset}`); Download page PNG button (`#export-png` in Share and export, alongside `publishing-export` `format=preview`).
   Done when: the concierge deletes an unused asset and refuses one in use; a person downloads the PNG of page 2.
 
 ## 4. Sources

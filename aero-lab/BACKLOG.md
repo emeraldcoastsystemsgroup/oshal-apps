@@ -158,7 +158,7 @@ certified ledger (`BOM.csv` 1998.1 g). Open:
 
 ---
 
-## The assistant cannot call its route-backed tools yet (2026-10-06)
+## The assistant cannot call its route-backed tools yet (2026-10-06) — DONE (CLOSED 2026-11-19, 1.4.7)
 
 **CLOSED 2026-11-19 (version 1.4.7).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `1.4.7` declares explicit `posture: inline` + `chatBot: aero-designer`, adds an explicit object `inputSchema` to `aero-capabilities`, verifies `personas/aero-designer.yaml` plain-prose and ```` ```tool_call ```` `{"tool": ...}` rules, and guards the manifest, persona, and route handler execution in `tests/aero-bot-tools-contract.test.cjs`.
 

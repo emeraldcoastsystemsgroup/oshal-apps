@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3: the manifest case names the release this change ships (it still named 1.14.1, so it failed on 1.14.2 as well).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: update the manifest version check to 1.14.4.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: update the manifest version check to 1.14.5.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: update the manifest version check to 1.14.6.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -162,10 +163,10 @@ test('Delete project asks in the page, never in a native dialog', async t => {
   assert.deepEqual(errors, []);
 });
 
-test('the manifest declares graphite and version 1.14.5', async () => {
+test('the manifest declares graphite and version 1.14.6', async () => {
   const manifest = await readFile(new URL('../oshal-app.yaml', import.meta.url), 'utf8');
   assert.match(manifest, /^theme: graphite$/m);
-  assert.match(manifest, /^version: 1\.14\.5$/m);
+  assert.match(manifest, /^version: 1\.14\.6$/m);
 });
 
 test('Add media withholds Generate a clip when no Vids worker is online and offers it when one is online', async t => {

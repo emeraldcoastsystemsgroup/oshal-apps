@@ -4,6 +4,8 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome): what Career does with the kernel's record of an assisted application, through the real routes on a made-up person's real store. A run in progress reads as one line (Waiting for your computer, My Experience: 2 fixed, 1 added, Waiting for you to sign in, Ready for you to submit). What the person kept on a question card (the kernel card route's kept entries, as his page hands them to POST /apply-runs/:id/kept) is written back by Career's own writers: an answer into Saved answers by its question id, a month (May, 02/2016) into that role through the real engine's revision-checked main-résumé edit and only where the record held that year alone; another run's entries and another person write nothing. An ended attempt keeps its pictures only when each matches the kernel's digest, writes apply-receipt.json in the job's folder with every change and its source, and records Submitted by you only with the verified confirmation; a mismatched result, changed pictures, Not seen and Stop record nothing; another person reads nothing.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4: a run whose work the kernel no longer answers for ends with its ticket: cancelled reads stopped, failed reads failed, and the job can be approved again.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.5: a cancelled ticket's work completed with no answer also ends the run as stopped.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -135,4 +137,30 @@ test('a changed picture or a result for other input records nothing; Not seen an
   const stopped = (await stop.sync()).body.run;
   assert.deepEqual([stopped.status, stopped.reason], ['stopped', 'You stopped it. Nothing was submitted.']);
   assert.equal((await h.call('POST', `/apply-runs/${stop.run.id}/go-on`, {}, stop.person.sub)).body.code, 'run_not_paused', 'a stopped run does not start again');
+});
+
+test('a run whose work the kernel no longer answers for ends with its ticket: cancelled is stopped, and the job can be approved again', async () => {
+  const s = await started('dana-gone');
+  await s.live('running', { attempt: 1, state: 'waiting_for_you', reason: { kind: 'field', text: 'Set these yourself.' } });
+  h.port.workGone = true;
+  h.port.ticketStatus.set(s.run.nativeTicketId || (await h.call('GET', '/apply-runs', null, s.person.sub)).body.runs.find((r) => r.id === s.run.id).nativeTicketId, 'cancelled');
+  let synced;
+  try { synced = await s.sync(); } finally { h.port.workGone = false; }
+  assert.equal(synced.code, 200, JSON.stringify(synced.body));
+  assert.deepEqual([synced.body.run.status, synced.body.run.reason], ['stopped', 'You stopped it. Nothing was submitted.']);
+  const { body } = await h.call('GET', '/apply-review/7', null, s.person.sub);
+  const again = await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: body.packetDigest, approved: true }, s.person.sub);
+  assert.equal(again.code, 200, JSON.stringify(again.body));
+  assert.notEqual(again.body.run.id, s.run.id, 'a new run, not the stopped one');
+});
+
+test('a cancelled ticket whose work reads completed with no answer also ends the run as stopped', async () => {
+  const s = await started('dana-completed-empty');
+  await s.live('running', { attempt: 1, state: 'waiting_for_you', reason: { kind: 'field', text: 'Set these yourself.' } });
+  const ticketId = (await h.call('GET', '/apply-runs', null, s.person.sub)).body.runs.find((r) => r.id === s.run.id).nativeTicketId;
+  h.port.ticketStatus.set(ticketId, 'cancelled');
+  h.port.rows = [{ id: s.workId, state: 'completed', executor: 'orbit-apply-v1' }];
+  const synced = await s.sync();
+  assert.equal(synced.code, 200, JSON.stringify(synced.body));
+  assert.deepEqual([synced.body.run.status, synced.body.run.reason], ['stopped', 'You stopped it. Nothing was submitted.']);
 });

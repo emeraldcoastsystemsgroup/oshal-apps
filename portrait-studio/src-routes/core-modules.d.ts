@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Ambient declarations for the framework `@/` modules this package imports (the marketing-engine/switchboard idiom): the oshal loader resolves `@/` at RUNTIME; declaring the surfaces here lets `tsc -p src-routes` type-check AND emit only this package's files. Deliberately minimal — only what portrait-studio's modules actually use.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Passport export + email (1.6.0): declare the surfaces the two new routes ride — sharp (square resize, in the core image already), the sendGmail/sendOutlookMail senders + getValidAccessToken (the ADR-108 "email it" rail presentations proved), and the explicit-write-confirmation gate.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.17.10: add sharp extract/metadata and application-authorization ambient types for tool parity compilation.
  */
 
 declare module '@/shared/logger' {
@@ -24,16 +25,33 @@ declare module '@/shared/middleware/authz' {
   export function getTrustedServiceUserSub(req: unknown): string | null;
 }
 
+declare module '@/shared/application-authorization' {
+  export interface AuthorizationActor {
+    isActive?: boolean;
+    sub: string;
+    issuer: string;
+    principalId?: string | number;
+    tenantIds?: string[];
+  }
+  export interface PackageAuthorizationPort {
+    currentActor(): AuthorizationActor | null | undefined;
+    authorize(input: { permission: string; resourceId?: string }): Promise<{ allowed: boolean }>;
+    registerResource(name: string, adapter: { authorize: (input: { actor: AuthorizationActor; operation: { resourceId?: string; path?: string; tenantId?: string }; grant: { scope?: string } }) => Promise<boolean> }): void;
+  }
+}
+
 declare module '@/app/composition/app-context' {
   /** The pg pool surface package routes ride on (rows are pg's any[]). */
   export interface QueryablePool {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }>;
+    connect?(): Promise<{ query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }>; release(): void }>;
   }
   /** The app context handed to package route factories. */
   export interface AppContext {
     pool: QueryablePool;
     appPackageDir?: string;
+    authorization?: import('@/shared/application-authorization').PackageAuthorizationPort;
     [key: string]: unknown;
   }
 }
@@ -91,9 +109,11 @@ declare module '@/app/routes/email-routes' {
 }
 
 declare module 'sharp' {
-  /** The one pipeline surface this package uses: square cover-resize → PNG bytes. */
+  /** The one pipeline surface this package uses: crop/cover-resize → PNG bytes + metadata. */
   interface SharpPipeline {
+    extract(region: { left: number; top: number; width: number; height: number }): SharpPipeline;
     resize(width: number, height: number, opts?: { fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside'; position?: string }): SharpPipeline;
+    metadata(): Promise<{ width?: number; height?: number; format?: string }>;
     png(): SharpPipeline;
     toBuffer(): Promise<Buffer>;
   }

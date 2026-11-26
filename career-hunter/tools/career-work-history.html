@@ -9,6 +9,7 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy, independent dates/bullets and consistent editor/export identity.
   4 | maintainer@emeraldcoastsystemsgroup.com | Keep direct hierarchy actions accessible, wrapped and at least 44 pixels on phone and desktop.
   5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: the Years by skill section (career-years-by-skill.js), under the jobs: a table of each skill with the years counted from your roles, your own figure and what résumés state, Add a skill, Years of experience in total, Save years and Undo. A table on a computer; one card per skill on a phone, 44 px controls and 16 px fields, nothing wider than the screen.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: the one line of help under a job's Location box (.wh-help), in the page's secondary ink.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="work-history" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -46,6 +47,7 @@
   .wh-form h2 { margin-bottom: 8px; }
   .wh-form h3 { margin: 18px 0 6px; font-size: 15px; }
   .wh-label { display: grid; gap: 6px; margin: 12px 0 0; font-weight: 600; font-size: 14px; }
+  .wh-help { margin: 0; color: var(--ds-ink-2); font-weight: 400; font-size: 13px; }
   :is(.wh-form, .wh-eng-form, .wh-years-form) input:not([type=checkbox]), :is(.wh-form, .wh-eng-form) select, :is(.wh-form, .wh-eng-form) textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m); background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-weight: 400; }
   :is(.wh-form, .wh-eng-form) textarea { resize: vertical; line-height: 1.45; }
   :is(.wh-form, .wh-eng-form, .wh-years-form) :is(input, select, textarea):disabled { color: var(--ds-ink-disabled); background: var(--ds-surface-2); }

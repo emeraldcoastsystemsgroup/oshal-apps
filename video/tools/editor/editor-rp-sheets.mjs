@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Reference-product tool sheets and controls for Video 1.14.0 (RP-VID-01..10): clip speed, auto captions, stickers, color looks, chroma key, background matting, voice synthesis, stabilization, export resolution/fps and CC0 sound library.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: Stickers sheet help text names Open Swarm Original SVG stickers.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: pass project aspectRatio into export dimension estimates and add New project / Aspect ratio sheet helpers.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-09): add Version history sheet listing saved revisions with non-destructive Restore action.
  */
 import * as timeline from './timeline-model.mjs';
 import { applyMultitrack, migrateMultitrack } from './multitrack-model.mjs';
@@ -440,6 +441,51 @@ function openAspectRatioSheet(env) {
   return layers.open(layer);
 }
 
+function renderRevisionsList(env, list, status, revisions) {
+  const { adapter, make, act } = env, currentRev = adapter.state.revision, canEdit = adapter.editable();
+  if (!revisions.length) { list.replaceChildren(); status.textContent = 'No saved revisions yet.'; return; }
+  status.textContent = 'Restoring an earlier version saves a new revision and keeps all prior history.';
+  list.replaceChildren(...revisions.map(entry => {
+    const li = make('li', 'rp-rev-item'), head = make('div', 'rp-inline');
+    const isCurrent = entry.revision === currentRev;
+    head.append(make('strong', '', `Revision ${entry.revision}${isCurrent ? ' (Current)' : ''}`), make('span', 'rp-badge', new Date(entry.createdAt).toLocaleString()));
+    const detail = make('p', 'muted small', entry.summary ? `${entry.title} · ${entry.summary}` : entry.title);
+    const restoreBtn = make('button', '', isCurrent ? 'Current version' : 'Restore');
+    restoreBtn.type = 'button'; restoreBtn.disabled = isCurrent || !canEdit || adapter.state.busy;
+    restoreBtn.dataset.restoreRevision = String(entry.revision);
+    restoreBtn.setAttribute('aria-label', `Restore revision ${entry.revision}`);
+    restoreBtn.onclick = act(async () => {
+      restoreBtn.disabled = true; status.textContent = `Restoring revision ${entry.revision}…`;
+      try {
+        const res = await call(`/projects/${encodeURIComponent(adapter.state.projectId)}/revisions/restore`, {
+          method: 'POST', body: { revision: entry.revision, baseRevision: adapter.state.revision },
+        });
+        adapter.adoptRestored?.(res);
+        const refreshed = await call(`/projects/${encodeURIComponent(adapter.state.projectId)}/revisions`);
+        renderRevisionsList(env, list, status, refreshed.revisions ?? []);
+        status.textContent = `Restored revision ${res.restoredFromRevision} as revision ${res.project.revision}.`;
+      } catch (err) { status.textContent = describe(err); restoreBtn.disabled = false; }
+    });
+    li.append(head, detail, restoreBtn);
+    return li;
+  }));
+}
+
+function openRevisionsSheet(env) {
+  const { adapter, layers, make } = env, layer = layers.create('Version history', 'ds-sheet'), wrap = make('div', 'rp-section');
+  const status = make('p', 'video-help', adapter.state.projectId ? 'Loading saved revisions…' : 'Save this project first to view version history.');
+  status.dataset.revisionsStatus = '';
+  const list = make('ul', 'rp-rev-list'); list.dataset.revisionsList = '';
+  wrap.append(status, list); layer.body.append(wrap);
+  const opened = layers.open(layer);
+  if (adapter.state.projectId) {
+    call(`/projects/${encodeURIComponent(adapter.state.projectId)}/revisions`)
+      .then(res => renderRevisionsList(env, list, status, res.revisions ?? []))
+      .catch(err => { status.textContent = describe(err); });
+  }
+  return opened;
+}
+
 function buildExportProfileNode(env, exportMp4Button) {
   const { adapter, exporter, make, act } = env, rows = make('div', 'video-export-rows'), resGroup = make('div', 'rp-pill-group'), fpsGroup = make('div', 'rp-pill-group');
   const estimate = make('p', 'video-help', ''), working = make('div', 'video-export-row');
@@ -485,6 +531,7 @@ export function createRpSheets({ doc: domDoc, adapter, exporter, layers, make, a
   return {
     openNewProjectSheet: () => openNewProjectSheet(env),
     openAspectRatioSheet: () => openAspectRatioSheet(env),
+    openRevisionsSheet: () => openRevisionsSheet(env),
     openSpeedSheet: () => openSpeedSheet(env),
     buildAutoCaptionsNode: () => buildAutoCaptionsNode(env),
     openStickersSheet: () => openStickersSheet(env),

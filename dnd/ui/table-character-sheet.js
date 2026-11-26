@@ -6,6 +6,8 @@
  * 2026-07-22 23:30:56 | roger.murphy@emeraldcoastsystemsgroup.com  | Add a full-surface character, inventory, potential, and current-resource view with explicit spell-slot availability.
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The sheet portrait asks only for bundled art (tokenArtUrl); a hero without it keeps the plain frame.
  * 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-party): add showLibraryCharacterSheet so saved characters in My Characters can open a read-only character sheet before starting a game.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Surface concentration, conditions, reaction availability, and effective Shield AC on the character sheet and action resource status.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Display current Level, XP progress toward the next threshold (up through Level 5 Max), proficiency bonus, and multi-tier spell slots (1st-3rd) on the character sheet.
  */
 
 'use strict';
@@ -34,13 +36,16 @@ function inventoryOf(sheet) {
 }
 
 function actionResourceStatus(token, action) {
+  if (action && action.mode === 'reaction' && token && token.reactionUsed) {
+    return { available: false, label: 'USED', detail: 'Reaction already used this round' };
+  }
   if (!action || action.type !== 'spell' || !action.slot) {
     const detail = action && action.type === 'spell' ? 'Cantrip · unlimited' : 'At will';
     return { available: true, label: 'READY', detail };
   }
   const level = String(action.slot), remaining = Number(token && token.slots && token.slots[level]) || 0;
   return remaining > 0
-    ? { available: true, label: 'READY', detail: `${remaining} level-${level} slot${remaining === 1 ? '' : 's'} remaining` }
+    ? { available: true, label: action.mode === 'reaction' ? 'REACTION' : 'READY', detail: `${remaining} level-${level} slot${remaining === 1 ? '' : 's'} remaining` }
     : { available: false, label: 'SPENT', detail: `No level-${level} slots remaining` };
 }
 
@@ -59,10 +64,11 @@ function characterActionCard(token, action) {
   const state = actionResourceStatus(token, action);
   const range = action.delivery === 'melee' ? 'melee'
     : action.delivery === 'self' ? 'self' : `${Number(action.range) || 0} ft`;
+  const summary = typeof actionEffectSummary === 'function' ? actionEffectSummary(action) : effectStr(action);
   return `<article class="character-action ${state.available ? 'ready' : 'spent'}">
-    <header><b>${action.type === 'spell' ? '✦' : action.type === 'feature' ? '★' : '⚔'} ${esc(action.name)}</b><span>${state.label}</span></header>
-    <p>${esc(effectStr(action))}</p>
-    <small>${esc(range)}${action.slot ? ` · Level ${action.slot}` : ''} · ${esc(state.detail)}</small>
+    <header><b>${action.mode === 'reaction' ? '⚡' : action.type === 'spell' ? '✦' : action.type === 'feature' ? '★' : '⚔'} ${esc(action.name)}</b><span>${state.label}</span></header>
+    <p>${esc(summary)}</p>
+    <small>${esc(range)}${action.slot ? ` · Level ${action.slot}` : ''}${action.concentration ? ' · Concentration' : ''} · ${esc(state.detail)}</small>
     ${action.text ? `<em>${esc(action.text)}</em>` : ''}
   </article>`;
 }
@@ -93,6 +99,19 @@ function showLibraryCharacterSheet(record, onBack) {
   showCharacterSheet(token);
 }
 
+function xpProgressLabel(sheet, levelingOverride) {
+  const level = Math.max(1, Number(sheet && sheet.level) || 1);
+  const xp = Math.max(0, Number(sheet && sheet.xp) || 0);
+  const leveling = levelingOverride || (typeof content !== 'undefined' && content && content.leveling) || null;
+  const thresholds = (leveling && leveling.thresholds) || { 2: 300, 3: 900, 4: 2700, 5: 6500 };
+  const levels = Object.keys(thresholds).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
+  const nextLevel = levels.find((lvl) => lvl > level) || null;
+  const xpText = xp.toLocaleString('en-US');
+  if (!nextLevel) return `Level ${level} (Max) · ${xpText} XP`;
+  const nextXp = Number(thresholds[String(nextLevel)]).toLocaleString('en-US');
+  return `Level ${level} · ${xpText} / ${nextXp} XP`;
+}
+
 function showCharacterSheet(token) {
   if (!token || token.kind !== 'pc') return;
   const options = token._libraryOptions || {};
@@ -109,10 +128,16 @@ function showCharacterSheet(token) {
     : token.dead ? '<span>☠ <b>FALLEN</b></span>' : '<span class="alive"><b>ALIVE</b></span>';
   const kicker = options.kicker || 'Full character · current resources · inventory';
   const closeLabel = options.closeLabel || 'Back to the table';
-  overlay(`<div class="sheet-head"><span class="sheet-portrait"${artStyle(tokenArtUrl(token.slug))}></span><div><div class="sheet-kicker">${esc(kicker)}</div><h1>${esc(sheet.name || token.name)}</h1><p>${esc(`${sheet.race || ''} ${sheet.class || ''}`.trim())} · Level ${Number(sheet.level) || 1}</p></div></div>
+  const acVal = typeof ENG !== 'undefined' && ENG.effectiveAc ? ENG.effectiveAc(token) : token.ac;
+  const acNote = token.tempAcBonus ? `${acVal} (+${token.tempAcBonus})` : String(acVal);
+  const prof = Number(sheet.proficiencyBonus != null ? sheet.proficiencyBonus : sheet.prof) || (2 + Math.floor((Math.max(1, Number(sheet.level) || 1) - 1) / 4));
+  const progress = xpProgressLabel(sheet);
+  const statusPills = typeof spellStatusPillsHtml === 'function' ? spellStatusPillsHtml(token, !options.sheet) : '';
+  overlay(`<div class="sheet-head"><span class="sheet-portrait"${artStyle(tokenArtUrl(token.slug))}></span><div><div class="sheet-kicker">${esc(kicker)}</div><h1>${esc(sheet.name || token.name)}</h1><p>${esc(`${sheet.race || ''} ${sheet.class || ''}`.trim())} · ${esc(progress)}</p></div></div>
     <div class="character-sheet-scroll">
       <section class="sheet-section character-now"><h2>Available right now <small>${ready.length} of ${actions.length} actions ready</small></h2>
-        <div class="sheet-vitals"><span>❤ <b>${token.hp}/${token.maxHp}</b> HP</span>${condition}<span>🛡 <b>${token.ac}</b> AC</span><span>👟 <b>${token.speed}</b> ft</span></div>
+        <div class="sheet-vitals"><span>❤ <b>${token.hp}/${token.maxHp}</b> HP</span>${condition}<span>🛡 <b>${esc(acNote)}</b> AC</span><span>👟 <b>${token.speed}</b> ft</span><span>★ <b>+${prof}</b> Prof</span></div>
+        ${statusPills ? `<div class="status-pills sheet-status-pills">${statusPills}</div>` : ''}
         <div class="slot-grid">${spellSlotRows(token, sheet)}</div>
         <div class="character-action-grid ready-now">${ready.map((action) => characterActionCard(token, action)).join('') || '<p>No actions currently available.</p>'}</div>
       </section>
@@ -127,5 +152,5 @@ function showCharacterSheet(token) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { actionResourceStatus, inventoryOf, spellSlotRows };
+  module.exports = { actionResourceStatus, inventoryOf, spellSlotRows, xpProgressLabel };
 }

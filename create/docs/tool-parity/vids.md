@@ -13,18 +13,18 @@ Google Vids mobile: the availability help page (read through mirror copies) desc
 | Capability | Tier | Industry mobile | Industry desktop | Our UX control | Our concierge tool | Status |
 |---|---|---|---|---|---|---|
 | Generate a clip from a prompt | basic | Runway iOS: Yes; Google Vids: view only | Yes | `vids-routes.ts` page `#prompt`, `#go` (needs a worker) | `vids-generate-clip` (held for approval) | both |
-| Choose landscape, portrait or square | basic | not confirmed | Yes† | `#orientation` | `vids-generate-clip` `orientation`. The tool says "landscape or portrait", but the route accepts only `Landscape`, `Portrait`, `Square` and answers 400 to anything else; no coercion in `vids-routes.ts`. Square is not offered in the description | both |
-| Insert as a new scene or extend the last | basic | not confirmed | Google Vids: Yes | `#insertMode` | none. `vids-generate-clip` has no `insertMode` | UX only |
+| Choose landscape, portrait or square | basic | not confirmed | Yes† | `#orientation` | `vids-generate-clip` and `vids-generate-story` declare `enum: [Landscape, Portrait, Square]`, and `POST /api/vids/jobs` and `POST /api/vids/story` normalize case-insensitive `landscape`, `portrait`, and `square` cleanly (`1.6.8`) | both |
+| Insert as a new scene or extend the last | basic | not confirmed | Google Vids: Yes | `#insertMode` | `vids-generate-clip` `insertMode` (`Insert`, `Extend`, `none`) (`1.6.8`) | both |
 | Start from your own image or video | basic | not confirmed | Yes (image to video) | none. The route reads `ingredient`, but the page has no control | none. Not in the tool's schema | missing |
-| Brand intro or still brand graphic | basic | not confirmed | Google Vids: templates | none on the page | `vids-brand-graphic` | concierge only |
-| Multi-scene story | basic | not confirmed | Google Vids: Help me create | none. `POST /api/vids/story` has no control on the page | none. No route tool for `/story` | missing |
+| Brand intro or still brand graphic | basic | not confirmed | Google Vids: templates | `#brandIntroBtn` (Brand intro) and `#brandGraphicBtn` (Brand graphic) on the page (`1.6.8`) | `vids-brand-graphic` (held for approval) | both |
+| Multi-scene story | basic | not confirmed | Google Vids: Help me create | `#storyToggleBtn` / `#storyFields` / `#storyBtn` on the page (`POST /api/vids/story`, `1.6.8`) | `vids-generate-story` (held for approval, `1.6.8`) | both |
 | Draft outline, script and scenes from a prompt | basic | Google Vids: No | Google Vids: Yes | none | none. The persona shaping a prompt is reasoning, not a tool | missing |
 | See jobs and their status | basic | not confirmed | Yes | Jobs table `#rows` | `vids-jobs` | both |
-| Cancel or retry a job | basic | not confirmed | Yes† | none. No such route | none | missing |
+| Cancel or retry a job | basic | not confirmed | Yes† | Cancel button on queued/running jobs and Retry button on failed/cancelled jobs (`POST /api/vids/jobs/:id/cancel` and `/retry`, `1.6.8`) | `vids-cancel-job` and `vids-retry-job` (held for approval, `1.6.8`) | both |
 | See whether a worker is ready | ours | not applicable | not applicable | `#wtxt`, `#whint` | `vids-jobs` returns workers; a generating tool answers 503 | both |
-| Get the finished file back | basic | Runway: not confirmed | Yes (MP4, GIF, Drive) | Manual: file input `data-artifact="attach"`, then Preview | none. No tool attaches or fetches the file | UX only |
-| Publish or revoke a public link | basic | not confirmed | Google Vids: share† | Publish and Revoke buttons | none | UX only |
-| Remove a finished export | basic | not confirmed | Yes† | Remove button | none | UX only |
+| Get the finished file back | basic | Runway: not confirmed | Yes (MP4, GIF, Drive) | Manual: file input `data-artifact="attach"`, then Preview | `vids-export-status` reads attach/publication status (`1.6.8`); automatic worker return remains open (`CREATE-TOOL-VIDS-01`) | partial |
+| Publish or revoke a public link | basic | not confirmed | Google Vids: share† | Publish and Revoke buttons | `vids-publish-export` and `vids-revoke-export` (held for approval, `1.6.8`) | both |
+| Remove a finished export | basic | not confirmed | Yes† | Remove button | `vids-remove-export` (held for approval, `1.6.8`) | both |
 | Edit on a timeline (trim, arrange, split) | basic | Google Vids: No | Yes | none. Editing happens inside Google Vids on the worker | none | missing |
 | AI voiceover | basic | Google Vids: No | Google Vids: Yes (free in US, per reports) | none. `/brand` reads `voiceover`, `voice`, no control | none. Not in `vids-brand-graphic`'s schema | missing |
 | Avatars | basic to pro | Google Vids: No | Google Vids: Yes; Runway Act-Two | none | none | missing |
@@ -41,12 +41,12 @@ Google Vids mobile: the availability help page (read through mirror copies) desc
 
 - **CREATE-TOOL-VIDS-01: The finished clip comes back by itself.** Done when: a job that reaches done shows Preview with no manual upload, and `vids-jobs` returns its file.
 - **CREATE-TOOL-VIDS-02: A clip made here can be edited here.** Done when: a finished clip has "Open in Video editor", which adds it to a Video project as an editable source, on screen and through a tool.
-- **CREATE-TOOL-VIDS-03: Fix the orientation contract.** Done when: `vids-generate-clip` lists `Landscape`, `Portrait` and `Square` as an enum, or the route accepts lower case, and a test proves lower-case `portrait` from a tool call does not get a 400.
+- **CREATE-TOOL-VIDS-03: Fix the orientation contract.** *Delivered in `vids` 1.6.8.* `vids-generate-clip` and `vids-generate-story` declare `enum: [Landscape, Portrait, Square]`, `POST /api/vids/jobs` and `POST /api/vids/story` normalize case-insensitive `landscape`, `portrait`, and `square` cleanly while rejecting invalid values with `400`, and automated tests prove lowercase `portrait` does not receive a `400`.
 - **CREATE-TOOL-VIDS-04: Say plainly when no worker exists, and offer a way forward.** Done when: on an installation with no worker, the page and the concierge offer a route that does not need one (a hosted model or a stated alternative), or clearly state none exists, instead of a switched-off button.
-- **CREATE-TOOL-VIDS-05: Screen and concierge parity on existing features.** Done when: the page has brand intro, brand graphic and story controls, the tool has `insertMode` and a story tool exists, each proven by a chat turn and a browser walk.
+- **CREATE-TOOL-VIDS-05: Screen and concierge parity on existing features.** *Delivered in `vids` 1.6.8.* The Vids Studio page now provides Brand intro, Brand graphic, and Story controls (`POST /api/vids/brand` and `POST /api/vids/story`), `vids-generate-clip` declares `insertMode` (`Insert`, `Extend`, `none`), and `vids-generate-story` is declared, bound, and documented in `vids-operator`.
 - **CREATE-TOOL-VIDS-06: Start from an image or video.** Done when: a person picks an image in the page or names one in chat and the job carries it to the worker, with the clip showing that subject.
-- **CREATE-TOOL-VIDS-07: Concierge handles finished exports.** Done when: tools exist for attach status, publish, revoke and remove, with publish held for approval, proven by a chat turn.
-- **CREATE-TOOL-VIDS-08: Cancel and retry.** Done when: a queued or running job can be cancelled and a failed job retried, on screen and by tool, and the worker stops the cancelled task.
+- **CREATE-TOOL-VIDS-07: Concierge handles finished exports.** *Delivered in `vids` 1.6.8.* Added `vids-export-status` (read-only), `vids-publish-export`, `vids-revoke-export`, and `vids-remove-export` (all three approval-held with `confirm: true`), bound in `authorization.yaml` and documented in `vids-operator`.
+- **CREATE-TOOL-VIDS-08: Cancel and retry.** *Delivered in `vids` 1.6.8.* Added `POST /api/vids/jobs/:id/cancel` and `POST /api/vids/jobs/:id/retry` (preserving original failed/cancelled rows and returning `box_required` when no worker is attached), Cancel/Retry buttons in Vids Studio with inline status feedback, and approval-held `vids-cancel-job` and `vids-retry-job` tools.
 - **CREATE-TOOL-VIDS-09: Draft a video from a prompt.** Done when: a prompt yields an outline with scenes, scripts and voiceover that the person edits before anything renders.
 - **CREATE-TOOL-VIDS-10: Voiceover, stock, templates and record-yourself.** Done when: the owner decides which belong here and which belong in `video`, the decision is recorded, and each kept feature has a control and a tool.
 - **CREATE-TOOL-VIDS-11: AI edit of existing video.** Done when: a person selects a clip, describes a change and gets a new clip, with the original kept, by hand and by tool. The owner decides first whether this is in scope.

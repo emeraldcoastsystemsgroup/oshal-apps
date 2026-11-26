@@ -1,4 +1,12 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  =============================================================================
+  SEQ | AUTHOR                                  | DESCRIPTION
+  =============================================================================
+  1   | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): keep workspace card header (.wshead) inside 412px phone viewport without horizontal overflow.
+  =============================================================================
+-->
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
@@ -44,7 +52,7 @@
   .newrow{ display:flex;gap:9px;align-items:center;margin:20px 0 16px; }
   .newrow input{ flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--pill);padding:11px 16px;color:var(--text);font:inherit;font-size:14px; }
   .newrow input:focus{ outline:none;border-color:var(--accent); }
-  @media (max-width:520px){ .wrap{ padding:20px 16px 60px; } .newrow{ flex-wrap:wrap; } .newrow input{ flex:1 1 100%; } .newrow .btn{ min-height:44px; } }
+  @media (max-width:520px){ .wrap{ padding:20px 16px 60px; } .newrow{ flex-wrap:wrap; } .newrow input{ flex:1 1 100%; } .newrow .btn{ min-height:44px; } .wshead{ flex-wrap:wrap; } .wsname{ min-width:0; } }
   .btn{ appearance:none;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:var(--pill);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all var(--ease) .15s;white-space:nowrap; }
   .btn svg{ width:15px;height:15px; }
   .btn:hover{ border-color:var(--accent);color:var(--accent); }

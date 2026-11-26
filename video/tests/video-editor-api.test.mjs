@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The compiled editor router's HTTP admission over real Express and Multer with a strict non-writing pool: every route refuses a missing named permission before decoding or database work, upload needs create OR change, tenant and owner selectors and inactive identities are refused, envelopes and documents are checked by the shipped shared validator before any transaction, and uploads the named prober refuses leave no file behind.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: the permission matrix covers the five export routes too.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: the editor screen and its modules are served only from a fixed allowlist behind editor.view, byte for byte from the package.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: cover GET /editor/media and POST /editor/projects/:id/revisions/restore in the HTTP permission matrix.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,9 +29,11 @@ const ROUTES = [
   ['GET', `/editor/projects/${ID}`, ['editor.view', 'editor.read']],
   ['GET', `/editor/projects/${ID}/revisions`, ['editor.view', 'editor.read']],
   ['GET', `/editor/projects/${ID}/revisions/2`, ['editor.view', 'editor.read']],
+  ['GET', '/editor/media', ['editor.view', 'editor.read']],
   ['GET', `/editor/media/${ID}`, ['editor.view', 'editor.read']],
   ['POST', '/editor/projects', ['editor.view', 'editor.create'], { title: 'x', document: timeline('x') }],
   ['POST', `/editor/projects/${ID}/revisions`, ['editor.view', 'editor.change'], { baseRevision: 1, title: 'x', document: timeline('x') }],
+  ['POST', `/editor/projects/${ID}/revisions/restore`, ['editor.view', 'editor.read', 'editor.change'], { revision: 1 }],
   ['DELETE', `/editor/projects/${ID}`, ['editor.view', 'editor.delete'], { baseRevision: 1 }],
   ['POST', '/editor/media/cleanup', ['editor.view', 'editor.delete'], {}],
   ['DELETE', `/editor/media/${ID}`, ['editor.view', 'editor.delete'], {}],

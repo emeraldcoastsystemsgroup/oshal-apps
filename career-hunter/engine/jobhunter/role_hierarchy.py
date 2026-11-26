@@ -2,6 +2,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Keep explicitly linked client roles as independent records under one employer, with bounded one-level relationships and pure presentation ordering.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.69.1 (Roger, 2026-11-20: a generated résumé listed one client engagement twice, once under its employer and once on its own): a recorded title or employer written with " - " ("GSquared Funding - Commercial Finance") reaches this match as ", " after the packet's dash cleanup, so the exact comparison failed, the role read as left out, and it was restored beside the model's own copy. recorded_roles now compares words, not the separators between them.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: the main résumé document carries a job's location when its record holds one (Work history shows it and edits it against that exact text); a job with none has no location key, as before.
 """Explicit employer/client relationships; no read migrates the owner's profile."""
 from __future__ import annotations
 import re
@@ -67,6 +68,8 @@ def document_roles(roles, stories):
         # 1.61.0: the months themselves, for the Work history page (an end of '' is present).
         "start": str(r.get("start") or ""),
         "end": str(r.get("end") or ""),
+        # Where the job was, only when the record holds it, so a job with none reads exactly as before.
+        **({"location": str(r["location"])} if r.get("location") else {}),
         "bullets": [str(b) for b in (r.get("deliverables") or [])],
         "stories": stories(r),
     } for r in roles]

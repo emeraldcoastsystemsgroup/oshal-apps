@@ -49,6 +49,7 @@
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: Request analysis answers within a 45 s budget, inside the native kernel's 60 s package call (the judge read "HTTP 503" after 60 s on blue, twice). A silent analyst gives 504 analysis_timeout, a refused one 502 analyst_unavailable, both in words with nothing saved; the rewrite is asked only while 15 s of the budget is left, otherwise unmatched sentences are left out as before.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: POST /demo-data still writes the same saved sample snapshot and now also writes the same household into Finance's own records, marked as sample (finance-sample.ts), so the new Accounts, Transactions, Bills, Spending and Goals screens have it to show; a records failure is logged and the snapshot stands. The sample paycheck names a made-up employer. Sync, Request analysis and every other route are unchanged.
  * 24 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: remove per-request ensureFinanceSchema DDL calls from all HTTP route handlers; verify PostgreSQL catalog columns and forced RLS before running DDL under a bounded lock_timeout; return 409 plaid_reconnect_needed on sync reauthentication errors without overwriting saved snapshots.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | 1.8.5: mount owner-scoped finance projects routes (/api/finance/projects*) under the existing /api/finance OIDC mount (zero new top-level mounts, zero per-request DDL).
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -77,6 +78,7 @@ import {
   backgroundTurns, closeAnalysis, currentAnalysis, dropAnalysis, openAnalysis, readAnalysis, type AnalysisView, type BackgroundTurns,
 } from './finance-analysis';
 import { loadSample, sampleAggregate } from './finance-sample';
+import { mountFinanceProjectsRoutes } from './finance-projects';
 import type { LedgerDb } from './finance-ledger-store';
 
 const logger = createChildLogger({ module: 'finance-routes' });
@@ -1022,6 +1024,8 @@ export function createFinanceRoutes(ctx: AppContext): Router {
       res.status(500).json({ error: (err as Error).message });
     }
   });
+
+  if (typeof mountFinanceProjectsRoutes === 'function') mountFinanceProjectsRoutes(router, ctx.pool);
 
   return router;
 }

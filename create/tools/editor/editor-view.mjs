@@ -11,6 +11,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): a short Saved caption replaces the Save button and the Unsaved changes footer (Save returns only when automatic saving is off or a save failed), the document menu's title and Delete follow the open image, Export takes the primary look once the canvas has content, the Select tool shows its shape, Whole image and Clear only while it is on or a region exists, and the deleted duplicate layer form is no longer rendered.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: sync Flip horizontal and Flip vertical toggle pressed and disabled states with the selected layer.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: align the inline canvas text editor with the active text layer and hide ghost text on preview while typing.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: sync Left/Center/Right text alignment buttons (#textAlignLeft, #textAlignCenter, #textAlignRight) with the selected text layer.
  */
 import { $, state, canEdit, dirty, edit, notify, error } from './editor-state.mjs';
 import { autosaveReady, hasContent } from './editor-projects.mjs';
@@ -176,6 +177,15 @@ function renderProperties() {
   $('flipHorizontal').disabled = !flippable; $('flipVertical').disabled = !flippable;
   $('flipHorizontal').setAttribute('aria-pressed', String(Boolean(layer?.flipX)));
   $('flipVertical').setAttribute('aria-pressed', String(Boolean(layer?.flipY)));
+  const alignGroup = $('textAlignControls');
+  if (alignGroup) {
+    const isText = layer?.type === 'text', editableText = Boolean(canEdit() && isText && !layer.locked), currentAlign = layer?.align ?? 'left';
+    alignGroup.hidden = !isText;
+    for (const [id, align] of [['textAlignLeft', 'left'], ['textAlignCenter', 'center'], ['textAlignRight', 'right']]) {
+      const btn = $(id); if (!btn) continue;
+      btn.disabled = !editableText; btn.setAttribute('aria-pressed', String(isText && currentAlign === align));
+    }
+  }
   if (!layer) return;
   for (const control of document.querySelectorAll('#properties [data-property]')) {
     const neutral = control.dataset.neutral === undefined ? undefined : Number(control.dataset.neutral);

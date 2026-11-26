@@ -4,10 +4,11 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4 (the trial check, 2026-11-06): the Document menu and Download PDF also wait in More on a phone, so the app bar is one row (title, Save, More).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §3, §4.3, §4.4, §4.10, §5.1; Acrobat and PDFgear, REFP CONVENTIONS §5.2). With no PDFs the editor opens on one blank Letter page with the text tool active: a tap types, and the first edit makes it an untitled PDF. With PDFs it opens on their thumbnails, newest first, with one New at the bottom right (Blank page, Upload a PDF). One app row: the document name opens the document menu, Search, Undo and Redo as icons, Save only while there is something to save, one primary (Add text on a blank page, then Export) and More. Editing is by mode (Annotate, Edit, Sign, Pages, Concierge), each mode one strip of tools with Done at the top left; Highlight and Note are placed on the page by a drag or a tap. Every menu and sheet is a modal top-layer dialog the phone's Back closes. The functions both references have and oshal does not yet are greyed "Not available yet" controls in their places (RP-PDF-01..10, RP-ALL-01), built by the shared planned-control helper.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: wire live RP-PDF-01..10 and RP-ALL-01 controls — QuadPoints word markup (highlight, underline, strikethrough), single-finger ink pen and eraser, saved caller signatures, check/cross form marks, blank page insertion, PDF from photos, file size reduction, Office conversions (.docx, .xlsx, .pptx), single/two-page views, night mode and suggested concierge prompts.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: wire Annotations list sheet (Edit/Move/Delete), read-only long-press text copy, Print menu item, reader zoom/page-jump/text-layer controller and surface-bridge pdf:go-to-page navigation.
  */
 import {contentObjects,PDF_FONTS,validateContentProperties,pdfErrorMessage,textCapabilities} from './content-model.mjs';
 import {MARKUP_COLORS,selectWordsForDrag,buildQuadMarkup,createWordSelector,startInkDraw,startEraserPass,placeMarkObject,syncResizeHandle,createViewController} from './editor-tools.mjs';
-import {openSignatureSheet,openPhotosSheet,openCompressSheet,openConvertSheet} from './editor-sheets.mjs';
+import {openSignatureSheet,openPhotosSheet,openCompressSheet,openConvertSheet,openAnnotationsSheet} from './editor-sheets.mjs';
 
 const el=(tag,attributes={})=>Object.assign(document.createElement(tag),attributes);
 const SUGGESTED_PROMPTS=['Summarize this PDF','Ask about this page'];
@@ -213,7 +214,7 @@ function handleIdleStageGesture(ctx,event,page,stage,info){
  const bounds=stage.getBoundingClientRect(),sx=event.clientX,sy=event.clientY;
  const u=Math.min(Math.max((sx-bounds.left)/bounds.width,0),1),v=Math.min(Math.max((sy-bounds.top)/bounds.height,0),1);
  let longPressed=false;
- const timer=ctx.editable()?setTimeout(()=>{longPressed=true;void ctx.wordSelector.selectAt(ctx.snapshot().saved,page,stage,info,u,v);},320):0;
+ const timer=setTimeout(()=>{longPressed=true;void ctx.wordSelector.selectAt(ctx.snapshot().saved,page,stage,info,u,v);},320);
  const move=e=>{if(e.pointerId===event.pointerId&&Math.hypot(e.clientX-sx,e.clientY-sy)>6)clearTimeout(timer);};
  const finish=e=>{
   if(e.pointerId!==event.pointerId)return;clearTimeout(timer);
@@ -268,7 +269,7 @@ function buildModeStrips(ctx){
  const moreBtn=items=>{const b=toolBtn('More','⋯',()=>ctx.openMenu('More tools',items,b));return b;};
  const format=toolBtn('Format','≡',()=>ctx.openFormat());format.classList.add('pdf-phone-only');
  return()=>({
-  annotate:[pick('Highlight','▬','highlight'),pick('Underline','U̲','underline'),pick('Strikethrough','S̶','strikethrough'),pick('Note','✉','note'),pick('Pen','✐','pen'),pick('Eraser','⌫','eraser'),colorIn,widthIn,format,moreBtn([{label:'Annotation by coordinates…',run:()=>ctx.openSheet('Annotation',[ctx.sections.Annotation])}])],
+  annotate:[pick('Highlight','▬','highlight'),pick('Underline','U̲','underline'),pick('Strikethrough','S̶','strikethrough'),pick('Note','✉','note'),pick('Pen','✐','pen'),pick('Eraser','⌫','eraser'),colorIn,widthIn,format,toolBtn('List','☰',()=>openAnnotationsSheet({layers:ctx.layers,adapter:ctx.adapter,pageInfo:ctx.pageInfo,canEdit:ctx.editable,onSelect:(p,id)=>ctx.choose(p,id),feedback:ctx.feedback})),moreBtn([{label:'Annotations list…',run:()=>openAnnotationsSheet({layers:ctx.layers,adapter:ctx.adapter,pageInfo:ctx.pageInfo,canEdit:ctx.editable,onSelect:(p,id)=>ctx.choose(p,id),feedback:ctx.feedback})},{label:'Annotation by coordinates…',run:()=>ctx.openSheet('Annotation',[ctx.sections.Annotation])}])],
   edit:[ctx.insertMenu,format,ctx.removeSelected,moreBtn([{label:'Saved images…',run:()=>ctx.openSheet('Images',[ctx.assetsSection])},{label:'Form fields…',run:()=>ctx.openSheet('Form fields',[ctx.sections['Form fields']])}])],
   sign:[toolBtn('Text','T',()=>ctx.insertMenu.querySelector('[data-pdf-tool="text"]').click()),pick('Check','✓','check'),pick('Cross','✕','cross'),sizeIn,toolBtn('Signature','✍',()=>openSignatureSheet({layers:ctx.layers,adapter:ctx.adapter,canPlace:()=>ctx.editable(),onPlaceAsset:asset=>ctx.insertAsset(asset),feedback:ctx.feedback})),toolBtn('Fields','☐',()=>ctx.openSheet('Form fields',[ctx.sections['Form fields']])),moreBtn([{label:'Form fields…',run:()=>ctx.openSheet('Form fields',[ctx.sections['Form fields']])}])]
  });
@@ -289,9 +290,11 @@ function wireMenus(ctx,{newButton,docButton,more,quickFile,assetsSection}){
   {label:'Originals and images…',run:()=>ctx.openSheet('Originals and images',[ctx.sections['Original sources'],assetsSection])},
   {label:'Saved history…',run:()=>ctx.openSheet('Saved history',[ctx.sections['Saved history']]),disabled:!s.saved},'-',
   {label:'Save revision',run:()=>ctx.adapter.save(),disabled:!s.saved||!dirty||!s.permissions.change},
-  {label:'Export PDF',run:()=>ctx.adapter.export(),disabled:!s.saved||!s.permissions.export}],docButton);};
+  {label:'Export PDF',run:()=>ctx.adapter.export(),disabled:!s.saved||!s.permissions.export},
+  {label:'Print…',run:()=>window.print(),disabled:!s.saved}],docButton);};
  more.onclick=()=>{const s=ctx.snapshot(),prefs=ctx.viewCtrl.getPrefs();ctx.openMenu('More',[
-  {label:'Search…',run:()=>ctx.openSheet('Search',[ctx.sections['Find and OCR']]),disabled:!s.saved},'-',
+  {label:'Search…',run:()=>ctx.openSheet('Search',[ctx.sections['Find and OCR']]),disabled:!s.saved},
+  {label:'Annotations…',run:()=>openAnnotationsSheet({layers:ctx.layers,adapter:ctx.adapter,pageInfo:ctx.pageInfo,canEdit:ctx.editable,onSelect:(p,id)=>ctx.choose(p,id),feedback:ctx.feedback}),disabled:!s.saved},'-',
   {label:'Continuous pages',pressed:prefs.pageLayout==='continuous',run:()=>ctx.viewCtrl.setLayout('continuous')},
   {label:'Single page',pressed:prefs.pageLayout==='single',run:()=>ctx.viewCtrl.setLayout('single')},
   {label:'Two pages',pressed:prefs.pageLayout==='two-page',run:()=>ctx.viewCtrl.setLayout('two-page')},
@@ -484,8 +487,8 @@ function attachModelHelpers(ctx,adapter,root){
   ctx.requireNoDraft();const {box}=ctx.pageInfo(page),w=Math.min((box[2]-box[0])*.6,(box[3]-box[1])*.6*asset.width/asset.height),h=w*asset.height/asset.width,id=crypto.randomUUID(),x=box[0]+(box[2]-box[0])*.1,y=box[1]+(box[3]-box[1])*.1;
   ctx.setSelection({page:page.id,id});adapter.edit({op:'add-object',page:page.id,item:{id,kind:'image',asset:asset.id,rect:[x,y,x+w,y+h]}});
  };
- ctx.wordSelector=createWordSelector({adapter,screenToPdf,screenRect,feedback:ctx.feedback,onApplyMarkup:(pageId,kind,rect,quadPoints,color)=>{const id=crypto.randomUUID();adapter.edit({op:'annotate',annotation:{id,page:pageId,kind,rect,quadPoints,color:color||ctx.getToolColor?.()||MARKUP_COLORS[kind]}});ctx.choose(pageId,id);}});
- ctx.viewCtrl=createViewController({root,pagesHost:document.getElementById('pages'),adapter,feedback:ctx.feedback});
+ ctx.wordSelector=createWordSelector({adapter,screenToPdf,screenRect,isEditable:ctx.editable,feedback:ctx.feedback,onApplyMarkup:(pageId,kind,rect,quadPoints,color)=>{const id=crypto.randomUUID();adapter.edit({op:'annotate',annotation:{id,page:pageId,kind,rect,quadPoints,color:color||ctx.getToolColor?.()||MARKUP_COLORS[kind]}});ctx.choose(pageId,id);}});
+ ctx.viewCtrl=createViewController({root,pagesHost:document.getElementById('pages'),adapter,feedback:ctx.feedback,screenRect,pageInfo:ctx.pageInfo,getWords:pageId=>ctx.wordSelector.getWords(ctx.snapshot().saved,pageId)});
 }
 
 function attachDialogAndViewHelpers(ctx,chrome,localCtrl){
@@ -611,7 +614,16 @@ export async function createPdfEditor(adapter){
  wireMenus(ctx,{newButton:chrome.newButton,docButton:chrome.docButton,more:chrome.more,quickFile,assetsSection:insertCtrl.assetsSection});
  root.addEventListener('input',e=>{if(e.target.matches('[data-editor-property],.pdf-inline-text'))ctx.bumpDraft();if(e.target.matches('[data-field]')){ctx.foundation?.refresh();ctx.assistant.refresh();}});
  void ctx.viewCtrl.load();
- return{foundation:ctx.foundation,controls:ctx.syncButtons,render:()=>{renderDocumentPages(ctx);ctx.paintView();ctx.assistant.refresh();ctx.syncButtons();},flushInline:inlineCtrl.flushInline,discardInline:inlineCtrl.discard,hasInline:inlineCtrl.hasInline,signature:ctx.getDraftEpoch,draftChanged:()=>{ctx.foundation.refresh();ctx.assistant.refresh();},selectPages:()=>{ctx.requireNoDraft();ctx.setSelection(null);ctx.decorateSelection();ctx.syncButtons();ctx.assistant.refresh();},selection:ctx.selectionIds,layers:chrome.layers};
+ document.addEventListener('surface-bridge:custom',event=>{
+  const {name,data}=event.detail??{};
+  if(name!=='pdf:go-to-page'||!data)return;
+  const pageNum=Number(data.page),targetDoc=data.documentId;
+  if(!Number.isInteger(pageNum)||pageNum<1)return;
+  if(targetDoc&&ctx.snapshot().saved?.id!==targetDoc)void adapter.openDocument(targetDoc,undefined,{page:pageNum}).catch(ctx.feedback);
+  else ctx.viewCtrl.goToPage(pageNum,{scroll:true,updateUrl:true});
+ });
+ void import('/shared/ui/js/surface-bridge-client.js').then(({createSurfaceBridgeClient})=>{createSurfaceBridgeClient({app:'pdf-workbench'}).attach();}).catch(()=>{/* standalone or test without cockpit relay */});
+ return{foundation:ctx.foundation,controls:ctx.syncButtons,render:()=>{renderDocumentPages(ctx);ctx.paintView();ctx.assistant.refresh();ctx.syncButtons();},goToPage:(n,opts)=>ctx.viewCtrl.goToPage(n,opts),flushInline:inlineCtrl.flushInline,discardInline:inlineCtrl.discard,hasInline:inlineCtrl.hasInline,signature:ctx.getDraftEpoch,draftChanged:()=>{ctx.foundation.refresh();ctx.assistant.refresh();},selectPages:()=>{ctx.requireNoDraft();ctx.setSelection(null);ctx.decorateSelection();ctx.syncButtons();ctx.assistant.refresh();},selection:ctx.selectionIds,layers:chrome.layers};
 }
 
 export function createLayers(doc){

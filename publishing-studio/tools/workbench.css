@@ -5,6 +5,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: at 1440x900 the Your publications list spans the app instead of sitting in the editor grid's second column (the trial check, 2026-11-06).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: styles for template cards, multi-select and group outlines, brand swatches, comment pins and threads, social composer, and the collapsible video timeline bar (RP-PUB-01..08), plus zero-specificity --ds-* token fallbacks for platform snapshots without design-tokens.css.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4 (Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken). On a desktop Your publications hid the concierge column outright, so Today's bar Concierge opened a concierge nobody could see (a 0 px window with no message box): the concierge now opens beside the list as a 320 px column and its Close gives the list the whole width again. The list's heading row holds the list's own Concierge.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: styles for drag-reorder page drop indicator, master edit banner, collapsed advanced JSON disclosure, inline create rows, and in-place object controls (CREATE-TOOL-PUBLISHING-STUDIO-06, -07, -15).
  */
 :where(:root,[data-theme]){--ds-page:var(--bg-primary,#f8fafc);--ds-surface:var(--bg-primary,#ffffff);--ds-surface-2:color-mix(in srgb,var(--text-primary,#0f172a) 6%,var(--ds-surface));--ds-surface-3:color-mix(in srgb,var(--text-primary,#0f172a) 12%,var(--ds-surface));--ds-scrim:rgb(0 0 0 / .4);--ds-hairline:color-mix(in srgb,var(--text-primary,#0f172a) 14%,var(--ds-page));--ds-edge:color-mix(in srgb,var(--text-primary,#0f172a) 20%,var(--ds-surface));--ds-line-control:color-mix(in srgb,var(--text-primary,#0f172a) 50%,var(--ds-page));--ds-ink:var(--text-primary,#0f172a);--ds-ink-2:color-mix(in srgb,var(--text-primary,#0f172a) 78%,var(--ds-page));--ds-ink-disabled:color-mix(in srgb,var(--text-primary,#0f172a) 45%,var(--ds-page));--ds-accent:var(--accent-primary,#2563eb);--ds-accent-ink:color-mix(in srgb,var(--accent-primary,#2563eb) 66%,var(--text-primary,#0f172a));--ds-on-accent:var(--text-on-accent,#ffffff);--ds-focus:var(--accent-primary,#2563eb);--ds-ok:var(--status-success,#15803d);--ds-warn:var(--status-warning,#b45309);--ds-bad:var(--status-error,#b91c1c);--ds-elev-float:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16);--ds-font:system-ui,sans-serif;--ds-text-meta:400 12px/16px var(--ds-font);--ds-text-help:400 14px/20px var(--ds-font);--ds-text-body:400 16px/24px var(--ds-font);--ds-text-heading:600 18px/24px var(--ds-font);--ds-text-title:700 24px/32px var(--ds-font)}
 @supports (color:rgb(from red r g b / 1)){:where(:root,[data-theme]){--ds-surface:rgb(from var(--bg-card,var(--bg-primary,#ffffff)) r g b / 1)}}
@@ -284,3 +285,15 @@ select{min-width:0}
 .publishing-foundation[data-pub-view=list] .pub-timeline{display:none!important}
 @media(max-width:800px){.pub-comment-pin{width:44px;height:44px;min-height:44px}}
 @media(prefers-reduced-motion:reduce){button{transition:none}}
+/* 0.5.6: page drag-reorder, master canvas mode, collapsed JSON, inline create and in-place object editing */
+.pub-page-thumb[data-dragging=true]{opacity:.5}
+.pub-page-thumb[data-drop-target=true]{outline:2px dashed var(--accent);outline-offset:2px;background:var(--ds-surface-3)!important}
+.pub-master-banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;margin:0 auto 8px;max-width:560px;border:1px solid var(--accent);border-radius:10px;background:var(--panel);font:600 14px/20px var(--ds-font,system-ui)}
+.pub-master-tools{display:grid;gap:8px;margin-top:12px}
+.pub-inline-create{display:grid;gap:8px;margin:0 0 16px;padding-bottom:12px;border-bottom:1px solid var(--ds-hairline)}
+.pub-inline-create label{margin:0}
+.pub-advanced{margin-top:12px;padding-top:8px;border-top:1px solid var(--ds-hairline)}
+.pub-advanced>summary{cursor:pointer;font:600 13px/20px var(--ds-font,system-ui);color:var(--muted);padding:6px 0}
+.pub-advanced[open]>summary{margin-bottom:8px;color:var(--ink)}
+.pub-inplace{display:grid;gap:10px;margin:12px 0;padding:12px 0;border-top:1px solid var(--ds-hairline);border-bottom:1px solid var(--ds-hairline)}
+.pub-inplace button{width:100%}

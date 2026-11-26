@@ -451,6 +451,30 @@
           "text": "A healing chord."
         },
         {
+          "id": "faerie-fire",
+          "name": "Faerie Fire",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "save",
+          "delivery": "ranged",
+          "range": 60,
+          "aoeShape": "sphere",
+          "aoeSize": 10,
+          "friendlyFire": false,
+          "concentration": true,
+          "save": {
+            "ability": "DEX",
+            "dc": 13,
+            "half": false
+          },
+          "applyCondition": {
+            "id": "blinded",
+            "concentration": true
+          },
+          "text": "Concentration. 10-ft flare dazzles foes who fail a DEX save."
+        },
+        {
           "id": "rapier",
           "name": "Rapier",
           "type": "weapon",

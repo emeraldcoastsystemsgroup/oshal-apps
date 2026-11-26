@@ -9,6 +9,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the director's read tools lora-characters (GET /characters) and lora-models (GET /models) to lora.read, the permission their routes need.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind GET /worker to lora.read. The studio reads it once on open to learn whether a GPU worker is registered and withholds its training actions where none is (UX audit 2026-11-06).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Bind GET /ui/photo-upload.mjs to app.open, GET /dataset/:imageId/preview to lora.read, and POST /dataset/upload to lora.configure so multi-photo device uploads with crop and caption stage under owner-scoped dataset authority (RP-LORA-01).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.10.6 (CREATE-TOOL-LORA-05, -13): bind lora-scorecard, lora-dataset, lora-create-character, lora-train, lora-validate, lora-improve, lora-activate-model, lora-overnight-toggle, lora-delete-character, lora-dataset-import, and lora-delete-model under bindings.tools using existing permissions only.
 #
 # One resource with `own` scope only. Row ownership is still enforced by each route's owner
 # predicate and the tables' forced row-level security; the catalog decides which named permission a
@@ -84,6 +85,17 @@ bindings:
   tools:
     - { id: lora-characters, allOf: [lora.read] }
     - { id: lora-models, allOf: [lora.read] }
+    - { id: lora-scorecard, allOf: [lora.read] }
+    - { id: lora-dataset, allOf: [lora.read] }
+    - { id: lora-create-character, allOf: [lora.source.change] }
+    - { id: lora-train, allOf: [lora.execute] }
+    - { id: lora-validate, allOf: [lora.execute] }
+    - { id: lora-improve, allOf: [lora.execute] }
+    - { id: lora-activate-model, allOf: [lora.configure] }
+    - { id: lora-overnight-toggle, allOf: [lora.execute] }
+    - { id: lora-delete-character, allOf: [lora.source.change] }
+    - { id: lora-dataset-import, allOf: [lora.configure] }
+    - { id: lora-delete-model, allOf: [lora.configure] }
     - { id: lora-editor-contract, allOf: [lora.read] }
     - { id: lora-editor-character, allOf: [lora.read] }
     - { id: lora-editor-caption, allOf: [lora.read] }

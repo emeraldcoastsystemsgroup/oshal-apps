@@ -8,6 +8,7 @@
  * 2026-07-16 12:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Composable layers: interchangeable BACKGROUNDS, CLOTHING, HEADWEAR, FINISH, FRAMING — presets are layer combos + a pose, every layer overridable. validateOverrides() fail-closes; only notes is free text.
  * 2026-07-17 20:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | The big catalog: layer data moved to portrait-layers.ts (100 backgrounds + 70 clothing + 30 headwear + 26 PROPS + 12 finishes + 4 framings) and presets to portrait-presets.ts (100 profiles), both grouped. This module keeps the logic: prompt composition (props now an overridable layer — a prop replaces the preset's pose), fail-closed override validation, and the client catalog shape. All prior exports preserved.
  * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Group mode: a third PortraitMode ('group') backed by GROUP_PRESETS; validateSubjects() fail-closes the face count (MIN..MAX_GROUP_SUBJECTS, refused outside group mode); the group prompt reads the client-built NUMBERED reference sheet — every one of the N faces exactly once, no duplicates, no extra people, no sheet labels carried over, two hands per person — with a prop override applied to EACH member while the preset's arrangement stays. clientCatalog() adds presets.group + groupLimits. Prompt assembly split into per-mode helpers (50-line rule).
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | 1.17.10: include exportFormats in clientCatalog() so portrait-catalog exposes the export-size catalog alongside styles and layers.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_GROUP_SUBJECTS = exports.MIN_GROUP_SUBJECTS = exports.PORTRAIT_MODES = exports.GROUP_PRESETS = exports.CHARACTER_PRESETS = exports.PROFESSIONAL_PRESETS = exports.FRAMINGS = exports.FINISHES = exports.PROPS = exports.HEADWEAR = exports.CLOTHING = exports.BACKGROUNDS = void 0;
@@ -243,5 +244,15 @@ function clientCatalog() {
         props: portrait_layers_1.PROPS.map(stripItem),
         finishes: portrait_layers_1.FINISHES.map(stripItem),
         framings: portrait_layers_1.FRAMINGS.map(stripItem),
+        exportFormats: [
+            { id: 'original', size: 'original', width: null, height: null, label: 'Original PNG' },
+            { id: '300', size: '300', width: 300, height: 300, label: 'Passport 300×300' },
+            { id: '600', size: '600', width: 600, height: 600, label: 'Passport 600×600' },
+            { id: 'linkedin', size: '600', width: 600, height: 600, label: 'LinkedIn square (600×600)' },
+            { id: 'square', size: '600', width: 600, height: 600, label: 'Square 600×600' },
+            { id: 'portrait', size: 'portrait', width: 1200, height: 1800, label: 'Portrait 4×6 print (1200×1800)' },
+            { id: 'print', size: 'portrait', width: 1200, height: 1800, label: 'Portrait 4×6 print (1200×1800)' },
+            { id: 'landscape', size: 'landscape', width: 1800, height: 1200, label: 'Landscape 6×4 print (1800×1200)' },
+        ],
     };
 }

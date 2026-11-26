@@ -9,6 +9,7 @@
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Reproduce a rescued merchant disappearing when the party revisits the cart and require recent campaign memory in every story prompt.
  * 2026-07-23 00:12:33 | roger.murphy@emeraldcoastsystemsgroup.com  | Require ordinary table conversation to distinguish help, searchable leads, and declared actions while prohibiting repeat-work loops.
  * 2026-07-23 00:39:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove authored names replace generic saved labels and roles remain descriptions with restrained continuity hooks.
+ * 2026-11-25 14:25:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept lightweight board-revision snapshot reads and inserts alongside DM conversation archive writes.
  */
 
 'use strict';
@@ -121,6 +122,7 @@ class PromptPool {
       this.archive.push({ seq: params[2], kind: params[3], content: params[4] });
       return this.rows([]);
     }
+    if (/FROM dnd_snapshots|INTO dnd_snapshots/.test(sql)) return this.rows([]);
     throw new Error(`Unexpected SQL in spatial prompt test: ${sql}`);
   }
 

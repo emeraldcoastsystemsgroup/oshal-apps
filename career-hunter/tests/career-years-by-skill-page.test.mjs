@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24 (Roger, 2026-11-19: "i have to be able to generate accurate resumes ... i cant have random numbers 2 years vs 11 years vs 20 years getting out of place"). The shipped Work history page's Years by skill section in Chromium at 1440x900 and 412x915, over Career's real compiled résumé route module and the real engine programs on a made-up person (tests/helpers/career-years-fixture.mjs). It names every label the person reads, shows the server's rows, refuses a bad figure in the server's words with nothing saved, saves three figures and a total and then shows what the server answered, and Undo puts the exact earlier file back; nothing is wider than the screen at either size, and on the phone every control is at least 44 px tall with 16 px text. A skill name that holds markup is drawn as text. Figures typed and not yet saved survive a job saved on the same page. A person with no main résumé sees no section.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add deterministic regression test proving Years by skill drops a stale Undo immediately and follows the main résumé revision before a slow or failing GET /resume/master-section?field=years settles, and discards an out-of-order reload after Save years.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: a skill the person gave no figure reads "No year count (you gave none)" once they have stated any figure.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,8 +57,8 @@ async function reads(page, width) {
   assert.equal(await page.getByRole('button', { name: 'Save years' }).count(), 1);
   assert.equal(await page.locator('#yrUndo').isHidden(), true, 'Undo is offered after a save');
   assert.deepEqual(await table(page), [
-    ['Python', '3.5 years', '10', '10 years'], ['SAP NetWeaver Java', 'Not in your roles', '6.5', '6.5 years'], ['Java', '5 years', '', 'Up to 5 years'],
-    ['SQL', '5 years', '', 'Up to 5 years'], ['Docker', '3.5 years', '', 'Up to 3 years'], ['Linux', '1 year', '', 'No year count (under 2 years)']]);
+    ['Python', '3.5 years', '10', '10 years'], ['SAP NetWeaver Java', 'Not in your roles', '6.5', '6.5 years'], ['Docker', '3.5 years', '', 'No year count (you gave none)'],
+    ['Java', '5 years', '', 'No year count (you gave none)'], ['Linux', '1 year', '', 'No year count (you gave none)'], ['SQL', '5 years', '', 'No year count (you gave none)']]);
   assert.deepEqual([await page.locator('#yrCareerRoles').innerText(), await page.locator('#yrCareerYours').inputValue(), await page.locator('#yrCareerUsed').innerText()], ['9.5 years', '15', '15 years']);
   const seen = await fit(page, width);
   assert.deepEqual([seen.sideways, seen.outside], [0, []], 'nothing is wider than the screen');
@@ -67,7 +69,7 @@ async function reads(page, width) {
 /** One bad figure: the whole save is refused in the server's words, and nothing is written. */
 async function refuses(page, before) {
   await java(page).fill('61');
-  assert.equal((await table(page))[2][3], 'Not saved yet', 'a typed figure is not shown as used before it is saved');
+  assert.equal((await table(page)).find((row) => row[0] === 'Java')[3], 'Not saved yet', 'a typed figure is not shown as used before it is saved');
   await saveYears(page);
   await page.locator('#yrNotice', { hasText: 'The years of row 3 (Java) must be from 0.5 to 60, in steps of 0.5; it is 61. Nothing was saved.' }).waitFor();
   assert.deepEqual([h.text(), await java(page).inputValue()], [before, '61'], 'nothing saved; what was typed stays');
@@ -192,6 +194,46 @@ test('figures typed and not saved survive a job saved on the same page, and then
     assert.equal(await page.locator('#yrUndo').isHidden(), true, 'the years Undo goes once the main résumé moved past that save');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
+});
+
+test('stale years Undo clears and revision follows a job save even while master-section reload is held or fails', async () => {
+  h.reset('sync-race');
+  const { page, context, errors } = await open(1440, 900);
+  let holdFirst = false, holdSecond = false, releaseFirst, releaseSecond, firstStarted;
+  const firstHeld = new Promise((r) => { releaseFirst = r; }), secondHeld = new Promise((r) => { releaseSecond = r; });
+  const firstArrived = new Promise((r) => { firstStarted = r; });
+  const saveJob = async (from, to) => {
+    await page.getByRole('button', { name: 'Edit ' + from }).click();
+    await page.locator('.wh-editing input[name=title]').fill(to);
+    await page.locator('.wh-editing button[type=submit]').click();
+    await page.locator('#whJobs h2', { hasText: to }).waitFor();
+  };
+  try {
+    await page.locator('#yrRows tr').first().waitFor();
+    await page.route('**/resume/master-section?field=years', async (route) => {
+      if (holdFirst) { holdFirst = false; const stale = await route.fetch(); firstStarted(); await firstHeld; return route.fulfill({ response: stale }); }
+      if (holdSecond) { holdSecond = false; await secondHeld; return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Reload unavailable' }) }); }
+      return route.continue();
+    });
+    await java(page).fill('12');
+    holdFirst = true;
+    await saveJob('Support Analyst', 'Support Engineer');
+    await firstArrived;
+    await saveYears(page);
+    await page.locator('#yrNotice', { hasText: 'Saved. Your next résumé and cover letter state these years.' }).waitFor();
+    assert.deepEqual([h.saved().years_by_skill.find((r) => r.skill === 'Java')?.years, await page.locator('#yrUndo').isHidden()], [12, false]);
+    const staleDelivered = page.waitForResponse((res) => res.url().includes('/resume/master-section?field=years'));
+    releaseFirst();
+    await staleDelivered;
+    assert.deepEqual([await java(page).inputValue(), await page.locator('#yrUndo').isHidden()], ['12', false], 'late stale reload must not clobber newer save or Undo');
+    holdSecond = true;
+    await saveJob('Support Engineer', 'Support Lead');
+    assert.equal(await page.locator('#yrUndo').isHidden(), true, 'stale years Undo hides before master-section reload finishes');
+    releaseSecond();
+    await page.locator('#yrNotice', { hasText: 'Reload unavailable' }).waitFor();
+    assert.equal(await page.locator('#yrUndo').isHidden(), true, 'stale years Undo stays hidden when master-section reload fails');
+    assert.deepEqual(errors, []);
+  } finally { releaseFirst(); releaseSecond(); await context.close(); }
 });
 
 test('a person with no main résumé sees no Years by skill section', async () => {

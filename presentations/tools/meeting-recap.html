@@ -1,0 +1,139 @@
+<!doctype html>
+<!--
+CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | 2.20.14: Meeting Recap surface for AI Office — upload recordings, track 7-stage local pipeline progress, inspect cropped keyframes, timeline, summary notes, and download/save review.pptx.
+-->
+<html lang="en" data-theme="light-blue">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recap a Meeting — AI Office</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js" data-theme-default="light-blue"></script>
+  <link rel="stylesheet" href="/api/presentations/recap/assets/meeting-recap.css" />
+</head>
+<body>
+  <header class="mr-header">
+    <div class="mr-head-left">
+      <a class="mr-back" href="/api/presentations/editor/app" id="mr-back-office">← AI Office</a>
+      <div>
+        <h1>Recap a meeting</h1>
+        <p class="mr-sub">Recording → timeline with cropped captures → end-to-end notes → PowerPoint review deck. Audio never leaves the box.</p>
+      </div>
+    </div>
+    <div class="mr-privacy-pill" title="Audio stays local; participant camera tiles are cropped before any image is shared.">
+      🔒 Local audio · Camera strip cropped
+    </div>
+  </header>
+
+  <main class="mr-main">
+    <section class="mr-card mr-intake" aria-labelledby="mr-intake-heading">
+      <h2 id="mr-intake-heading">1. Upload a meeting recording</h2>
+      <form id="mr-form" class="mr-form" novalidate>
+        <div class="mr-field">
+          <label for="mr-title">Meeting title</label>
+          <input id="mr-title" name="title" type="text" maxlength="140" placeholder="e.g. Q3 Product Architecture Review" />
+        </div>
+
+        <div class="mr-grid-2">
+          <div class="mr-field">
+            <label for="mr-media-file">Recording file (.mp4, .mov, .webm, .mkv, .wav, .mp3, .m4a)</label>
+            <input id="mr-media-file" name="mediaFile" type="file" accept=".mp4,.mov,.webm,.mkv,.wav,.mp3,.m4a,video/*,audio/*" required />
+            <span class="mr-hint" id="mr-media-hint">Large files upload in 4 MiB chunks straight to your workspace.</span>
+          </div>
+          <div class="mr-field">
+            <label for="mr-transcript-file">Optional local transcript (.vtt, .srt, .json, .txt)</label>
+            <input id="mr-transcript-file" name="transcriptFile" type="file" accept=".vtt,.srt,.json,.txt" />
+            <span class="mr-hint">Leave blank to transcribe locally on device (local-stt).</span>
+          </div>
+        </div>
+
+        <div class="mr-grid-3">
+          <div class="mr-field">
+            <label for="mr-crop-mode">Privacy camera crop</label>
+            <select id="mr-crop-mode" name="cropMode">
+              <option value="right-strip" selected>Right camera strip (default)</option>
+              <option value="top-strip">Top camera strip</option>
+              <option value="bottom-strip">Bottom camera strip</option>
+              <option value="none">Full screen (no camera strip)</option>
+            </select>
+          </div>
+          <div class="mr-field">
+            <label for="mr-interval">Scene sample interval</label>
+            <select id="mr-interval" name="sampleIntervalSec">
+              <option value="auto" selected>Auto (15s; faster on short clips)</option>
+              <option value="5">Every 5 seconds</option>
+              <option value="15">Every 15 seconds</option>
+              <option value="30">Every 30 seconds</option>
+            </select>
+          </div>
+          <div class="mr-field">
+            <label for="mr-theme">Deck look</label>
+            <select id="mr-theme" name="theme">
+              <option value="executive" selected>Executive (Paper)</option>
+              <option value="editorial">Editorial</option>
+              <option value="midnight">Midnight</option>
+              <option value="ocean">Ocean</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mr-actions">
+          <button type="submit" id="mr-start-btn" class="mr-btn mr-btn-primary">Start recap</button>
+          <span class="mr-status" id="mr-form-status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="mr-card mr-progress-card" id="mr-active-section" hidden aria-labelledby="mr-active-title">
+      <div class="mr-active-head">
+        <div>
+          <h2 id="mr-active-title">Active recap</h2>
+          <p class="mr-sub" id="mr-active-meta"></p>
+        </div>
+        <div class="mr-active-controls">
+          <button type="button" id="mr-save-files-btn" class="mr-btn mr-btn-primary" hidden>Save deck to AI Office / Files</button>
+          <a id="mr-open-office-link" class="mr-btn mr-btn-secondary" hidden target="_top">Open in AI Office</a>
+        </div>
+      </div>
+
+      <ol class="mr-stages" id="mr-stage-list" aria-label="Pipeline progress"></ol>
+      <div class="mr-banner" id="mr-active-banner" hidden role="status"></div>
+
+      <div class="mr-artifacts" id="mr-artifacts" hidden></div>
+
+      <div class="mr-results-grid" id="mr-results-grid" hidden>
+        <div class="mr-panel">
+          <h3>Summary &amp; verbatim quotes</h3>
+          <div id="mr-summary-view" class="mr-doc-preview"></div>
+        </div>
+        <div class="mr-panel">
+          <h3>Cropped screen captures</h3>
+          <div id="mr-keyframe-gallery" class="mr-gallery"></div>
+          <h3>Chronological timeline</h3>
+          <pre id="mr-timeline-view" class="mr-code-preview"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="mr-card mr-history" aria-labelledby="mr-history-heading">
+      <div class="mr-history-head">
+        <h2 id="mr-history-heading">Your meeting recaps</h2>
+        <button type="button" id="mr-refresh-btn" class="mr-btn mr-btn-ghost">Refresh</button>
+      </div>
+      <div id="mr-history-list" class="mr-history-list"></div>
+    </section>
+  </main>
+
+  <dialog id="mr-confirm-dialog" class="mr-dialog" aria-labelledby="mr-confirm-title">
+    <h3 id="mr-confirm-title">Delete this recap?</h3>
+    <p id="mr-confirm-body">This removes the recording, cropped captures, notes, and review deck from your workspace.</p>
+    <div class="mr-dialog-actions">
+      <button type="button" id="mr-confirm-cancel" class="mr-btn mr-btn-ghost">Cancel</button>
+      <button type="button" id="mr-confirm-ok" class="mr-btn mr-btn-danger">Delete recap</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="/api/presentations/recap/assets/meeting-recap.mjs"></script>
+</body>
+</html>

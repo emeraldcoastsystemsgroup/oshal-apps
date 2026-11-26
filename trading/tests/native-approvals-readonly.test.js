@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify Intelligent Trades (`trading`) declares read-only `approvals:` on `/api/trading/approvals-queue`, emits ONLY `Open in Intelligent Trades` with zero `approve`/`decline` fields, and leaves the 29-file `orderAuthority` closure byte-for-byte unchanged (`49adb4981cf33da65776bb214d6445e3b895a2fb3c5d134c3462cea83d98a117`).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep the approved legacy digest exact and verify the unchanged read-only approvals probe joins no supported authority version.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The pending review's expiry is a week after the run instead of the fixed 2026-11-24, which lapsed and emptied the queue (the route filters expired reviews by the clock), failing every store gate that ran Trading.
  */
 'use strict';
 const test = require('node:test');
@@ -27,7 +28,7 @@ test('trading orderAuthority closure stays at the exact 29 files and digest', ()
 test('GET /approvals-queue emits strictly read-only Open in Intelligent Trades items with zero action descriptors', async () => {
   const nowMs = Date.parse('2026-11-17T03:00:00Z');
   const rows = [
-    { record_id: 'rev-1', created_at: '2026-11-17T02:00:00Z', payload: JSON.stringify({ id: 'rev-1', status: 'pending', strategyName: 'Core Momentum Allocation', expiresAt: '2026-11-24T00:00:00Z' }) },
+    { record_id: 'rev-1', created_at: '2026-11-17T02:00:00Z', payload: JSON.stringify({ id: 'rev-1', status: 'pending', strategyName: 'Core Momentum Allocation', expiresAt: new Date(Date.now() + 7 * 86400000).toISOString() }) },
     { record_id: 'rev-2', created_at: '2026-11-17T01:00:00Z', payload: JSON.stringify({ id: 'rev-2', status: 'pending', strategyName: 'Already Approved Plan' }) },
     { record_id: 'apr-2', created_at: '2026-11-17T01:30:00Z', payload: JSON.stringify({ id: 'apr-2', status: 'research-approved', reviewId: 'rev-2' }) },
   ];

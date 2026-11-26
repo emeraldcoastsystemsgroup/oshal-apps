@@ -142,6 +142,7 @@
   })();
   </script>
   <link rel="stylesheet" href="/api/dnd/dnd.css" />
+  <script src="/api/dnd/spellcasting.js"></script>
   <script src="/api/dnd/engine.js"></script>
 </head>
 <body>
@@ -153,6 +154,7 @@
         <canvas id="board"></canvas>
         <div id="caption" class="hidden"></div>
         <div id="banner" class="hidden"></div>
+        <div id="localBeatBanner" class="local-beat-banner hidden" role="status" aria-live="polite"></div>
         <!-- The HUD is one row of five (UX audit 2026-11-06); the rest of the table's controls are in More. -->
         <button class="fab" id="gamesBtn" title="Leave this table, resume, join, or start another campaign">☰ Games</button>
         <button class="fab" id="partyBtn" title="Party seats and character sheets">🧙 Party</button>
@@ -164,6 +166,7 @@
           <button role="menuitem" class="hud-item" id="helpBtn" title="How to play">? Help</button>
           <button role="menuitem" class="hud-item" id="voiceBtn" title="Narration, spoken dice, action calls, and NPC pace">⚙ DM Settings</button>
           <button role="menuitem" class="hud-item" id="fullscreenBtn" title="Hide the cockpit and fill the display with the game">Full screen</button>
+          <div id="moreCutawayBudget" class="hud-budget hidden" role="status" aria-live="polite"></div>
         </div>
         <div id="overlay" class="overlay hidden"><div class="card" id="overlayCard"></div></div>
       </div>
@@ -205,6 +208,7 @@
   </div>
 
 <script src="/api/dnd/leads.js"></script>
+<script src="/api/dnd/cutaway-beats.js"></script>
 <script src="/api/dnd/table-runtime.js"></script>
 <script src="/api/dnd/table-voice.js"></script>
 <script src="/api/dnd/table-dice.js"></script>
@@ -213,6 +217,7 @@
 <script src="/api/dnd/table-combat-narration.js"></script>
 <script src="/api/dnd/table-automation.js"></script>
 <script src="/api/dnd/table-outcomes.js"></script>
+<script src="/api/dnd/table-cutaway-beats.js"></script>
 <script src="/api/dnd/table-story.js"></script>
 <script src="/api/dnd/table-exploration.js"></script>
 <script src="/api/dnd/table-character-sheet.js"></script>

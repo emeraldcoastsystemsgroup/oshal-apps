@@ -22,11 +22,12 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Register lm-flashcard-study-opens: Study opens the chosen set over the real compiled flashcard route while the preferences table is refused, a failed read offers Try again instead of the Pick a set loop, and the class page's Topic Study Pack refreshes its sets (1.9.3).
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Register lm-shared-window-adapter: Class Tutor mounts the kernel's one chat window over the same-origin transport adapter on POST /api/education/tutor-chat with closed model choice, single-pass image/doc attachments, per-tab class/grounding isolation, UUID thread lifecycle, and write-free model/persistence failure guards (1.9.4).
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register lm-concierge-and-tutor-layout: verify Concierge panel restoration (hideChatPanel: false, host frame keeps #chatPanel/.panel-resize-handle without zen-mode, ui/little-monsters.css styles .jarvis-chat with --text-on-accent) and full-bleed desktop/mobile Tutor layout without duplicate headers or clipped outer chips (1.9.5).
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Quote the case lm-concierge-and-tutor-layout purpose in single quotes. The plain value held ": " and " #" (the #chatPanel rest of the line would have been read as a comment), so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 version: 1
 cases:
   - id: lm-concierge-and-tutor-layout
     name: Little Monsters Concierge restoration and full-bleed Class Tutor layout
-    purpose: Verify manifest hideChatPanel: false and inline class-tutor binding, host frame preservation of cockpit #chatPanel, Little Monsters styling on .jarvis-chat with white on-accent contrast, and full-bleed desktop (1440x900, 1280x800) and mobile (390x844) Class Tutor geometry.
+    purpose: 'Verify manifest hideChatPanel: false and inline class-tutor binding, host frame preservation of cockpit #chatPanel, Little Monsters styling on .jarvis-chat with white on-accent contrast, and full-bleed desktop (1440x900, 1280x800) and mobile (390x844) Class Tutor geometry.'
     level: browser
     runner:
       kind: node-test

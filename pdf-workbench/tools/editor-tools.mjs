@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Interactive PDF page tools: word-level QuadPoints markup selection, long-press drag handles, single-finger ink with two-finger scroll, stroke eraser, check/cross form marks, corner resize handles and single/two-page/night view controller.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Reader parity (CREATE-TOOL-PDF-WORKBENCH-03): add word-bar Copy and Sentence selection (including read-only viewers), selectable HTML text layer, zoom/fit-width + pinch-to-zoom, page jump input, print button and goToPage() navigation.
  */
 import {validateContentProperties} from './content-model.mjs';
 
@@ -49,7 +50,13 @@ export function buildQuadMarkup(chosen,cropBox){
  return{rect,quadPoints};
 }
 
-export function createWordSelector({adapter,screenToPdf,screenRect,onApplyMarkup,feedback}){
+async function copyPlainText(text){
+ if(!text)return false;
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true;}}catch{/* fallback below */}
+ try{const area=el('textarea',{value:text});Object.assign(area.style,{position:'fixed',opacity:'0',pointerEvents:'none'});document.body.append(area);area.select();const ok=document.execCommand?.('copy');area.remove();return Boolean(ok);}catch{return false;}
+}
+
+export function createWordSelector({adapter,screenToPdf,screenRect,onApplyMarkup,isEditable=()=>true,feedback}){
  const cache=new Map();
  let state=null;
  async function getWords(saved,pageId){
@@ -63,6 +70,20 @@ export function createWordSelector({adapter,screenToPdf,screenRect,onApplyMarkup
   if(!state)return[];
   const lo=Math.min(state.startIdx,state.endIdx),hi=Math.max(state.startIdx,state.endIdx);
   return state.words.slice(lo,hi+1);
+ }
+ function expandSentence(){
+  if(!state)return;
+  const cur=state.words[state.startIdx];if(!cur?.rect)return;
+  const cy=(cur.rect[1]+cur.rect[3])/2,tol=Math.max(8,(cur.rect[3]-cur.rect[1])*0.85);
+  const sameLine=state.words.map((w,i)=>w.rect&&Math.abs((w.rect[1]+w.rect[3])/2-cy)<=tol?i:-1).filter(i=>i>=0);
+  if(sameLine.length){state.startIdx=sameLine[0];state.endIdx=sameLine.at(-1);renderSelection();}
+ }
+ async function copySelected(){
+  const words=chosenWords(),text=words.map(w=>w.text).join(' ').trim();
+  if(!text)return;
+  document.body.dataset.pdfCopiedText=text;
+  await copyPlainText(text);
+  adapter.status?.(`Copied ${words.length} word(s).`);
  }
  function applySelected(kind,color){
   if(!state)return false;
@@ -90,11 +111,18 @@ export function createWordSelector({adapter,screenToPdf,screenRect,onApplyMarkup
    bindHandleDrag(handle,which);state.layer.append(handle);
   }
   const bar=el('div',{className:'pdf-word-bar'});bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','Selected text markup');
-  const topY=Math.min(...sRects.map(r=>r[1])),leftX=clamp((first[0]+last[2])/2,.15,.85);
-  Object.assign(bar.style,{left:leftX*100+'%',top:(topY>.12?topY-.015:Math.max(...sRects.map(r=>r[3]))+.02)*100+'%'});
-  for(const[kind,label]of [['highlight','Highlight'],['underline','Underline'],['strikethrough','Strikethrough']]){
-   const btn=el('button',{type:'button',className:'pdf-tool',textContent:label});
-   btn.onclick=e=>{e.stopPropagation();try{applySelected(kind);}catch(err){feedback(err);}};bar.append(btn);
+  const topY=Math.min(...sRects.map(r=>r[1])),below=topY<=.24,leftX=clamp((first[0]+last[2])/2,.15,.85);
+  bar.classList.toggle('is-below',below);
+  Object.assign(bar.style,{left:leftX*100+'%',top:(below?Math.max(...sRects.map(r=>r[3]))+.02:topY-.015)*100+'%'});
+  const copyBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Copy'});copyBtn.setAttribute('aria-label','Copy selected text');
+  copyBtn.onclick=e=>{e.stopPropagation();void copySelected().catch(feedback);};bar.append(copyBtn);
+  const lineBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Sentence'});lineBtn.setAttribute('aria-label','Select full line');
+  lineBtn.onclick=e=>{e.stopPropagation();expandSentence();};bar.append(lineBtn);
+  if(isEditable()){
+   for(const[kind,label]of [['highlight','Highlight'],['underline','Underline'],['strikethrough','Strikethrough']]){
+    const btn=el('button',{type:'button',className:'pdf-tool',textContent:label});
+    btn.onclick=e=>{e.stopPropagation();try{applySelected(kind);}catch(err){feedback(err);}};bar.append(btn);
+   }
   }
   const dismiss=el('button',{type:'button',className:'pdf-tool',textContent:'×'});dismiss.setAttribute('aria-label','Clear text selection');
   dismiss.onclick=e=>{e.stopPropagation();clear();};bar.append(dismiss);
@@ -215,26 +243,103 @@ export function syncResizeHandle(node,{item,page,stage,info,selected,editable,sc
  };
 }
 
-export function createViewController({root,pagesHost,adapter,feedback}){
- let prefs={pageLayout:'continuous',nightMode:false},pageIndex=0;
- const pager=el('div',{className:'pdf-pager',hidden:true}),prev=el('button',{type:'button',className:'pdf-tool',textContent:'Previous'}),label=el('span',{className:'pdf-pager-label'}),next=el('button',{type:'button',className:'pdf-tool',textContent:'Next'});
- prev.setAttribute('aria-label','Previous page');next.setAttribute('aria-label','Next page');
- pager.append(prev,label,next);pagesHost.before(pager);
+function renderSelectableLayer(stage,words,info,screenRect){
+ let layer=stage.querySelector('.pdf-text-layer');
+ if(!layer){layer=el('div',{className:'pdf-text-layer'});layer.setAttribute('aria-label','Selectable page text');stage.append(layer);}
+ layer.replaceChildren();
+ for(const w of words){
+  if(!Array.isArray(w.rect)||w.rect.length!==4)continue;
+  const r=screenRect(w.rect,info.box,info.rotation),span=el('span',{className:'pdf-text-word',textContent:w.text+' '});
+  Object.assign(span.style,{left:r[0]*100+'%',top:r[1]*100+'%',width:Math.max(0.5,(r[2]-r[0])*100)+'%',height:Math.max(0.5,(r[3]-r[1])*100)+'%'});
+  layer.append(span);
+ }
+}
+
+function bindPinchZoom(host,getZoom,setZoom){
+ let startDist=0,startZoom=1;
+ const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+ host.addEventListener('touchstart',e=>{if(e.touches.length===2&&!document.body.dataset.pdfTool){startDist=dist(e.touches);startZoom=getZoom();}},{passive:true});
+ host.addEventListener('touchmove',e=>{if(e.touches.length===2&&startDist>10&&!document.body.dataset.pdfTool){e.preventDefault();setZoom(startZoom*(dist(e.touches)/startDist),{fit:false});}},{passive:false});
+ host.addEventListener('touchend',e=>{if(e.touches.length<2)startDist=0;},{passive:true});
+}
+
+function buildReaderBar(actions){
+ const bar=el('div',{className:'pdf-pager pdf-reader-bar',hidden:true});
+ bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','PDF reader controls');
+ const prev=el('button',{type:'button',className:'pdf-tool',textContent:'Previous'});prev.setAttribute('aria-label','Previous page');
+ const jump=el('input',{id:'pdf-page-jump',type:'number',min:'1',className:'pdf-page-jump',value:'1'});jump.setAttribute('aria-label','Jump to page');
+ const label=el('span',{className:'pdf-pager-label'});
+ const next=el('button',{type:'button',className:'pdf-tool',textContent:'Next'});next.setAttribute('aria-label','Next page');
+ const zoomOut=el('button',{type:'button',className:'pdf-tool',textContent:'−'});zoomOut.setAttribute('aria-label','Zoom out');
+ const zoomVal=el('span',{className:'pdf-zoom-readout',textContent:'100%'});zoomVal.setAttribute('aria-label','Zoom level');
+ const zoomIn=el('button',{type:'button',className:'pdf-tool',textContent:'+'});zoomIn.setAttribute('aria-label','Zoom in');
+ const fitBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Fit'});fitBtn.setAttribute('aria-label','Fit width');fitBtn.setAttribute('aria-pressed','true');
+ const selectBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Select text'});selectBtn.setAttribute('aria-label','Select text');selectBtn.setAttribute('aria-pressed','false');
+ const printBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Print'});printBtn.setAttribute('aria-label','Print PDF');
+ prev.onclick=()=>actions.turn(-1);next.onclick=()=>actions.turn(1);
+ jump.onchange=()=>{const n=Number(jump.value);if(Number.isInteger(n)&&n>=1&&n!==actions.currentPage())actions.goToPage(n);};
+ jump.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const n=Number(jump.value);if(Number.isInteger(n)&&n>=1)actions.goToPage(n);jump.blur();}};
+ zoomOut.onclick=()=>actions.stepZoom(-0.25);zoomIn.onclick=()=>actions.stepZoom(0.25);
+ fitBtn.onclick=()=>actions.fitWidth();selectBtn.onclick=()=>actions.toggleSelectText();printBtn.onclick=()=>window.print();
+ const nav=el('div',{className:'pdf-reader-group'}),zoom=el('div',{className:'pdf-reader-group'});
+ nav.append(prev,jump,label,next);zoom.append(zoomOut,zoomVal,zoomIn,fitBtn,selectBtn,printBtn);
+ bar.append(nav,zoom);
+ return{bar,prev,jump,label,next,zoomOut,zoomVal,zoomIn,fitBtn,selectBtn,printBtn};
+}
+
+export function createViewController({root,pagesHost,adapter,feedback,screenRect,getWords,pageInfo}){
+ let prefs={pageLayout:'continuous',nightMode:false},pageIndex=0,zoom=1,fitWidth=true,selectText=false;
+ const ui=buildReaderBar({
+  turn:delta=>turn(delta),goToPage:n=>goToPage(n),currentPage:()=>pageIndex+1,stepZoom:d=>setZoom(zoom+d,{fit:false}),
+  fitWidth:()=>setZoom(1,{fit:true}),toggleSelectText:()=>{selectText=!selectText;syncDom();}
+ });
+ pagesHost.before(ui.bar);
+ bindPinchZoom(pagesHost,()=>zoom,(z,opts)=>setZoom(z,opts));
+ async function syncTextLayers(){
+  const stages=[...pagesHost.querySelectorAll('[data-pdf-stage]')];
+  if(!selectText){for(const st of stages)st.querySelector('.pdf-text-layer')?.remove();return;}
+  if(!getWords||!screenRect||!pageInfo)return;
+  const s=adapter.snapshot();if(!s.saved||!s.model)return;
+  for(const stage of stages){
+   const page=s.model.pages.find(p=>p.id===stage.dataset.pdfStage);if(!page)continue;
+   const words=await getWords(page.id),info=pageInfo(page);
+   if(selectText&&info?.box&&stage.isConnected)renderSelectableLayer(stage,words,info,screenRect);
+  }
+ }
  function syncDom(){
   root.dataset.pdfLayout=prefs.pageLayout;root.dataset.pdfNight=prefs.nightMode?'true':'false';
+  root.dataset.pdfZoom=String(Math.round(zoom*100));root.dataset.pdfFitWidth=fitWidth?'true':'false';
+  root.dataset.pdfSelectText=selectText?'true':'false';
+  pagesHost.style.setProperty('--pdf-zoom',String(zoom));
   const cards=[...pagesHost.querySelectorAll(':scope > .page')],total=cards.length;
   pageIndex=total?clamp(pageIndex,0,total-1):0;
   cards.forEach((card,i)=>card.classList.toggle('is-current-page',i===pageIndex));
-  const showPager=root.dataset.pdfView==='document'&&prefs.pageLayout==='single'&&total>0;
-  pager.hidden=!showPager;
-  if(showPager){label.textContent=`Page ${pageIndex+1} of ${total}`;prev.disabled=pageIndex<=0;next.disabled=pageIndex>=total-1;}
+  const show=root.dataset.pdfView==='document'&&total>0;
+  ui.bar.hidden=!show;
+  if(show){
+   ui.label.textContent=`Page ${pageIndex+1} of ${total}`;ui.jump.max=String(total);ui.jump.value=String(pageIndex+1);
+   ui.prev.disabled=pageIndex<=0;ui.next.disabled=pageIndex>=total-1;
+   ui.zoomVal.textContent=`${Math.round(zoom*100)}%`;ui.zoomOut.disabled=zoom<=0.5;ui.zoomIn.disabled=zoom>=3;
+   ui.fitBtn.setAttribute('aria-pressed',String(fitWidth));ui.selectBtn.setAttribute('aria-pressed',String(selectText));
+  }
+  void syncTextLayers();
  }
- function turn(delta){const total=pagesHost.querySelectorAll(':scope > .page').length;if(!total)return;pageIndex=clamp(pageIndex+delta,0,total-1);syncDom();}
- prev.onclick=()=>turn(-1);next.onclick=()=>turn(1);
+ function setZoom(nextZoom,{fit=false}={}){zoom=Number(clamp(nextZoom,0.5,3).toFixed(2));fitWidth=Boolean(fit);syncDom();}
+ function goToPage(oneBased,{scroll=true,updateUrl=true}={}){
+  const cards=[...pagesHost.querySelectorAll(':scope > .page')],total=cards.length;if(!total)return false;
+  const target=clamp(Math.trunc(Number(oneBased)||1),1,total);
+  pageIndex=target-1;syncDom();
+  if(scroll&&cards[pageIndex])cards[pageIndex].scrollIntoView?.({block:'start',behavior:'auto'});
+  const docId=adapter.snapshot().saved?.id;
+  if(updateUrl&&docId)try{const u=new URL(location.href);u.searchParams.set('document',docId);u.searchParams.set('page',String(target));history.replaceState(history.state,'',u.pathname+u.search);}catch{/* embedded */}
+  adapter.status?.(`Page ${target} of ${total}`);
+  return true;
+ }
+ function turn(delta){const total=pagesHost.querySelectorAll(':scope > .page').length;if(!total)return;goToPage(pageIndex+1+delta,{scroll:true,updateUrl:true});}
  async function savePrefs(patch){
   prefs={...prefs,...patch};syncDom();
   try{const res=await adapter.put('/preferences',{pageLayout:prefs.pageLayout,nightMode:prefs.nightMode});if(res?.preferences)prefs=res.preferences;syncDom();}catch(err){feedback(err);}
  }
  async function load(){try{const res=await adapter.api('/preferences');if(res?.preferences)prefs=res.preferences;syncDom();}catch{/* default view preferences apply */}}
- return{load,syncDom,turn,getPrefs:()=>({...prefs}),setLayout:pageLayout=>savePrefs({pageLayout}),toggleNight:()=>savePrefs({nightMode:!prefs.nightMode})};
+ return{load,syncDom,turn,goToPage,setZoom,getZoom:()=>({zoom,fitWidth,page:pageIndex+1}),getPrefs:()=>({...prefs}),setLayout:pageLayout=>savePrefs({pageLayout}),toggleNight:()=>savePrefs({nightMode:!prefs.nightMode})};
 }

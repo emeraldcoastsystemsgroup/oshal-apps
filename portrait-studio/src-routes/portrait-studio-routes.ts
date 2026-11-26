@@ -15,13 +15,15 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the closed local face-detector asset set behind the existing view permission.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4, the same image rule as Create (operator 2026-10-02: "it should just be the same everywhere"; core ADR-130 amendment, the render bot's own harness picks the image rail): one provider resolve per decision through portraitProviderFor, never a second provider. The operator-only antigravity-cli rail is accepted when it reports itself available for the caller; a caller the kernel has no provider for (it throws "not configured") or whose provider is not available to them gets portrait_provider_unavailable: 503 before any row is queued on POST /portraits, a failed row without generation in the queued run, and configured:false on GET /provider, instead of the raw resolver error as a 500. codex-cli stays refused by name with portrait_cli_authorization_unavailable. No permission, catalog or authorization.yaml change.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel (its own local image provider, provider.native): the sandbox's package folder is read-only and the process ends when the request answers, so photos and portraits are kept in the package's lasting directory (OSHAL_PACKAGE_DATA_DIR, manifest lastingStorage) and a generation with the kernel's provider finishes inside POST /portraits: 201 with status done, or 503 portrait_generation_failed whose detail is the provider's own words (for example that the image model is starting). A provider that is not available and says why in its health check is quoted in the refusal detail. Platform runtimes keep the queued background generation unchanged.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.17.10 tool parity (CREATE-TOOL-PORTRAIT-01, -02, -03, -09): support JSON owned photo references on POST /portraits, share generation startup with POST /portraits/:id/rerun, enrich GET /portraits rows with URLs and rerun flags, and mount GET /provider-status, GET /portraits/:id, GET /portraits/:id/export-link, and POST /portraits/:id/handoff via portrait-parity.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.17.10 native bridge compatibility: inspect req.headers['content-type'] instead of req.is() in POST /portraits upload/JSON dispatcher so native express_shim requests handle JSON bodies without throwing.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { AsyncResource } from 'node:async_hooks';
-import { Router } from 'express';
+import { Router, json as expressJson } from 'express';
 import type { RequestHandler, Response } from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -35,6 +37,8 @@ import type { AppContext } from '@/app/composition/app-context';
 import { buildPortraitPrompt, clientCatalog, findStyle, isPortraitMode, validateOverrides, validateSubjects } from './portrait-catalog';
 import type { PortraitOptions } from './portrait-catalog';
 import { withRetries, isTransientVendorError, withTimeout, Semaphore, exportFormat, EXPORT_FORMATS } from './portrait-ops';
+import { formatPortraitSummary, hasSpoofedScope, parseCreateOptions, registerPortraitParityRoutes, resolveOwnedPhotoReference } from './portrait-parity';
+import type { StartGenerationInput } from './portrait-parity';
 
 const logger = createChildLogger({ module: 'portrait-studio-routes' });
 
@@ -252,14 +256,56 @@ async function runGeneration(ctx: AppContext, id: string, sub: string, prompt: s
  * @param ctx - App context. @param res - The POST response.
  * @param job - Row id, owner sub, built prompt and the cropped photo bytes.
  */
-async function answerNativeGeneration(ctx: AppContext, res: Response, job: { id: string; sub: string; prompt: string; source: Buffer }): Promise<void> {
+async function answerNativeGeneration(ctx: AppContext, res: Response, job: { id: string; sub: string; prompt: string; source: Buffer; rerunOf?: string }): Promise<void> {
   await runGeneration(ctx, job.id, job.sub, job.prompt, job.source);
   const row = (await ctx.pool.query(`SELECT status, error FROM ps_portraits WHERE portrait_id = $1`, [job.id])).rows[0] as { status?: string; error?: string | null } | undefined;
+  const rerunMeta = job.rerunOf ? { rerunOf: job.rerunOf } : {};
   if (row?.status === 'done') {
-    res.status(201).json({ portraitId: job.id, status: 'done' });
+    res.status(201).json({ portraitId: job.id, status: 'done', ...rerunMeta });
     return;
   }
-  res.status(503).json({ error: 'portrait_generation_failed', portraitId: job.id, detail: String(row?.error || 'the portrait could not be generated') });
+  res.status(503).json({ error: 'portrait_generation_failed', portraitId: job.id, ...rerunMeta, detail: String(row?.error || 'the portrait could not be generated') });
+}
+
+/** @description Enforce daily cap, active cap, permission, and provider checks, then start one portrait run. */
+async function startPortraitGeneration(ctx: AppContext, res: Response, input: StartGenerationInput): Promise<void> {
+  const started = Date.now();
+  const issuer = callerIssuer(ctx);
+  const capRow = await ctx.pool.query(
+    `SELECT COUNT(*)::int AS n,
+            COUNT(*) FILTER (WHERE status IN ('queued','generating'))::int AS active
+     FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $2 AND created_at > NOW() - INTERVAL '24 hours'`,
+    [input.sub, issuer],
+  );
+  if ((capRow.rows[0]?.n ?? 0) >= DAILY_CAP) {
+    res.status(429).json({ error: `daily cap reached (${DAILY_CAP} portraits/24h) — try again tomorrow` });
+    return;
+  }
+  if ((capRow.rows[0]?.active ?? 0) >= MAX_ACTIVE_PER_USER) {
+    res.status(429).json({ error: `you already have ${capRow.rows[0].active} portrait(s) generating — wait for them to finish` });
+    return;
+  }
+  await requirePortraitPermission(ctx, 'create');
+  const selected = await portraitProviderFor(input.sub);
+  if (!selected.ok) { res.status(503).json({ error: selected.refusal }); return; }
+  const prompt = buildPortraitPrompt(input.mode, input.style, input.options);
+  const title = (input.title || '').trim().slice(0, 120);
+  const inserted = await ctx.pool.query(
+    `INSERT INTO ps_portraits (user_sub, mode, style, options, prompt, status, owner_issuer, title)
+     VALUES ($1, $2, $3, $4::jsonb, $5, 'queued', $6, $7) RETURNING portrait_id`,
+    [input.sub, input.mode, input.style, JSON.stringify(input.options), prompt, issuer, title],
+  );
+  const id = String(inserted.rows[0].portrait_id);
+  const sourcePath = path.join(userDir(input.sub, issuer), `${id}-source.png`);
+  fs.writeFileSync(sourcePath, input.source);
+  await ctx.pool.query(`UPDATE ps_portraits SET source_path = $2, updated_at = NOW() WHERE portrait_id = $1`, [id, sourcePath]);
+  if (selected.provider.native === true) {
+    await answerNativeGeneration(ctx, res, { id, sub: input.sub, prompt, source: input.source, rerunOf: input.rerunOf });
+    return;
+  }
+  void runGeneration(ctx, id, input.sub, prompt, input.source);
+  logger.info({ portraitId: id, mode: input.mode, style: input.style, subjects: input.options.subjects ?? 1, rerunOf: input.rerunOf ?? null, bytes: input.source.length, durationMs: Date.now() - started }, 'portrait queued');
+  res.status(202).json({ portraitId: id, status: 'queued', ...(input.rerunOf ? { rerunOf: input.rerunOf } : {}) });
 }
 
 /**
@@ -322,7 +368,12 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
   // Multipart events originate outside the request ALS chain. Bind the continuation while
   // the core's verified actor and restricted database identity are still current.
-  const uploadPhoto: RequestHandler = (req, res, next) => upload.single('photo')(req, res, AsyncResource.bind(next));
+  const jsonBody = expressJson({ limit: '64kb' });
+  const uploadPhoto: RequestHandler = (req, res, next) => {
+    const contentType = String(req.headers?.['content-type'] || '').toLowerCase();
+    if (contentType.includes('multipart/form-data')) { upload.single('photo')(req, res, AsyncResource.bind(next)); return; }
+    jsonBody(req, res, next);
+  };
   void ensureSchema(ctx)
     .then(() => sweepStuckRows(ctx, true))
     .catch((err) => logger.error({ err }, 'portrait-studio schema bootstrap failed'));
@@ -375,67 +426,42 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** POST /portraits — cropped photo (multipart 'photo'; in group mode the browser-built numbered reference sheet) + mode/style/options (+ 'subjects' in group mode) → queue a generation. */
+  /** POST /portraits — cropped photo (multipart 'photo' or owned JSON photo reference) + mode/style/options → queue a generation. */
   router.post('/portraits', uploadPhoto, async (req, res) => {
     const started = Date.now();
     try {
       const sub = callerSub(ctx);
       if (!sub) { res.status(401).json({ error: 'sign in to generate portraits' }); return; }
-      const file = req.file;
-      if (!file || !file.buffer?.length) { res.status(400).json({ error: 'photo is required (multipart field "photo")' }); return; }
-      if (!/^image\//.test(file.mimetype || '')) { res.status(400).json({ error: 'photo must be an image' }); return; }
-      const mode = String(req.body?.mode || 'professional');
-      const style = String(req.body?.style || '');
+      const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+      if (hasSpoofedScope(body) || hasSpoofedScope(req.query)) { res.status(400).json({ error: 'scope fields are not allowed' }); return; }
+      let photoBuffer: Buffer;
+      let defaults: { mode?: string; style?: string; options?: PortraitOptions; title?: string } = {};
+      if (req.file && req.file.buffer?.length) {
+        if (!/^image\//.test(req.file.mimetype || '')) { res.status(400).json({ error: 'photo must be an image' }); return; }
+        photoBuffer = req.file.buffer;
+      } else {
+        const resolved = await resolveOwnedPhotoReference(ctx, sub, body, ownedRow);
+        if ('error' in resolved) { res.status(resolved.status).json({ error: resolved.error }); return; }
+        photoBuffer = resolved.buffer;
+        defaults = resolved.defaults;
+      }
+      const mode = String(body.mode || defaults.mode || 'professional');
+      const style = String(body.style || defaults.style || '');
       if (!isPortraitMode(mode)) { res.status(400).json({ error: `unknown mode: ${mode}` }); return; }
       if (!findStyle(mode, style)) { res.status(400).json({ error: `unknown ${mode} style: ${style}` }); return; }
-      let options: PortraitOptions = {};
-      try { options = JSON.parse(String(req.body?.options || '{}')); } catch { /* tolerate — defaults apply */ }
+      const options = parseCreateOptions(body, defaults.options);
       const badOverride = validateOverrides(options);
       if (badOverride) { res.status(400).json({ error: badOverride }); return; }
-      // Group mode: the face count rides as its own multipart field and is the ONLY source of
-      // truth — a `subjects` inside the JSON options blob is discarded, never trusted.
-      const subjectsRaw = req.body?.subjects;
+      const subjectsRaw = body.subjects;
       const badSubjects = validateSubjects(mode, subjectsRaw === undefined || subjectsRaw === '' ? undefined : subjectsRaw);
       if (badSubjects) { res.status(400).json({ error: badSubjects }); return; }
       delete options.subjects;
       if (mode === 'group') options.subjects = Number(subjectsRaw);
-
-      const capRow = await ctx.pool.query(
-        `SELECT COUNT(*)::int AS n,
-                COUNT(*) FILTER (WHERE status IN ('queued','generating'))::int AS active
-         FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $2 AND created_at > NOW() - INTERVAL '24 hours'`,
-        [sub, callerIssuer(ctx)],
-      );
-      if ((capRow.rows[0]?.n ?? 0) >= DAILY_CAP) {
-        res.status(429).json({ error: `daily cap reached (${DAILY_CAP} portraits/24h) — try again tomorrow` });
-        return;
+      if (body.title !== undefined && (typeof body.title !== 'string' || body.title.trim().length > 120)) {
+        res.status(400).json({ error: 'title must be a string of at most 120 characters' }); return;
       }
-      if ((capRow.rows[0]?.active ?? 0) >= MAX_ACTIVE_PER_USER) {
-        res.status(429).json({ error: `you already have ${capRow.rows[0].active} portrait(s) generating — wait for them to finish` });
-        return;
-      }
-
-      await requirePortraitPermission(ctx, 'create');
-      const selected = await portraitProviderFor(sub);
-      if (!selected.ok) { res.status(503).json({ error: selected.refusal }); return; }
-      const prompt = buildPortraitPrompt(mode, style, options);
-      const inserted = await ctx.pool.query(
-        `INSERT INTO ps_portraits (user_sub, mode, style, options, prompt, status, owner_issuer)
-         VALUES ($1, $2, $3, $4::jsonb, $5, 'queued', $6) RETURNING portrait_id`,
-        [sub, mode, style, JSON.stringify(options), prompt, callerIssuer(ctx)],
-      );
-      const id = String(inserted.rows[0].portrait_id);
-      const sourcePath = path.join(userDir(sub, callerIssuer(ctx)), `${id}-source.png`);
-      fs.writeFileSync(sourcePath, file.buffer);
-      await ctx.pool.query(`UPDATE ps_portraits SET source_path = $2, updated_at = NOW() WHERE portrait_id = $1`, [id, sourcePath]);
-
-      if (selected.provider.native === true) {
-        await answerNativeGeneration(ctx, res, { id, sub, prompt, source: file.buffer });
-        return;
-      }
-      void runGeneration(ctx, id, sub, prompt, file.buffer);
-      logger.info({ portraitId: id, mode, style, subjects: options.subjects ?? 1, bytes: file.buffer.length, durationMs: Date.now() - started }, 'portrait queued');
-      res.status(202).json({ portraitId: id, status: 'queued' });
+      const title = typeof body.title === 'string' ? body.title : (defaults.title || '');
+      await startPortraitGeneration(ctx, res, { sub, mode, style, options, source: photoBuffer, title });
     } catch (err) {
       logger.error({ err, durationMs: Date.now() - started }, 'portrait create failed');
       res.status(errorStatus(err, 500)).json({ error: err instanceof Error ? err.message : 'portrait create failed' });
@@ -475,12 +501,12 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       if (!sub) { res.status(401).json({ error: 'sign in to see your portraits' }); return; }
       const r = await ctx.pool.query(
         `SELECT portrait_id, title, mode, style, status, error, model, cost_usd, created_at, updated_at,
-                (options->>'subjects')::int AS subjects
+                (options->>'subjects')::int AS subjects, (source_path IS NOT NULL) AS has_source
          FROM ps_portraits WHERE user_sub = $1 AND owner_issuer = $2 ORDER BY created_at DESC LIMIT 60`,
         [sub, callerIssuer(ctx)],
       );
       await requirePortraitPermission(ctx, 'read');
-      res.set('Cache-Control', 'private, no-store').json({ portraits: r.rows });
+      res.set('Cache-Control', 'private, no-store').json({ portraits: r.rows.map((row: Record<string, unknown>) => formatPortraitSummary(row)) });
     } catch (err) {
       logger.error({ err }, 'portrait list failed');
       res.status(errorStatus(err, 500)).json({ error: 'portrait list failed' });
@@ -593,6 +619,15 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       logger.error({ err, portraitId: req.params.id }, 'portrait delete failed');
       res.status(errorStatus(err, 500)).json({ error: 'portrait delete failed' });
     }
+  });
+
+  registerPortraitParityRoutes(router, {
+    ctx,
+    dailyCap: DAILY_CAP,
+    maxActivePerUser: MAX_ACTIVE_PER_USER,
+    ownedRow,
+    portraitProviderFor,
+    startGeneration: (res, input) => startPortraitGeneration(ctx, res, input),
   });
 
   return router;

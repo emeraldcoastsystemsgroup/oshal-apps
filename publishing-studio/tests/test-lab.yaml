@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: phone-start also proves touch scrolling over the open page, tap-to-select and the Move handle, no preview request for an unrendered revision, and the mouse-only desktop guard.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): document-handoff and workbench-browser ask in the window through the stand-in kernel of scripts/one-chat-window/kernel-window.mjs, and their expectations name what the window proves.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4: register concierge-entries (every concierge entry a person sees in Publishing's own Today and alone, at 1440x900 and 412x915 with touch, on Your publications and on the open publication, opens Publishing's own chat window on screen, closes with its own Close and opens again).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: register tool-parity covering CREATE-TOOL-PUBLISHING-STUDIO-06, -07, and -15 across model operations, concierge tools, and real Chromium at 1440x900 and 412x915.
 version: 1
 cases:
   - id: editor-foundation
@@ -376,6 +377,25 @@ cases:
       - Pinned comments support replies, resolve and forced-RLS cross-user isolation while refusing missing targets with 404 publishing_comment_target_missing.
       - Social scheduling and immediate posting enforce confirmation (428), ready render (409), connected channel (409) and forced-RLS dispatch.
       - Item animations, timeline scrubbing and H.264 MP4 video export coexist with print PDF while refusing unknown presets (400) and unrendered video exports (409).
+    prerequisites: [runner:node, browser:chromium, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique own fixture databases, roles, children and temporary directories; preserve shared PostgreSQL.
+    limits: { timeoutMs: 240000, maxMemoryMb: 1536 }
+    installation: never
+  - id: tool-parity
+    name: Page reorder, master canvas, named styles, in-place object editing, delete-asset tool and page PNG download
+    purpose: Real Chromium at 1440x900 and 412x915, disposable forced-RLS PostgreSQL, and native Typst engine prove CREATE-TOOL-PUBLISHING-STUDIO-06, -07, and -15 across screen controls and concierge tools.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/tool-parity.test.mjs]
+    expected:
+      - 'CREATE-TOOL-PUBLISHING-STUDIO-15: publishing-delete-asset refuses in-use assets with 409, deletes unused assets cleanly, and Download page 2 PNG saves real PNG bytes.'
+      - 'CREATE-TOOL-PUBLISHING-STUDIO-06: pages reorder by drag-and-drop and Move buttons with automatic story relinking; masters can be created, named, and edited on the visual canvas while raw JSON stays collapsed by default.'
+      - 'CREATE-TOOL-PUBLISHING-STUDIO-07: new named character and paragraph styles appear in both style lists; rectangles recolour, text items retext, and pictures swap in place preserving exact object geometry.'
     prerequisites: [runner:node, browser:chromium, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, source:kernel-shared-ui]
     sideEffects: fixture-write
     isolation:

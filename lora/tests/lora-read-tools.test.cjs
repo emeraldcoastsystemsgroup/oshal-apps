@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | "What LoRA models have I trained?" from Jarvis answered that LoRA Studio could not list trained models, while the studio showed them: the director had no tool. lora-characters and lora-models are read tools on the mounted GET /characters and GET /models, each bound in the catalog to lora.read, exactly the permission the route's own binding needs (the kernel offers a catalog application's tool only then), and the persona calls them.
  *
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped saved-source handoff and verify its persona mapping, approved mutations and narrow source role against the actual manifest/catalog.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.10.6 (CREATE-TOOL-LORA-01, -05, -13): allow optional subject query on lora-models and verify all read and approval-held studio action tools against authorization.yaml and personas/lora-director.yaml.
  *
  * Dependency-free `node --test` suite apart from the store toolchain's js-yaml.
  */
@@ -16,22 +17,58 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const yaml = require(path.join(ROOT, '..', 'scripts', 'toolchain', 'node_modules', 'js-yaml'));
+const TOOLCHAIN = path.resolve(process.env.STORE_CI_TOOLCHAIN || path.join(ROOT, '..', 'scripts', 'toolchain'));
+const yaml = require(path.join(TOOLCHAIN, 'node_modules', 'js-yaml'));
 const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
 const catalog = yaml.load(fs.readFileSync(path.join(ROOT, 'authorization.yaml'), 'utf8'));
 const persona = yaml.load(fs.readFileSync(path.join(ROOT, 'personas', 'lora-director.yaml'), 'utf8'));
 
-for (const [name, route] of [['lora-characters', '/characters'], ['lora-models', '/models']]) {
+for (const [name, route, endpoint] of [
+  ['lora-characters', '/characters', 'GET /api/lora/characters'],
+  ['lora-models', '/models', 'GET /api/lora/models?subject={input.subject}'],
+  ['lora-scorecard', '/scorecard', 'GET /api/lora/scorecard?subject={input.subject}&version={input.version}'],
+  ['lora-dataset', '/dataset', 'GET /api/lora/dataset?subject={input.subject}'],
+]) {
   test(`${name} reads GET ${route} under the same permission the route needs`, () => {
     const tool = manifest.tools.find((t) => t.name === name);
-    assert.equal(tool.executor.apiEndpoint, `GET /api/lora${route}`);
+    assert.ok(tool, name);
+    assert.equal(tool.executor.apiEndpoint, endpoint);
     assert.equal(tool.requiresApproval, false);
+    assert.equal(tool.defaultAuthMode, 'auto');
     const http = catalog.bindings.http.find((b) => b.method === 'GET' && b.path === route);
     const bound = catalog.bindings.tools.find((b) => b.id === name);
     assert.deepEqual(bound.allOf, http.allOf);
-    assert.ok(fs.readFileSync(path.join(ROOT, 'routes', 'bot-lora-routes.js'), 'utf8').includes(`router.get('${route}'`));
+    const routeCode = fs.readFileSync(path.join(ROOT, 'routes', route === '/dataset' ? 'lora-dataset-ingest.js' : 'bot-lora-routes.js'), 'utf8');
+    assert.ok(routeCode.includes(`router.get('${route}'`), route);
   });
 }
+
+test('all approval-held studio action tools match their HTTP bindings and persona instructions', () => {
+  const actions = [
+    ['lora-create-character', 'POST', '/characters'],
+    ['lora-train', 'POST', '/train'],
+    ['lora-validate', 'POST', '/validate'],
+    ['lora-improve', 'POST', '/improve'],
+    ['lora-activate-model', 'POST', '/characters/:subject/active'],
+    ['lora-overnight-toggle', 'POST', '/characters/:subject/autonomous'],
+    ['lora-delete-character', 'DELETE', '/characters/:subject'],
+    ['lora-dataset-import', 'POST', '/dataset/import'],
+    ['lora-delete-model', 'DELETE', '/models/:subject/:version'],
+  ];
+  for (const [name, method, route] of actions) {
+    const tool = manifest.tools.find((t) => t.name === name);
+    assert.ok(tool, `${name} declared in oshal-app.yaml`);
+    assert.equal(tool.defaultAuthMode, 'ask', `${name} defaultAuthMode`);
+    assert.equal(tool.requiresApproval, true, `${name} requiresApproval`);
+    assert.ok(typeof tool.cardText === 'string' && tool.cardText.trim().length > 0, `${name} cardText`);
+    const http = catalog.bindings.http.find((b) => b.method === method && b.path === route);
+    const bound = catalog.bindings.tools.find((b) => b.id === name);
+    assert.ok(http && bound, `${name} bound in authorization.yaml`);
+    assert.deepEqual(bound.allOf, http.allOf, `${name} permissions match HTTP route`);
+    assert.ok(persona.perspective.includes(name), `${name} documented in lora-director.yaml`);
+  }
+  assert.doesNotMatch(persona.perspective, /do not generate images, train models, or run commands yourself/);
+});
 
 test('the director calls the read tools instead of saying it cannot see them', () => {
   assert.match(persona.perspective, /call lora-characters or\s+lora-models/);

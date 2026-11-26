@@ -17,13 +17,14 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.4 (Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken). Publishing's concierge (the one Jarvis chat window as concierge=publishing-studio&bot=publishing-editor) opens on screen from every entry a person sees, inside Today (Create's Publishing Studio screen and Publishing's own) and alone, at 1440x900 and on a 412x915 phone. Your publications, the first screen whenever a person has publications, hid the concierge column on a desktop, so Today's bar Concierge opened a 0 px window with no message box: an open concierge now sits beside the list as a 320 px column. On a phone the list drew no concierge entry at all (Today hides its ball and its bar's Concierge there because the shared editor says it holds its own): the list's heading row now carries Concierge, which steps aside on a desktop while Today's bar opens the concierge. The phone's Concierge sheet now closes with the window's own Close, as with its Done. Presentation only; no route, tool, binding or authorization change. Guards: tests/publishing-concierge-entries.test.mjs (its own Today and alone, both sizes, list and open publication; red 0/4 on 0.5.3) and scripts/editor-foundation/today-concierge.test.mjs (Create's screen).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.5: preserve concierge iframe focus during `prepareDocumentHandoff()` (`tools/workbench.mjs`) so `jarvis-package-tools.js` (`b45d1529`) does not redact waiting approval cards when a turn starts from the shared chat window (`tests/workbench-browser.test.mjs`).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.6: tool parity (`CREATE-TOOL-PUBLISHING-STUDIO-06`, `-07`, `-15`): add `publishing-delete-asset` tool, `move-page` / `create-master` / `replace-image` operations, Download page PNG button, drag-reorder pages, master canvas editing with raw JSON hidden by default, new named styles, and in-place object editing.
 name: publishing-studio
 suite: ai-creative
 displayName: Publishing Studio
 description: >-
   Original-owned bounded English print and animated layouts, starter templates, linked stories,
   styles, masters, subject cutouts, comments, social scheduling and native Typst PDF/PNG/MP4 output.
-version: 0.5.5
+version: 0.5.6
 runtime: process
 lastingStorage: true
 status: active
@@ -921,5 +922,24 @@ tools:
       required: [id]
     usageInstructions: Ready state unlocks publishing-export with format=mp4.
     routingTags: [publishing, video, animate]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-delete-asset
+    displayName: Delete unused image asset
+    type: api
+    category: creative
+    description: Delete an unreferenced owned image asset; refuses assets retained by saved revisions.
+    cardText: Delete unused image asset in Publishing Studio
+    executor: { executorType: api, apiEndpoint: "DELETE /api/publishing-studio/assets/{input.asset}" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        asset: { type: string, minLength: 1, maxLength: 64 }
+      required: [asset]
+    usageInstructions: Only delete unreferenced owned asset IDs after explicit user approval.
+    routingTags: [publishing, asset, delete]
     skills: [publishing-editing]
     tags: [route-backed]

@@ -11,6 +11,9 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2, UX audit 2026-11-06 (jarvis--jarvis-home): "In one short sentence, what workspace tools can you coordinate here?" asked on the Jarvis page was handed to the Venture BOM Analyst (production: jarvis_handoff_owner app=venture-plan score=4, jarvis_handoff_implied). The kernel scored the word "one" of the BOM phrase "cost to make one" and read "tools" as the operations keyword "tooling"; together a strong claim. The BOM phrase is now "unit cost" and the operations keyword "mold tooling" (manifest and persona files alike), so a question about the assistant's own tools claims no Venture Plan bot while tooling, unit-cost, BOM and landed-cost questions still do. Guarded by tests/venture-routing-words.test.js.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3, UX audit 2026-11-06 (venture-plan--venture-home, grade C): the console's first screen. The venture name is a menu (switch, New venture, Rename through the existing PATCH /ventures/:id, Delete with an in-page confirm); the ventures rail is gone and Delete left the top bar, so Run the analysts is the one primary beside Recompute. The run outcome, posture tiles and "Planning instrument, not a quote" collapse into one status line whose info button opens them (a run that left something undone opens them itself); the five step boxes are one line beside the tabs, which start at 118 px on a 1440x900 desktop and are the bottom bar on a phone. Cards say their formula in words or nothing (no buyerTotalMicros or max(0, -trough)); Break-even says the run the engine searched ("Not within 5,000 units") instead of "not computed"; menus, the bottom bar and the toast are opaque. No route, schema, persona or authorization change. Guarded by tests/venture-home-ui.test.js and the updated run, numbers and verdicts UI suites.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: scope the BOM, market, and operations analyst personas' raw-JSON output contract strictly to run prompts carrying "Schema:" so conversational Jarvis hand-offs answer in plain sentences instead of raw JSON. Guarded by tests/venture-routing-words.test.js.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: add pure side-by-side scenario compare engine (src-routes/venture-compare.ts + routes/venture-compare.js), owner-scoped LLM-free GET /ventures/:id/scenarios/compare bound in authorization.yaml to existing [app.open, venture.read], and XSS-safe Compare tab in tools/venture.html. Guarded by tests/venture-compare.test.js and tests/venture-compare-browser.test.mjs.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: add FX Evidence Console and foreign-currency supplier quote binding in tools/venture.html backed by pure decimal-to-nano helper tools/venture-fx-console.js over the existing bound FX and quote routes (zero authorization.yaml or schema changes). Guarded by tests/venture-fx-console.test.js and tests/venture-fx-console-browser.test.mjs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: add Saved-quote inbox — pure deterministic parser (src-routes/venture-quote-parser.ts), owner-scoped venture_quote_inbox migration (006 + native 002) with forced RLS, store/routes bound to existing [venture.read]/[venture.change] permissions, and review/promote/dismiss UI in tools/venture.html. Guarded by tests/venture-quote-inbox.test.js and tests/venture-quote-inbox-browser.test.mjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — venture-plan ("Venture Plan")
@@ -113,7 +116,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.5.4
+version: 1.5.7
 status: active
 scope: person
 
@@ -372,8 +375,10 @@ migrations:
   - migrations/003-venture-outputs.sql
   - migrations/004-venture-fx.sql
   - migrations/005-venture-rebaseline.sql
+  - migrations/006-venture-quote-inbox.sql
   - migrations/native/001-venture-plan.sql
-# The native kernel applies the native file above in place of 001-005, whose DO blocks and PL/pgSQL triggers are PostgreSQL-only.
+  - migrations/native/002-venture-quote-inbox.sql
+# The native kernel applies the native files above in place of 001-006, whose DO blocks and PL/pgSQL triggers are PostgreSQL-only.
 nativeMigrations:
   - id: migrations/001-venture-core.sql
     native: skip
@@ -390,6 +395,9 @@ nativeMigrations:
   - id: migrations/005-venture-rebaseline.sql
     native: skip
     reason: "Its policy table, run schedule/cost columns, checks and indexes are in migrations/native/001-venture-plan.sql; its PL/pgSQL rebaseline-owner, run-owner and cost-transition triggers and its RLS DO block are PostgreSQL-only."
+  - id: migrations/006-venture-quote-inbox.sql
+    native: skip
+    reason: "Its table, constraints and index are in migrations/native/002-venture-quote-inbox.sql; its owner-or-operator RLS DO block is PostgreSQL-only, and the native per-person scope and its owner-field check keep each person's quote inbox items their own."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the venture console: the venture

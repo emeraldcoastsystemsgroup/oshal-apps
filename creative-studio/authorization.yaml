@@ -200,6 +200,41 @@ bindings:
     - app.open
     - source.read
     - source.change
+  - id: studio-stories-module
+    method: GET
+    path: /creative-studio-stories.mjs
+    allOf:
+    - app.open
+  - id: story-library
+    method: GET
+    path: /stories/library
+    allOf:
+    - app.open
+    - legacy.read
+  - id: story-jobs-list
+    method: GET
+    path: /stories/jobs
+    allOf:
+    - app.open
+    - legacy.read
+  - id: story-produce-next
+    method: POST
+    path: /stories/next
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: story-produce
+    method: POST
+    path: /stories/produce
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: story-jobs-delete
+    method: DELETE
+    path: /stories/jobs/:id
+    allOf:
+    - app.open
+    - legacy.execute
   tools:
   - id: creative-studio-source-list
     allOf:
@@ -218,6 +253,10 @@ bindings:
     - app.open
     - source.read
     - source.change
+  - id: creative-studio-library
+    allOf:
+    - app.open
+    - legacy.read
   - id: creative_produce_next
     allOf:
     - app.open

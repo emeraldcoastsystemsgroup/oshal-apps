@@ -18,6 +18,7 @@
  * 2026-07-22 00:33:17 | roger.murphy@emeraldcoastsystemsgroup.com  | Exercise authoritative actor/serial ownership and the route-level position, target, rolled result, narration, explicit pass, and advance phases.
  * 2026-07-22 21:59:59 | roger.murphy@emeraldcoastsystemsgroup.com  | Reproduce the live completed-AI-turn stall after its persisted target was defeated.
  * 2026-07-23 13:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Cover the same unclaimed-seat lobby gate for authored investigation openings.
+ * 2026-11-25 14:25:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept lightweight board-revision snapshot reads and inserts alongside state saves.
  */
 
 'use strict';
@@ -126,6 +127,8 @@ class MockPool {
     if (/SELECT slug, sheet FROM dnd_characters/.test(sql)) return this.sheetRows();
     if (/SELECT seq, kind, content, payload FROM dnd_archive/.test(sql)) return this.rows([]);
     if (/SELECT COALESCE\(MAX\(seq\),0\)\+1 AS n FROM dnd_archive/.test(sql)) return this.rows([{ n: this.archiveRows.length + 1 }]);
+    if (/SELECT COALESCE\(MAX\(seq\),0\) AS seq FROM dnd_archive/.test(sql)) return this.rows([{ seq: this.archiveRows.length }]);
+    if (/FROM dnd_snapshots|INTO dnd_snapshots/.test(sql)) return this.rows([]);
     if (/INSERT INTO dnd_archive/.test(sql)) {
       this.archiveRows.push({ seq: params[2], kind: params[3], content: params[4] });
       return this.rows([]);

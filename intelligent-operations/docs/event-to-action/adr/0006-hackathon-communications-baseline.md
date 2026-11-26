@@ -1,6 +1,8 @@
 # ADR 0006: Select independent applications and shared communication transports
 
-Status: Accepted and partially delivered, 20 October 2026.
+Status: Closed 2026-11-25 (owner): no submission date was ever recorded, and the three-week horizon from 20 October 2026 ended around 10 November; the provider-account question closes with it.
+
+Status history: 2026-11-25, closed by the owner (owner decisions review of 2026-11-25, item 20). Earlier status: Accepted and partially delivered, 20 October 2026.
 
 Context: The hackathon installation needs Operations, Office, email and Telegram alerts,
 with Jarvis as its assistant. The broad Jarvis experience package requires Finance and

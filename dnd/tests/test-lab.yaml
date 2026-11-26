@@ -22,6 +22,11 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register theme-contrast: every text on the table (drawer, status strip, HUD and More menu, dock, banner, My Games) reads at 4.5:1 under all twenty themes, and My Games is opaque (UX audit 2026-11-06, dnd-table FIX-BROKEN).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register ux-audit: the table's HUD and More menu, My Games' row menu, How to play, My Characters and TV Mode after the 2026-11-06 UX audit.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 0.22.5: register phone-library (lane mobilesweep2).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 0.22.6: register replay-export (unit) and replay-export-browser (browser) for continuous board revisions, cutaway correlation, and sanitized read-only Markdown/HTML/JSON recap export.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 0.22.7: register spellcasting (unit) and spellcasting-browser (browser) for sphere AoE templates, concentration saves, SRD conditions, reactions, and tabletop status indicators.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 0.22.8: register leveling-arc (unit) and level3-arc-browser (browser) for SRD 5.1 Level 3-5 progression, server/client parity, Level 5 combat spells/features, and The Ashen Citadel 5-chapter campaign arc.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 0.22.9: register cutaway-beats (unit) and cutaway-beats-browser (browser) for big combat beat classification, cheap local transitions, enforced per-campaign cutaway cap, and visible Art X/20 budget indicator.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 0.22.10: register tabletop-runtime (unit) for game-neutral TabletopRuntime contract validation, zero-D&D-leakage guard, D&D 5e SRD pack execution, synthetic starship-skirmish second pack proof, and read-only GET /api/dnd/runtime.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -328,4 +333,205 @@ cases:
       mode: none
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: replay-export
+    name: Continuous board revisions, cutaway links, and campaign recap export
+    purpose: "Verify continuous rev:* board revision deduplication, exact-board and cutaway correlation in GET /playback, honest legacy archive-only labeling, clean manual save listings, and read-only sanitized Markdown, HTML, and JSON exports over GET /replay-export."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-replay-export.test.js
+    expected:
+      - "captureBoardRevision strips transient media keys, deduplicates consecutive identical states at the same archive_seq, and keeps GET /snapshots free of internal rev:* rows."
+      - "GET /playback attaches matching current-branch board revisions as exact-board, preserves honest archive-only labeling for legacy beats, and correlates safe cutaway artwork links."
+      - "GET /replay-export serves sanitized md, html (script-free, HTML-escaped, safe URL allowlist), and json attachments with zero DB writes, strips hidden tokens for non-owners, rejects invalid formats with 400, and refuses outsiders with 403."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: replay-export-browser
+    name: Timeline Playback cutaway preview and Export Recap controls
+    purpose: "Load the shipped table.html, dnd.css, and scripts in headless Chromium at 1440x900 and 412x915 to verify Timeline Playback cutaway cards, coverage counts, and read-only Export Recap buttons with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/dnd-replay-export-browser.test.cjs
+    expected:
+      - "Timeline Playback shows exact board and cutaway coverage counts and renders inline cutaway artwork only on frames carrying a safe cutaway link."
+      - "Export Recap buttons (md, html, json) issue read-only GET /api/dnd/replay-export requests, never mutate state, and fit within 1440x900 and 412x915 with zero horizontal overflow and zero page errors."
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: spellcasting
+    name: Deeper spellcasting rules and server guard
+    purpose: "Verify sphere AoE templates (Fireball, Shatter), concentration tracking and Constitution saves, canonical SRD 5.1 conditions with advantage/disadvantage and speed rules, per-round reactions (Shield, Opportunity Attack, Counterspell), and multiplayer-guard persistence."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-spellcasting.test.js
+    expected:
+      - "Sphere AoE templates compute exact 5ft-grid cells and targets, roll shared damage once, apply save-for-half, respect friendlyFire and team targeting, and spend the spell slot."
+      - "Concentration drops any prior spell and strips its linked conditions, checks Con saves DC = max(10, floor(damage / 2)) with Bless support on damage, and breaks automatically at 0 HP."
+      - "Conditions enforce Bless +1d4, blinded/poisoned/frightened/restrained/prone/invisible advantage and disadvantage with cancellation, speed limits, and turn-start expiry."
+      - "Reactions enforce Shield (+5 AC turning hits to misses), Opportunity Attack (skipped on Disengage or spent reaction), and Counterspell (auto <=3rd level, ability check above), while multiplayer-guard preserves and validates all fields."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: spellcasting-browser
+    name: Sphere AoE preview, status badges, and reaction prompts in Chromium
+    purpose: "Load the shipped table.html, dnd.css, spellcasting.js, engine.js, and tabletop bundle in headless Chromium at 1440x900 and 412x915 to verify sphere AoE preview, concentration/condition/reaction indicators, and in-page reaction prompts with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/dnd-spellcasting-browser.test.cjs
+    expected:
+      - "window.DnDEngine and window.DnDSpellcasting expose sphere AoE, concentration, condition, and reaction helpers in the served tabletop bundle."
+      - "Dock, character sheet, and gameplay rail render concentration, condition, temp-AC, and reaction pills cleanly while sphere spell selection renders blast previews and in-page reaction prompts resolve without browser dialogs."
+      - "Both 1440x900 and 412x915 viewports keep zero horizontal overflow and zero page errors."
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: leveling-arc
+    name: Level 3-5 SRD progression and five-chapter Ashen Citadel campaign arc
+    purpose: "Verify SRD 5.1 Level 2-5 progression across all eight hero classes, exact server/client applyLevelUp parity, Level 5 Fireball/Counterspell/Spirit Guardians/Mass Healing Word/3d6 Sneak Attack/Extra Attack execution, and full five-chapter Ashen Citadel advancement."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-leveling-arc.test.js
+    expected:
+      - "srd-leveling.json covers all eight hero classes across Levels 2-5 with monotonic XP thresholds (300, 900, 2700, 6500) and proficiency scaling (+2 to +3 at Level 5)."
+      - "Server applyLevelUp (lib/dnd-timeline-service.js) and client DnDEngine.applyLevelUp (ui/engine.js) produce identical sheets, levelUps records, and notes across both step-by-step and multi-threshold jumps."
+      - "Level 5 Wizard Fireball and Counterspell, Cleric Mass Healing Word, Rogue 3d6 Sneak Attack, and Fighter Extra Attack resolve cleanly through DnDEngine."
+      - "The Ashen Citadel 5-chapter arc has walkable boards, valid bestiary monsters, bundled map art, and durable POST /advance progression leveling a party cleanly from Level 1 through Level 5."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: level3-arc-browser
+    name: Ashen Citadel adventure shelf card and Level 3-5 character sheets in Chromium
+    purpose: "Load the shipped table.html, dnd.css, and tabletop bundle in headless Chromium at 1440x900 and 412x915 to verify The Ashen Citadel campaign card, Level 3/5 XP progress, proficiency bonus, and 1st/2nd/3rd-level spell slots with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/dnd-level3-arc-browser.test.cjs
+    expected:
+      - "Adventure shelf renders The Ashen Citadel card with Level 1-5 Campaign Arc label and 1 investigation · 4 battles summary."
+      - "Leveled character sheets render Level 3 XP progress, Level 5 (Max) progress, +3 Prof, 1st/2nd/3rd-level spell slots, and unlocked Level 3-5 spells cleanly."
+      - "Both 1440x900 and 412x915 viewports keep zero horizontal overflow, zero writes, and zero page errors."
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: cutaway-beats
+    name: Big combat cutaway beats, local transitions, and enforced per-campaign cutaway cap
+    purpose: "Verify combat beat classification (six big beats vs local transitions), per-campaign cutaway cap enforcement after deduplication and before image provider calls, and seat-checked read-only GET /api/dnd/cutaway-budget."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-cutaway-beats.test.js
+    expected:
+      - "All six big combat beats (nat20, nat1, first-blood, hero-down, level-up, boss-reveal) classify as generated with deterministic deduplication keys."
+      - "Common beats (hit, miss, spell, heal, advance) classify as local transitions with null keys and empty prompts and never request generated art."
+      - "dnd-media-service enforces the per-campaign cutaway cap (default 20, configurable 1..50) after deduplication and before provider calls, refusing new keys fail-soft with capped true and zero provider calls while cached replays still succeed."
+      - "GET /api/dnd/cutaway-budget returns exact used, cap, and remaining counters for seated members, refuses outsiders with 403, rejects missing campaignId with 400, and performs zero DB writes."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: "Temporary cutaway directories under os.tmpdir() are removed after each case."
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: cutaway-beats-browser
+    name: Visible Art X/20 cutaway budget badge and non-blocking local beat banner in Chromium
+    purpose: "Load the shipped table.html, dnd.css, cutaway-beats.js, and table-cutaway-beats.js in headless Chromium at 1440x900 and 412x915 to verify the visible Art X/20 budget badge, cap-reached fallback, and non-blocking local transition banner with zero page errors and zero horizontal overflow."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/dnd-cutaway-beats-browser.test.cjs
+    expected:
+      - "The initiative bar and More menu display live Art 3/20 and Art 20/20 (cap reached) indicators with accessible labels."
+      - "Common combat beats and capped big beats display the non-blocking #localBeatBanner transition without issuing POST /api/dnd/cutaway."
+      - "Both 1440x900 and 412x915 viewports keep zero horizontal overflow, zero writes, and zero page errors."
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: tabletop-runtime
+    name: Game-neutral tabletop runtime and ruleset pack contract
+    purpose: "Verify versioned GameDefinition validation, zero D&D leakage in lib/tabletop-runtime.js, D&D 5e SRD pack registration and execution, synthetic non-D&D starship-skirmish second pack loops, and authenticated read-only GET /api/dnd/runtime."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-tabletop-runtime.test.js
+    expected:
+      - "Static hygiene guard confirms lib/tabletop-runtime.js contains zero D&D-specific ruleset terms or imports."
+      - "validateGameDefinition enforces schemaVersion 1, slug id, semver version, capabilities, rulesAdapter, narratorAdapter, contentPack, and duplicate-registration refusal."
+      - "D&D 5e SRD (dnd-5e-srd) and a synthetic non-D&D starship-skirmish ruleset pack both run turns, beats, narration, media, progression, and rewind loops cleanly on the same TabletopRuntime."
+      - "GET /api/dnd/runtime returns 200 with schemaVersion 1 and activeGameId dnd-5e-srd, performs zero DB reads or writes, returns 404 on unknown gameId, and refuses unauthenticated callers with 401."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

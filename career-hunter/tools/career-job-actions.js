@@ -22,6 +22,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native writer-busy refusals without hiding saved acknowledgements, changing scoring or retrying a mutation.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Bound preparation writes and admitted-parent opens; uncertain writes require an explicit read before retry, without a navigation fallback.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Save acknowledges only its favorite write; fit checks and document preparation stay explicit existing actions.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): batch.promote and batch.prepare are promote and prepare sent as batch work (careerBatch), for My jobs' bulk queue: tools/career-pending-writes.js makes a person's own Save, status and Generate wait while a résumé is written and save by themselves, and batch work keeps its own waiting instead. Prepare application's 15-second deadline for an unanswered promotion stops once the door says the promotion is waiting to save (careerWaiting), so a promotion pressed during a résumé lands instead of being cancelled. Guard: tests/career-concurrent-writes.test.mjs.
  */
 (function(root){
   'use strict';
@@ -43,12 +44,14 @@
     await favorite(id,true);
     return {saved:true};
   }
-  async function promote(id){
+  async function promote(id,extra){
     const controller=typeof AbortController==='function'?new AbortController():null;let timer;
     const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{
       reject(Error('Could not confirm preparation. Check its saved state before trying again.'));controller?.abort();
     },15000);});
-    try{return await Promise.race([post('/api/career-hunter/jobs/'+id+'/status',{status:'promoted',favorite:true},controller?{signal:controller.signal}:{}),deadline]);}
+    // A promotion Career refused unrun because a résumé is being written waits to save (career-pending-writes.js): no deadline then.
+    const waiting=()=>clearTimeout(timer);
+    try{return await Promise.race([post('/api/career-hunter/jobs/'+id+'/status',{status:'promoted',favorite:true},{...(controller?{signal:controller.signal}:{}),careerWaiting:waiting,...(extra||{})}),deadline]);}
     finally{clearTimeout(timer);}
   }
   /** One explicit reconciliation read; a missing or refused record never permits another write. */
@@ -173,5 +176,8 @@
     try{const url=new URL(value.trim());return url.protocol==='http:'||url.protocol==='https:'?url.href:'';}
     catch(_){return '';/* not an address at all */}
   }
-  root.CareerJobActions={favorite,prepare,save,promote,preparation,navigate,openApplication,poll,monitor,message,announce,announced,employerUrl,detailsNeeded,DETAILS_NEEDED};
+  /** Promote and prepare as batch work: the queue that sends them waits on its own while Career is busy (career-bulk-queue.js). */
+  const batch={promote:(id)=>promote(id,{careerBatch:true}),
+    prepare:(id,documents,options)=>post('/api/career-hunter/jobs/'+id+'/generate',{documents,requestId:requestId(),...(options||{})},{careerBatch:true})};
+  root.CareerJobActions={favorite,prepare,save,promote,preparation,navigate,openApplication,poll,monitor,message,announce,announced,employerUrl,detailsNeeded,DETAILS_NEEDED,batch};
 })(typeof window==='undefined'?globalThis:window);

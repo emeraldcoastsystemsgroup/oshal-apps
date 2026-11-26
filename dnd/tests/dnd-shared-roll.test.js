@@ -8,6 +8,7 @@
  * 2026-07-21 22:09:29 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove shared rolls cannot mutate the table during a pending Dungeon Master presentation.
  * 2026-07-22 00:50:36 | roger.murphy@emeraldcoastsystemsgroup.com  | Model timeline-guarded story archives in the transactional shared-roll database double.
  * 2026-07-31 23:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Roadmap #13 guards at the /roll route: a LEAD request's precomputed skill modifier is honored over the sheet derivation, lead crit semantics land on the shared die (nat 20 beats any DC, nat 1 fumbles past any modifier), and the DM narration path refuses a lead roll outright — its outcome belongs to the exploration commit, and the storyteller is never even invoked.
+ * 2026-11-25 14:25:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept lightweight board-revision snapshot reads and inserts alongside shared-roll archive writes.
  */
 
 'use strict';
@@ -94,6 +95,7 @@ class SharedRollClient {
       this.pool.state = JSON.parse(params[0]); this.pool.rev++; this.pool.updates++;
       return rows([{ rev: this.pool.rev }]);
     }
+    if (/FROM dnd_snapshots|INTO dnd_snapshots/.test(sql)) return rows([]);
     throw new Error('Unexpected shared-roll client SQL: ' + sql);
   }
   release() {}

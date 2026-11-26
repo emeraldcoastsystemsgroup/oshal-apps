@@ -118,6 +118,7 @@
 # 108 | maintainer@emeraldcoastsystemsgroup.com | Job `little-monsters` (1.9.4) names OSHAL_KERNEL_PLATFORM on its `.test.cjs` suites step: tools/tutor-chat.html mounts the kernel's one chat window over the transport adapter, and tests/lm-shared-window-adapter.test.cjs (in the step's glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
 # 109 | maintainer@emeraldcoastsystemsgroup.com | Job `scan-to-print` (0.10.5, BACKLOG B6) provisions the pinned store toolchain (with sharp 0.35.5 alongside express and multer) and runs tests/routes.core.test.js with OSHAL_CORE_DIR pointing at scripts/toolchain, so a red HTTP route test fails every PR touching scan-to-print without needing the retired TypeScript platform checkout.
 # 110 | maintainer@emeraldcoastsystemsgroup.com | Job `design-studio` also runs engineering-shelf/tests/*.test.mjs (1.0.0, design-studio BACKLOG B12): the one Engineer role for the engineering applications. The declaration is held to what the kernel requires of a role across applications, read from the five manifests, and the role must give exactly what the calls of Design Studio's New product, a partner-built part, Simulate and Make the print set need. The job now provisions the pinned toolchain, which these suites read YAML and run the readiness route with.
+# 111 | maintainer@emeraldcoastsystemsgroup.com | Job `test-catalogs` parses every package Test Lab catalog the way the kernel does before its framework steps: scripts/check-test-catalog-yaml.mjs runs libyaml (the parser serde_yaml 0.9 embeds, through python3's PyYAML CSafeLoader) and js-yaml from the gate toolchain over each catalog, and its mutation suite. The kernel answers "the catalog is not valid YAML" and shows no case, and twelve catalogs went out that way on 2026-11-19 and 2026-11-20 over an unquoted ": " because the one catalog check needs the retired platform checkout and the local gate reports it SKIPPED. The new steps need no framework, so they run on every push.
 
 name: store-ci
 
@@ -363,6 +364,15 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: framework/package-lock.json
+      # The kernel reads a catalog with serde_yaml and shows no case when it does not parse (2026-11-19:
+      # twelve packages, an unquoted ": "). This needs no framework, so the local gate runs it: libyaml,
+      # the parser serde_yaml embeds, through python3's PyYAML, and js-yaml from the gate toolchain.
+      - name: Provide the gate toolchain's js-yaml
+        run: npm ci --no-audit --no-fund --prefix scripts/toolchain
+      - name: Refuse a package test catalog the kernel's YAML parser would refuse
+        run: node scripts/check-test-catalog-yaml.mjs
+      - name: Mutation-test the strict catalog YAML check
+        run: node --test scripts/check-test-catalog-yaml.test.mjs
       - name: Provide the framework checkout's locked dependencies
         run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework
       # The kernel refuses a WHOLE package for one bad catalog field (embodied 0.17.0 on 2026-09-28:

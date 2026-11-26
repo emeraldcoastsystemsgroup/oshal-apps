@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register fleet-hint-native: the Fleet hint names no retired npm script or swarm secret and says no camera node ships with this installation.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register screen-buttons: the kernel's screen snapshot reads the laptop Connect as enabled and the Control panel's Connect as disabled with its hint (sweep 9).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: screen-buttons now expects Turn on camera enabled and no fleet control with no camera node; register capture-screen, the browser proof of the split Camera / Cameras screens (shutter, modes, strip, refused-camera alert, in-page confirms, the diagnostic brief sheet).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Quote the case camera-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -168,7 +169,7 @@ cases:
 
   - id: camera-bot-tools-contract
     name: Inline concierge posture, tool schemas, plain-prose rule, and tool_call fence
-    purpose: Verify camera-operator declares explicit inline posture, chatBot binding, object inputSchemas on all four tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.
+    purpose: 'Verify camera-operator declares explicit inline posture, chatBot binding, object inputSchemas on all four tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.'
     level: unit
     runner:
       kind: node-test

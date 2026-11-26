@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Refuse cross-provider token prefixes before saving and prevent late provider-switch loads from overwriting newer action messages.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): single empty state until connected, cluster links open at top.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Add Link by URL (RP-OPS-03): validate pasted HTTPS GitHub repository URLs, verify readability through the caller's confirmed GitHub connection, and save the cluster GitOps link with plain-English refusals.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.9.8 (NAV-02): reveal the selected tab inside .git-tabs horizontally on phone widths without moving vertical scroll.
  */
 (function(root){'use strict';
 const text=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;};
@@ -106,7 +107,8 @@ function mount({request,onRefused,clusters}){
    if(last)title.append(text('span',(last.conclusion||last.status||'run')+' · '+(last.name||'pipeline'),'pill tone-'+(last.conclusion==='success'?'good':last.conclusion==='failure'?'bad':'warn')));
    head.append(title,link(repo.html_url,'Open on '+A.label+' ↗'));
    const tabs=text('div','','git-tabs'),panes={};tabs.setAttribute('role','tablist');
-   const show=key=>{for(const b of tabs.children)b.setAttribute('aria-selected',String(b.dataset.tab===key));for(const [k,p] of Object.entries(panes))p.hidden=k!==key;};
+   const revealTab=b=>{if(!tabs.clientWidth||!b)return;const s=b.offsetLeft,e=s+b.offsetWidth;if(s<tabs.scrollLeft)tabs.scrollLeft=s;else if(e>tabs.scrollLeft+tabs.clientWidth)tabs.scrollLeft=e-tabs.clientWidth;};
+   const show=key=>{let active=null;for(const b of tabs.children){const on=b.dataset.tab===key;b.setAttribute('aria-selected',String(on));if(on)active=b;}revealTab(active);for(const [k,p] of Object.entries(panes))p.hidden=k!==key;};
    const addTab=(key,label)=>{const b=text('button',label,'git-tab');b.type='button';b.setAttribute('role','tab');b.dataset.tab=key;b.addEventListener('click',()=>show(key));tabs.append(b);const p=text('div','','git-pane');p.dataset.pane=key;panes[key]=p;return p;};
    const filesPane=addTab('files','Files'),prPane=addTab('pulls',A.requests+' · '+(pulls||[]).length),runPane=addTab('runs','Pipelines · '+wr.length),brPane=addTab('branches','Branches · '+(branches||[]).length),linkPane=addTab('link','Cluster link');
    prPane.append((pulls||[]).length?table(['#','Title','Branch','Author','Updated'],(pulls||[]).slice(0,30).map(p=>[link(p.html_url,'#'+p.number),p.title,p.head?.ref,p.user?.login,when(p.updated_at)])):text('p','No open '+A.requests.toLowerCase()+'.','muted'));

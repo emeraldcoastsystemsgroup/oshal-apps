@@ -11,13 +11,14 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.1.5: the workbench page follows the portal theme contract and the kernel screen layout (one type scale, aligned labelled fields, glass cards, a document table, phone layout).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6: the workbench page is an editor layout: a top bar with the document actions, a left rail with documents and sources, the pages in the middle and a right inspector with the tools, each pane scrolling on its own.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.2 (tool parity batch 1: CREATE-TOOL-PDF-WORKBENCH-08, -05, -03): add pdf-export, pdf-delete-source and pdf-go-to-page concierge tools, surface custom ops, annotation list edit/move/delete UI and reader zoom/fit-width/page-jump/text-copy/print controls.
 name: pdf-workbench
 suite: ai-creative
 displayName: PDF Workbench
 description: >-
   Select and edit actual PDF text, images and shapes in a shared document workspace. Owned
   source assets, page organization, forms, annotations, history and native PDF exports.
-version: 0.4.1
+version: 0.4.2
 runtime: process
 lastingStorage: true
 status: active
@@ -127,6 +128,8 @@ ui:
 ribbon:
   defaultView: pdf-workbench
   hideChatPanel: true
+surface:
+  ops: [context, custom, notify]
 bots:
   - agentId: b28df8cb-1a16-40a4-9b3e-3da4d8f1c129
     name: pdf-editor
@@ -540,6 +543,7 @@ tools:
                   strokeWidth: { type: number, minimum: 0, maximum: 40 }
                   opacity: { type: number, minimum: 0, maximum: 1 }
                   color: { type: string, minLength: 6, maxLength: 6 }
+                  page: { type: string, minLength: 36, maxLength: 36 }
                   quadPoints:
                     type: array
                     minItems: 1
@@ -836,6 +840,115 @@ tools:
     routingTags:
       - pdf
       - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-delete-source
+    displayName: Delete unused PDF original
+    type: api
+    category: creative
+    description: >-
+      Delete an unused owned original PDF source under current original-owner delete permission.
+      Refuses deletion if any saved document revision references the source.
+    executor:
+      executorType: api
+      apiEndpoint: DELETE /api/pdf-workbench/sources/{input.source}
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Delete this unused original PDF source. Refuses if any saved document revision still references it.
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - source
+    usageInstructions: >-
+      Delete an original source only when explicitly requested. Refuses with
+      pdf_source_retained_by_history when any saved revision still uses it.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-export
+    displayName: Export PDF download link
+    type: api
+    category: creative
+    description: >-
+      Return a guarded download link for a saved PDF revision under current original-owner export
+      permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/documents/{input.id}/export
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Prepare a guarded download link for this saved PDF revision.
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+      required:
+        - id
+    usageInstructions: >-
+      Invoke after explicit export request. Requires approval and fresh export permission; share the
+      returned guarded downloadUrl directly with the person.
+    routingTags:
+      - pdf
+      - document
+      - export
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-go-to-page
+    displayName: Go to PDF page
+    type: api
+    category: creative
+    description: >-
+      Jump the PDF reader view to a 1-based page number of an owned document and return its guarded
+      openUrl and surface navigation operation.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/documents/{input.id}/navigate?page={input.page}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        page:
+          type: integer
+          minimum: 1
+          maximum: 32
+      required:
+        - id
+        - page
+    usageInstructions: >-
+      Use a 1-based page number within the document's page count. Returns openUrl with ?document and
+      ?page plus the pdf:go-to-page surfaceOp for the live reader view.
+    routingTags:
+      - pdf
+      - document
+      - navigation
     skills:
       - pdf-editing
     tags:

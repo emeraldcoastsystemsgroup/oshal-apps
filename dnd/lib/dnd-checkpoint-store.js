@@ -5,10 +5,14 @@
  * -----------------------------------------------------------------------------
  * 2026-07-23 01:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Persist permanent image-free round and scene checkpoints with exact-state deduplication.
  * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Write owner_sub explicitly on every INSERT: the native kernel skips migration 006, whose triggers stamp it on PostgreSQL (where they still override it from the parent campaign).
+ * 2026-11-25 14:10:00 | maintainer@emeraldcoastsystemsgroup.com     | Persist lightweight deduplicated continuous board revisions (rev:*) tied to archive_seq for exact visual replay without spamming manual save points.
  */
 
 'use strict';
 
+const crypto = require('node:crypto');
+
+const BOARD_REVISION_PREFIX = 'rev:';
 const TRANSIENT_MEDIA_KEYS = new Set([
   'cutaway', 'cutawayImage', 'cutawayUrl', 'generatedImage', 'generatedImages',
   'imageUrl', 'killImage', 'roundImage',
@@ -43,7 +47,61 @@ async function checkpointCursor(db, campaignId) {
     'SELECT COALESCE(MAX(seq),0) AS seq FROM dnd_archive WHERE campaign_id=$1',
     [campaignId],
   );
-  return Number(result.rows[0].seq) || 0;
+  return Number(result.rows && result.rows[0] && result.rows[0].seq) || 0;
+}
+
+/** @description Test whether a snapshot label belongs to an internal board revision. */
+function isBoardRevisionLabel(label) {
+  return typeof label === 'string' && label.startsWith(BOARD_REVISION_PREFIX);
+}
+
+/** @description Build a bounded deterministic label for an automatic board revision. */
+function boardRevisionLabel(reason, state) {
+  const tag = String(reason || 'state').toLowerCase().replace(/[^a-z0-9-]+/g, '').slice(0, 16) || 'state';
+  const sceneId = String((state && state.sceneId) || 'board').toLowerCase().replace(/[^a-z0-9-]+/g, '').slice(0, 36) || 'board';
+  const round = Number(state && state.round) || 0;
+  return `${BOARD_REVISION_PREFIX}${tag}:${sceneId}:r${round}`.slice(0, 80);
+}
+
+/** @description Compute a stable digest for exact consecutive board-revision deduplication. */
+function stateDigest(state) {
+  return crypto.createHash('sha256').update(JSON.stringify(state || {})).digest('hex');
+}
+
+/** @description Parse a stored JSON state column safely. */
+function parsedState(raw) {
+  if (raw && typeof raw === 'object') return raw;
+  try { return JSON.parse(String(raw || '{}')); } catch (_error) { return {}; }
+}
+
+/** @description Read the latest internal board revision for consecutive-state deduplication. */
+async function latestBoardRevision(db, campaignId) {
+  const result = await db.query(
+    `SELECT snapshot_id, label, state, archive_seq, created_at FROM dnd_snapshots
+      WHERE campaign_id=$1 AND label LIKE 'rev:%'
+      ORDER BY created_at DESC LIMIT 1`,
+    [campaignId],
+  );
+  return (result.rows && result.rows[0]) || null;
+}
+
+/** @description Persist one lightweight, deduplicated board revision tied to archive_seq. */
+async function captureBoardRevision(db, ownerSub, campaignId, rawState, reason = 'state', knownSeq = null) {
+  if (!rawState || typeof rawState !== 'object') return { ok: true, skipped: true };
+  const state = checkpointState(rawState);
+  const archiveSeq = Number.isSafeInteger(knownSeq) && knownSeq >= 0
+    ? knownSeq
+    : await checkpointCursor(db, campaignId);
+  const latest = await latestBoardRevision(db, campaignId);
+  if (latest && Number(latest.archive_seq) === archiveSeq
+      && stateDigest(parsedState(latest.state)) === stateDigest(state)) {
+    return { ok: true, deduped: true, snapshot: latest };
+  }
+  const snapshot = await insertCheckpoint(
+    db, ownerSub, campaignId, boardRevisionLabel(reason, state),
+    state, {}, true, archiveSeq,
+  );
+  return { ok: true, snapshot };
 }
 
 /** @description Find an identical automatic mark without suppressing new branches. */
@@ -65,7 +123,7 @@ async function insertCheckpoint(db, ownerSub, campaignId, label, state, sheets, 
      RETURNING snapshot_id, label, auto, archive_seq, created_at`,
     [campaignId, ownerSub, label, JSON.stringify(state), JSON.stringify(sheets), auto, archiveSeq],
   );
-  return saved.rows[0];
+  return (saved.rows && saved.rows[0]) || null;
 }
 
 /** @description Persist a complete play mark without retaining generated images. */
@@ -107,6 +165,11 @@ async function captureRoundBoundary(deps, db, ownerSub, campaignId, current, pro
 }
 
 module.exports = {
-  captureCheckpoint, captureRoundBoundary,
-  _test: { checkpointState, crossedRoundBoundary, roundCheckpointLabel },
+  BOARD_REVISION_PREFIX,
+  boardRevisionLabel,
+  captureBoardRevision,
+  captureCheckpoint,
+  captureRoundBoundary,
+  isBoardRevisionLabel,
+  _test: { checkpointState, crossedRoundBoundary, roundCheckpointLabel, stateDigest },
 };

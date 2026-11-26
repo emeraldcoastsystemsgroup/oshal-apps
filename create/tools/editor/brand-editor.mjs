@@ -1,9 +1,10 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bring the person's brand kit into the image editor: brand swatches for the selected layer or the canvas, the logo as a layer, brand and Office fonts in the font list, and the kit for branded templates.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): the duplicate layer form and its font list are gone, so the same brand, basic and Office faces are offered as choices to the shared Format inspector's Font field (fontChoices); the kit's arrival refreshes it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: bind Apply my brand (#applyBrandBtn) using the shared applyBrandToProject helper so screen and concierge apply identical rebranding in one undoable step.
  */
-import { $, state, edit, notify, subscribe, handle, api, canEdit } from './editor-state.mjs';
-import { BRAND_ROLES, BRAND_ROLE_LABELS, BRAND_FONTS, validateBrandKit, logoAssetId } from './brand-kit.mjs';
+import { $, state, edit, commitDocument, notify, subscribe, handle, api, canEdit } from './editor-state.mjs';
+import { BRAND_ROLES, BRAND_ROLE_LABELS, BRAND_FONTS, validateBrandKit, logoAssetId, applyBrandToProject } from './brand-kit.mjs';
 import { LIMITS } from './model.mjs';
 
 const brand = { kit: null, available: false, logo: null, signature: '' };
@@ -62,6 +63,15 @@ function addLogo() {
   state.selected = layer.id; notify();
 }
 
+/** Apply the saved brand kit across canvas, shapes, text and logo in one undoable step. */
+function applyBrand() {
+  const kit = brand.kit;
+  if (!kit) return;
+  if (!canEdit()) throw new Error('Your role does not allow changing this project.');
+  const { project } = applyBrandToProject(state.project, kit);
+  commitDocument(project);
+}
+
 function renderSwatches(kit) {
   const signature = JSON.stringify(kit);
   if (signature === brand.signature) return;
@@ -79,6 +89,7 @@ function renderPanel() {
   if (!brand.kit) return;
   renderSwatches(brand.kit);
   for (const button of $('brandSwatches').children) button.disabled = !canEdit();
+  if ($('applyBrandBtn')) $('applyBrandBtn').disabled = !canEdit() || state.loading || state.saving;
   $('addLogo').hidden = !brand.kit.logo; $('addLogo').disabled = !canEdit() || state.loading || state.saving;
 }
 
@@ -113,6 +124,7 @@ export async function loadBrand() {
 
 /** @description Bind the brand panel once; it re-renders with every editor state change. */
 export function bindBrand() {
+  if ($('applyBrandBtn')) $('applyBrandBtn').onclick = handle(applyBrand);
   $('addLogo').onclick = handle(addLogo);
   $('editBrand').onclick = () => navigate('create-brand'); $('setupBrand').onclick = () => navigate('create-brand');
   subscribe(() => { if (brand.available) renderPanel(); });

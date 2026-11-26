@@ -39,6 +39,7 @@
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 0.19.8 (ADR-203 D5): the Spider Design Studio cases (spider-studio-browser, spider-studio-real-routes) retire with the screen; the spider's posters live in the design-studio package, proven there over this package's routes' shapes.
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 0.20.0 (ADR-203 D9, lane @ds-plant): the plant generated from a design - the builder and the bridge dispatch, the reach task and its gate on the real engine (both self-running), and the plant routes with a fake bridge in the engine's real reply shapes with the runtime-file parity guard.
 # 37 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register surface-views (three views, E-STOP outside them, the physics chip in the lab only, part row menus); the browser proof presses each view's tab.
+# 38 | maintainer@emeraldcoastsystemsgroup.com | Quote the case embodied-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -1128,7 +1129,7 @@ cases:
     installation: never
   - id: embodied-bot-tools-contract
     name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
-    purpose: Verify embodied-operator declares explicit inline posture, chatBot binding, object inputSchemas on all nine tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    purpose: 'Verify embodied-operator declares explicit inline posture, chatBot binding, object inputSchemas on all nine tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.'
     level: unit
     runner:
       kind: node-test

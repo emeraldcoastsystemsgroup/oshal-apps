@@ -26,6 +26,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add immutable FX evidence, preserve original and reporting-currency quote amounts, and replace the last scenario cents field with integer micros.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add scheduled rebaseline run kind, trigger provenance, UTC idempotency slot, and exact micro-USD cost evidence.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Name which live assumption rows an analyst may not supersede (heldAgainstAnalysts): a person's own entry and any row carrying outside evidence (user-entered, vendor-quote, published-source). The analysts' required slots write the exact keys the model computes with, and a re-run replaced a recorded freight quote with the analyst's guess.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Add QuoteInboxStatus and QuoteInboxItem DTOs for the 1.5.7 Saved-quote inbox.
  *
  * @module venture-types
  */
@@ -98,4 +99,3 @@ function isConfidence(v) {
 function isDomain(v) {
     return typeof v === 'string' && exports.DOMAINS.includes(v);
 }
-//# sourceMappingURL=venture-types.js.map

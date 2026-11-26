@@ -1,7 +1,29 @@
 # Drone Relay — backlog
 
+Current package version: `0.5.2` (reviewed `2026-11-25`).
+
 Each entry has done-when criteria. An entry marked DONE names the version that closed it; the rest
 are not built, and the README and ARCHITECTURE describe only what is.
+
+## Status summary
+
+| Item | Title | Status | Closed in |
+| --- | --- | --- | --- |
+| B1 | The relay role on the real drone node | Open (partial in `0.4.0`) | — |
+| B2 | A transport adapter behind one interface | Open | — |
+| B3 | Frames below the modelled edge | Open | — |
+| B4 | Corridors that are not lines, and a map | Open (partial in `0.4.0`) | — |
+| B5 | Two tips, one chain (a tree) | **DONE** | `0.4.0` |
+| B6 | The formation lands in the drone package | Open (partial in `0.4.0`) | — |
+| B7 | Ground nodes: a relay that is not a drone | **DONE** | `0.3.0` |
+| B8 | The control plane in the simulation | **DONE** | `0.3.0` |
+| B9 | A lattice: the tip roams inside an area | **DONE** | `0.4.0` |
+| B10 | Two radios per relay | Open | — |
+| B11 | Proxy replies and the command queue in the relay role | **DONE** | `0.4.0` |
+| 2026-10-06 | Assistant route-backed tools (`401` on retired TS core) | **CLOSED** | `0.5.2` |
+| Future | ADR-149 `authorization.yaml` catalog adoption | Open (coordinated migration) | — |
+
+Summary counts (B1–B11): **5 DONE** (B5, B7, B8, B9, B11), **6 OPEN** (B1, B2, B3, B4, B6, B10).
 
 ## B1 — The relay role on the real drone node
 
@@ -66,7 +88,7 @@ drone-relay receiver (a change in that package, not this one). Integration recei
 fields of at most 2,000 characters (`contextFor` in the cockpit's `app-handoff.js`), so a corridor
 would travel as a JSON string field.
 
-## B5 — Two tips, one chain (a tree)
+## ~~B5 — Two tips, one chain (a tree)~~ — DONE in 0.4.0
 
 **DONE in 0.4.0** — a spec takes `branches` (2–4 polylines continuing from the path's last point, the
 fork, to one work point each); the planner sizes the trunk so its last relay sits AT the fork (the
@@ -119,7 +141,7 @@ receiver in that package — an `integrations.accepts` on its surface that fills
 and the matching offer here. The draft is checked for separation only; Drone Ops re-validates the
 geofence at execution.
 
-## B7 — Ground nodes: a relay that is not a drone
+## ~~B7 — Ground nodes: a relay that is not a drone~~ — DONE in 0.3.0
 
 **DONE in 0.3.0** — `groundNodes` on the spec, the corridor cut into stretches the mobile
 relays fill, `relaysNeeded` / `sparesAvailable` / `sustainFleet` counting the mobile ones alone, an
@@ -136,7 +158,7 @@ the remaining corridor and reports the rotation for those alone; the simulation 
 node as an immovable relay with no battery (it can still be failed by an event); a scenario that
 loses a mobile relay beside a ground node shows the mobile ones closing the gap around it.
 
-## B8 — The control plane in the simulation
+## ~~B8 — The control plane in the simulation~~ — DONE in 0.3.0
 
 **DONE in 0.3.0** — `simulate` reads the plan's control channel: with one that reaches the tip the
 known-window is the heartbeat period, live nodes report their real positions and the outer segment
@@ -153,7 +175,7 @@ comes from direct heartbeats (staleness = the heartbeat period), the outer segme
 commanded targets, and the tight-margin scenario's reconnect time is shorter than the in-band
 run's by an amount a test pins; the in-band run stays byte-identical.
 
-## B9 — A lattice: the tip roams inside an area
+## ~~B9 — A lattice: the tip roams inside an area~~ — DONE in 0.4.0
 
 **DONE in 0.4.0** — a spec takes `area` (a polygon) and `engine/lattice` tiles it with slots on a
 square grid anchored at the base at the design hop — every point of the area within half a cell
@@ -194,7 +216,7 @@ Done when: the bench (B2) measures a three-hop chain's end-to-end throughput wit
 relay and with two on alternating channels; the catalog gains the measured factor; the plan takes
 `radiosPerRelay` and applies it.
 
-## B11 — Proxy replies and the command queue in the relay role
+## ~~B11 — Proxy replies and the command queue in the relay role~~ — DONE in 0.4.0
 
 **DONE in 0.4.0** — `engine/envelope` carries `proxy: {for, ageS}` under the MAC as a ninth covered
 element (an envelope without it signs byte for byte as before — pinned by an HMAC recomputed by hand)

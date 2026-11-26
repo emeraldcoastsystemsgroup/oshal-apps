@@ -12,6 +12,7 @@ exports.registerBrandKitRoutes = registerBrandKitRoutes;
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Personal brand kit read/save/delete and logo upload behind named brand permissions, validated by the same module the browser runs.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: expose applyBrandToProject on the loaded shared brand module interface for POST /projects/:id/apply-brand.
  */
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));

@@ -10,6 +10,23 @@
  *     auth gate, suppression consent revocation & re-confirm refusal, and export-first delete.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.1: update route-table parity to 20 legacy
  *     + 12 audience routes (including POST /audience/contacts/import-csv).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: update route-table parity to 20 legacy
+ *     + 12 audience + 5 compliance/template routes.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.3: update route-table parity to 20 legacy
+ *     + 12 audience + 5 compliance/template + 7 double opt-in routes.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.5: update route-table parity to 20 legacy
+ *     + 12 audience + 5 compliance/template + 7 double opt-in + 7 broadcast/unsubscribe/preference routes.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.6: update route-table parity to 20 legacy
+ *     + 12 audience + 5 compliance/template + 7 double opt-in + 7 broadcast/unsubscribe/preference
+ *     + 8 sequence/standing-authorization routes.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.7: update route-table parity to include
+ *     6 P3 launch plan, grounded retro, and unified calendar routes (65 routes total).
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.8: update route-table parity to include
+ *     3 P2 campaign-to-finance-project and reallocation proposal routes (68 routes total).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.9: update route-table parity to include
+ *     3 P5 attribution funnel, conversion, and delivery engagement routes (71 routes total).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.10: update route-table parity to include
+ *     4 P4 SMS TCPA/CTIA consent, quiet-hours scheduling, queue, and keyword routes (75 routes total).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -163,7 +180,7 @@ test('segmentContacts filters by list, tag, consentState, channel, purpose, supp
   assert.equal(model.parseAudienceFilters({ suppressed: 'maybe' }).error, 'invalid_suppressed_filter');
 });
 
-test('route-table parity: marketing-routes preserves all 20 legacy routes and adds all 12 audience routes', () => {
+test('route-table parity: marketing-routes preserves all 20 legacy routes and adds all 12 audience, 5 compliance/template, 7 double opt-in, 7 broadcast/unsubscribe/preference, 8 sequence, 6 launch/calendar, 3 P2 budget/reallocation, 3 P5 attribution/engagement, and 4 P4 SMS consent/quiet-hours routes', () => {
   const routesMod = loadCompiledModule('routes/marketing-routes.js');
   const router = routesMod.createMarketingRoutes({ pool: { query: async () => ({ rows: [], rowCount: 0 }) }, appPackageDir: pkgDir });
   const table = router.routes.map((r) => `${r.method} ${r.path}`);
@@ -200,6 +217,49 @@ test('route-table parity: marketing-routes preserves all 20 legacy routes and ad
     'GET /audience/suppressions',
     'POST /audience/suppressions',
     'DELETE /audience/suppressions/:id',
+    'GET /compliance',
+    'PUT /compliance',
+    'GET /templates',
+    'POST /templates/render',
+    'POST /content/:id/approve',
+    'GET /audience/signup-forms',
+    'POST /audience/signup-forms',
+    'PATCH /audience/signup-forms/:slug',
+    'DELETE /audience/signup-forms/:slug',
+    'GET /audience/signup-forms/:slug/snippet',
+    'POST /audience/signup-forms/:slug/submit',
+    'POST /audience/opt-in/confirm',
+    'GET /broadcasts',
+    'POST /broadcasts',
+    'GET /broadcasts/:id',
+    'POST /broadcasts/:id/send',
+    'POST /audience/unsubscribe',
+    'GET /audience/preferences/:contactId',
+    'PUT /audience/preferences/:contactId',
+    'GET /sequences',
+    'POST /sequences',
+    'GET /sequences/:id',
+    'POST /sequences/:id/steps',
+    'PUT /sequences/:id/authorization',
+    'POST /sequences/:id/disarm',
+    'POST /sequences/:id/enroll',
+    'POST /sequences/:id/tick',
+    'GET /launch-plans',
+    'POST /launch-plans',
+    'GET /launch-plans/:id',
+    'PATCH /launch-plans/:id',
+    'POST /launch-plans/:id/retro',
+    'GET /calendar',
+    'POST /campaigns/:id/finance-project',
+    'GET /campaigns/:id/budget-summary',
+    'POST /campaigns/:id/reallocation-proposals',
+    'GET /attribution/funnel',
+    'POST /attribution/conversions',
+    'POST /deliveries/:deliveryId/event',
+    'POST /audience/sms-opt-in',
+    'POST /audience/sms/schedule',
+    'GET /audience/sms/queue',
+    'POST /audience/sms/keyword',
   ]);
 });
 

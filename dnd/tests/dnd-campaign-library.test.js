@@ -10,6 +10,7 @@
  * 2026-07-21 22:36:06 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove claim changes lock the lobby and invalidate a concurrent Start revision without revision churn on retries.
  * 2026-07-22 01:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep multiple active and archived campaigns in the account library for explicit Resume or Playback.
  * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Prove shared-table admission binds only a validated join code as a transaction-local RLS capability before campaign reads.
+ * 2026-11-25 14:25:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept lightweight board-revision snapshot reads and inserts during campaign creation.
  */
 
 'use strict';
@@ -206,6 +207,7 @@ class CreateClient {
       this.tx.archive.push({ user_sub: params[0], campaign_id: params[1], seq: params[2], kind: params[3], content: params[4] });
       return rows([]);
     }
+    if (/FROM dnd_snapshots|INTO dnd_snapshots/.test(sql)) return rows([]);
     throw new Error('Unexpected create client SQL: ' + sql);
   }
   release() { this.pool.released = true; }

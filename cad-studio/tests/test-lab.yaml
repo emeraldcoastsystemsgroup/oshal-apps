@@ -18,6 +18,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register surface-design-standard (the design standard's contract, New part as the empty canvas's first action, one primary, no native dialog, the Part menu, and the five planned controls RP-CAD-01 to -05 in their places); phone-editor now ends the app bar with Export and More.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: update surface-design-standard for live RP-CAD-01..05 controls (zero planned placeholders) and register rp-cad-exports-print-measure covering OBJ/MTL, 3MF, GLB, USDZ, sharp-edge mm/in measurement, AR QR, and honest printer queue handoff.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 0.5.5 (BACKLOG B4): 18 feature types (thread and text), 34 real-kernel cases including watertight threaded-boss STL mesh validation, and b4-thread-text-mesh contract suite.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Quote the case cad-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -401,7 +402,7 @@ cases:
     installation: never
   - id: cad-bot-tools-contract
     name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
-    purpose: Verify cad-studio-designer declares explicit inline posture, chatBot binding, object inputSchemas on all ten tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    purpose: 'Verify cad-studio-designer declares explicit inline posture, chatBot binding, object inputSchemas on all ten tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.'
     level: unit
     runner:
       kind: node-test

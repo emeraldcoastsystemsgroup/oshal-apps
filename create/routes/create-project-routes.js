@@ -13,6 +13,9 @@ exports.registerCreateProjectRoutes = registerCreateProjectRoutes;
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount region editing on this router with the same guards and the shared project validator; a test may name its fixture provider through options.regionEdits, production always uses the media-generation kernel skill.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Compose bounded PSD review/import and immutable original export without replacing existing project routes.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: a refused agent project or edit batch says why in `detail` (the editor validator's sentence), so Jarvis can correct the call instead of guessing.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: an agent project may carry its first layers, so one approval makes a finished drawing; the batch rules are the edit route's.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: add POST /projects/:id/revisions/restore (undo/restore as new immutable revision) and POST /projects/:id/apply-brand (one-step brand application matching the editor).
  */
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
@@ -24,6 +27,7 @@ const create_project_store_1 = require("./create-project-store");
 const create_project_authorization_1 = require("./create-project-authorization");
 const create_project_assets_1 = require("./create-project-assets");
 const create_brand_kit_routes_1 = require("./create-brand-kit-routes");
+const create_brand_kit_store_1 = require("./create-brand-kit-store");
 const create_psd_routes_1 = require("./create-psd-routes");
 const create_region_edit_routes_1 = require("./create-region-edit-routes");
 const bodyParser = (0, express_1.json)({ limit: create_project_types_1.PROJECT_LIMITS.documentBytes + 4096, strict: true });
@@ -161,6 +165,58 @@ function projectWrites(router, env) {
         res.status(204).end();
     }));
 }
+function projectParityWrites(router, env) {
+    const pkgDir = env.ctx.appPackageDir ?? (0, node_path_1.resolve)(__dirname, '..');
+    const brandStore = new create_brand_kit_store_1.CreateBrandKitStore(env.store);
+    const brandModule = (0, create_brand_kit_routes_1.loadBrandModule)(pkgDir);
+    const admitBrandRead = (_req, res, next) => {
+        (0, create_brand_kit_routes_1.requireBrandAccess)(env.ctx, 'read').then(() => next()).catch(error => sendError(res, error));
+    };
+    router.post('/projects/:id/revisions/restore', admit(env, 'change'), admit(env, 'read'), bodyParser, handler(env, 'change', async (req, res, owner) => {
+        const body = req.body ?? {};
+        (0, create_project_validation_1.exactFields)(body, ['id', 'revision', 'baseRevision']);
+        const id = (0, create_project_validation_1.projectId)(req.params.id);
+        if (body.id !== undefined && (0, create_project_validation_1.projectId)(body.id) !== id)
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_id');
+        const target = body.revision === undefined ? undefined : (0, create_project_validation_1.baseRevision)(body.revision);
+        const expected = body.baseRevision === undefined ? undefined : (0, create_project_validation_1.baseRevision)(body.baseRevision);
+        await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'read', owner);
+        const validate = await env.validator;
+        const restored = await env.store.restoreRevision(owner, id, target, expected, doc => (0, create_project_validation_1.validateDocument)(doc, validate), async () => { await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'read', owner); await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'change', owner); });
+        res.status(201).json(restored);
+    }));
+    router.post('/projects/:id/apply-brand', admit(env, 'change'), admit(env, 'read'), admitBrandRead, bodyParser, handler(env, 'change', async (req, res, owner) => {
+        const body = req.body ?? {};
+        (0, create_project_validation_1.exactFields)(body, ['id', 'baseRevision']);
+        const id = (0, create_project_validation_1.projectId)(req.params.id);
+        if (body.id !== undefined && (0, create_project_validation_1.projectId)(body.id) !== id)
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_id');
+        const expected = body.baseRevision === undefined ? undefined : (0, create_project_validation_1.baseRevision)(body.baseRevision);
+        await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'read', owner);
+        await (0, create_brand_kit_routes_1.requireBrandAccess)(env.ctx, 'read', owner);
+        const brandRecord = await brandStore.get(owner);
+        if (!brandRecord)
+            throw new create_project_types_1.ProjectError(404, 'brand_kit_not_found', 'Save a brand kit before applying it to a project');
+        const current = await env.store.get(owner, id);
+        if (expected !== undefined && current.revision !== expected)
+            throw new create_project_types_1.ProjectError(409, 'project_revision_conflict');
+        const { applyBrandToProject } = await brandModule;
+        let applied;
+        try {
+            applied = applyBrandToProject(current.document, brandRecord.kit);
+        }
+        catch (error) {
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_document', reason(error));
+        }
+        const input = (0, create_project_validation_1.projectInput)({ title: String(applied.project.name ?? current.title), document: applied.project }, await env.validator);
+        const project = await env.store.save(owner, id, current.revision, input, async () => {
+            await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'read', owner);
+            await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'change', owner);
+            await (0, create_brand_kit_routes_1.requireBrandAccess)(env.ctx, 'read', owner);
+        });
+        res.status(201).json({ project, changes: applied.changes, brandKitRevision: brandRecord.revision });
+    }));
+}
 function projectAssets(router, env) {
     const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: create_project_types_1.PROJECT_LIMITS.imageBytes, files: 1, fields: 0, parts: 2 } }).single('image');
     const decodeImage = (req, res, next) => upload(req, res, node_async_hooks_1.AsyncResource.bind(next));
@@ -190,6 +246,7 @@ function createCreateProjectRoutes(ctx, options = {}) {
     router.get('/permissions', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json({ permissions: await (0, create_project_authorization_1.projectPermissions)(ctx) }); }));
     projectReads(router, env);
     projectWrites(router, env);
+    projectParityWrites(router, env);
     projectAssets(router, env);
     (0, create_psd_routes_1.registerPsdRoutes)(router, { ...env, ctx: { ...ctx, appPackageDir: ctx.appPackageDir ?? (0, node_path_1.resolve)(__dirname, '..') }, guards: { personalOnly, sendError } });
     (0, create_brand_kit_routes_1.registerBrandKitRoutes)(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError } });

@@ -23,20 +23,20 @@ How to read it:
 | Open and page through a PDF | basic: Reader | yes, free [A3][A4] | yes [A2] | Page cards in `#pages`, `render()` in `tools/workbench.mjs` | `pdf-read-document` (page list and sizes, no page picture) | both |
 | Open an ordinary PDF that has a web link, a signature field or a password | basic: Reader | yes, free, unchecked for each case | yes, unchecked for each case | none. `safe_reader()` in `engine/worker.py` walks every object and refuses any with `/A`, `/AA`, `/JS`, `/XFA`, `/EmbeddedFiles`, also any `/Sig` field and any encrypted file | none, same refusal for `pdf-import-artifact` | missing |
 | Work on a file over 4 MiB or 32 pages | basic: web tools | not confirmed | web: 1,500 pages merged, 100 MB rearranged [A21][A23] | none. `LIMITS` in `routes/model.mjs`, `MAX_BYTES` and `MAX_PAGES` in `engine/worker.py` | none, same limits | missing |
-| Zoom, fit to width, jump to a page | basic: Reader | yes, unchecked | yes, unchecked | none. Fixed preview image in each card | none | missing |
-| Phone reading view that reflows text | basic: Reader | yes, free: Liquid Mode [A3] | not confirmed | none. `tools/workbench.css` only collapses panes at 1180px and 760px | none | missing |
+| Zoom, fit to width, jump to a page | basic: Reader | yes, unchecked | yes, unchecked | Reader bar (`.pdf-reader-bar`: Zoom out/in, Fit width, touch pinch-to-zoom, `#pdf-page-jump`, Previous/Next, `?page=`) in `tools/editor-tools.mjs` (0.4.2) | `pdf-go-to-page` (`GET /documents/:id/navigate?page=n`, `openUrl` + `pdf:go-to-page` surface op) (0.4.2) | both |
+| Phone reading view that reflows text | basic: Reader | yes, free: Liquid Mode [A3] | not confirmed | Phone reader bar, single/two-page and night reading views at 412px without overflow; native PDF text stays fixed-layout (no Liquid Mode reflow) | `pdf-go-to-page` + `pdf-read-page-text` | partial |
 | Find text | basic: Reader | yes, free [A5] | yes, unchecked | `#search`, `#search-button` in `tools/workbench.html`; prints whole matching pages, no highlight on the page | `pdf-read-page-text` (reads text; the model does the finding) | both |
-| Select and copy text from a page | basic: Reader | yes, unchecked | yes, unchecked | none. The page is a PNG preview | `pdf-read-page-text` | concierge only |
-| Print | basic: Reader | not confirmed | yes [A2] | none. Download only | none | missing |
-| Download the PDF | basic: Reader | yes, unchecked | yes, unchecked | `#download` in `tools/workbench.html` | none. Route `/documents/:id/revisions/:n/content` has no `tools:` entry | UX only |
+| Select and copy text from a page | basic: Reader | yes, unchecked | yes, unchecked | Select text layer (`.pdf-text-layer`) toggle in reader bar + long-press word/sentence Copy bar (`.pdf-word-bar`, works for read-only viewers too) (0.4.2) | `pdf-read-page-text` | both |
+| Print | basic: Reader | not confirmed | yes [A2] | Print button in reader bar + `Print…` in Document menu with `@media print` page layout (0.4.2) | `pdf-export` guarded download link + `pdf-go-to-page` | both |
+| Download the PDF | basic: Reader | yes, unchecked | yes, unchecked | `#download` / `Export` primary button in `tools/workbench.html` & `tools/editor.mjs` | `pdf-export` (`POST /documents/:id/export`, approval-held guarded `downloadUrl`) (0.4.2) | both |
 | Share a link, send for review, open from cloud storage | basic: Reader | yes, free [A3][A8] | yes [A2] | none | none | missing |
 | Highlight | basic: Reader | yes, free [A8] | yes [A2] | Annotation panel, Kind = Highlight, typed `#annotation-rect` (a rectangle, not a text selection) | `annotate` kind `highlight` | both |
 | Underline and strikethrough | basic: Reader | yes, free [A8] | yes [A2] | none. Engine accepts only text, highlight, ink | none | missing |
 | Add a text note to a page | basic: Reader | yes, free [A8] | yes [A2] | Kind = Text note, typed `#annotation-rect`; printable ASCII only | `annotate` kind `text`; printable ASCII only | both |
 | Freehand drawing | basic: Reader | yes, free [A8] | yes [A2] | Kind = Ink stroke, typed `#annotation-points` (`x,y;x,y`); no finger or pen drawing | `annotate` kind `ink` | both |
-| See the list of annotations | basic: Reader | yes, unchecked | yes, unchecked | none. Marks show only in the preview after saving | `pdf-read-model-part` part `annotations` | concierge only |
-| Delete an annotation | basic: Reader | yes, free [A8] | yes, unchecked | none. `remove-annotation` appears nowhere in `tools/workbench.mjs` | `remove-annotation` | concierge only |
-| Move or edit an annotation; reply to or resolve a comment | basic: Reader | edit yes [A8]; replies not confirmed | yes, unchecked | none | none. `apply()` only adds or removes | missing |
+| See the list of annotations | basic: Reader | yes, unchecked | yes, unchecked | Annotations list sheet (`List` in Annotate strip + `Annotations…` in More, `openAnnotationsSheet`) (0.4.2) | `pdf-read-model-part` part `annotations` | both |
+| Delete an annotation | basic: Reader | yes, free [A8] | yes, unchecked | Per-row `Delete` button in Annotations list sheet + object `Delete` button + stroke eraser (0.4.2) | `remove-annotation` | both |
+| Move or edit an annotation; reply to or resolve a comment | basic: Reader | edit yes [A8]; replies not confirmed | yes, unchecked | Per-row `Edit` and `Move` panels in Annotations list sheet + canvas drag/inspector properties; comment replies/resolve remain open under `-20` (0.4.2) | `update-annotation` (text, rect with automatic quadPoints/points remap, color, strokeWidth, page) (0.4.2) | both (edit/move); missing (replies) |
 | Fill form fields | basic: Reader | yes, free [A9] | yes [T1] | `#forms` and `#fill` in `tools/workbench.html` | `fill`; `pdf-read-model-part` part `form-fields` with `query` | both |
 | Fill form fields with non-English text, or any form not using Helvetica | basic: Reader | not confirmed | not confirmed | none. `fields_of()` marks non-Helvetica fields unsupported; `derive()` allows printable ASCII only | none, same rule | missing |
 | Sign with a drawn, typed or picture signature | basic: Reader | yes, free [A9] | yes [T1] | none. An ink stroke is not a signature | none | missing |
@@ -71,7 +71,7 @@ How to read it:
 | Saved version history and restore | not confirmed | not confirmed | not confirmed | `#history`, `#open-history`, `#restore` | `pdf-restore-revision`; `pdf-read-document` returns history | both |
 | Ask questions of the document, summarize | add-on: AI Assistant | paid add-on [A3] | not confirmed | none. Chat panel is the concierge; no button | `pdf-read-page-text`, `pdf-read-model-part` read the text; the answer itself is model reasoning, not a tool | concierge only |
 
-Outside the table because no Acrobat row applies: bringing a file in works both ways (`#upload` for a person, `pdf-import-artifact` for the concierge); deleting a document works both ways (`#delete-document`, `pdf-delete-document`); deleting an original is UX only (`#delete-source`, route `DELETE /sources/:source`, no tool); cancelling a job works both ways (`#cancel-job`, `pdf-cancel-job`).
+Outside the table because no Acrobat row applies: bringing a file in works both ways (`#upload` for a person, `pdf-import-artifact` for the concierge); deleting a document works both ways (`#delete-document`, `pdf-delete-document`); deleting an unused original works both ways (`#delete-source`, `pdf-delete-source` over `DELETE /sources/:source`, 0.4.2); cancelling a job works both ways (`#cancel-job`, `pdf-cancel-job`).
 
 ## 3. Backlog, in the order people hit it
 
@@ -81,18 +81,18 @@ Every entry must end with a control on screen and a concierge operation, per the
   Done when: a PDF with a clickable web link and an empty signature field uploads, previews, saves a revision with the link still working, by button and by concierge; a bank statement with a password opens after typing it.
 - **CREATE-TOOL-PDF-WORKBENCH-02.** Raise the 4 MiB and 32 page limits to something near Acrobat's web limits, in store, engine and tool schemas (`pageIds`, `indices`, `page` maximums).
   Done when: a 200-page, 50 MB PDF uploads, previews lazily, and has page 150 moved to page 1 by button and by the concierge.
-- **CREATE-TOOL-PDF-WORKBENCH-03.** A real reader: zoom, fit width, page jump, selectable text on the page, print, and a phone view.
-  Done when: at 412 px wide a person pinches to zoom, types a page number to jump, long-presses to copy a sentence and prints from the browser; a concierge `pdf-go-to-page` moves the same view.
+- **CREATE-TOOL-PDF-WORKBENCH-03.** A real reader: zoom, fit width, page jump, selectable text on the page, print, and a phone view. — **Delivered in `0.4.2`**.
+  Done when: at 412 px wide a person pinches to zoom, types a page number to jump, long-presses to copy a sentence and prints from the browser; a concierge `pdf-go-to-page` moves the same view. (Delivered: `.pdf-reader-bar` with Zoom out/in, Fit width, two-finger touch pinch-to-zoom, `#pdf-page-jump`, `Select text` HTML word layer + long-press `Sentence`/`Copy` bar for editors and read-only viewers, `Print` + `@media print` stylesheet, `?page=` URL navigation, and `pdf-go-to-page` over `GET /documents/:document/navigate` with `pdf:go-to-page` surface bridge handling; verified at `1440x900` and `412x915` touch.)
 - **CREATE-TOOL-PDF-WORKBENCH-04.** Mark up by touching the page: select text to highlight, underline or strike; drag a note; draw with a finger. Replace the typed rectangle and points.
   Done when: a person highlights a sentence on a phone without typing a number, and `annotate` accepts the same underline and strikeout kinds. Saved marks reopen in Acrobat as real annotations.
-- **CREATE-TOOL-PDF-WORKBENCH-05.** Show the annotation list on screen with delete, edit and move; add an `update-annotation` operation.
-  Done when: a person deletes one highlight from a list with a button, and the concierge can move the same note by id; both produce a new revision.
+- **CREATE-TOOL-PDF-WORKBENCH-05.** Show the annotation list on screen with delete, edit and move; add an `update-annotation` operation. — **Delivered in `0.4.2`**.
+  Done when: a person deletes one highlight from a list with a button, and the concierge can move the same note by id; both produce a new revision. (Delivered: `openAnnotationsSheet` reachable from Annotate `List` and More `Annotations…` with per-annotation Edit, Move and Delete controls; `update-annotation` in `routes/model.mjs` and `pdf-apply-operations` with automatic `quadPoints`/`points` remapping and optional target `page` move; verified in unit, SQL/HTTP and Chromium tests.)
 - **CREATE-TOOL-PDF-WORKBENCH-06.** Sign: draw, type or pick a saved signature and place it. Add the matching `annotate` kind.
   Done when: a person signs a one-page form on a phone and downloads it; the concierge places a saved signature after an approval card.
 - **CREATE-TOOL-PDF-WORKBENCH-07.** Non-English text in notes and forms, and forms that do not use Helvetica.
   Done when: `José Núñez` goes into a text field of a form using Arial, by field and by `fill`, and reads correctly in Acrobat.
-- **CREATE-TOOL-PDF-WORKBENCH-08.** Fill the concierge gaps: `pdf-export` and `pdf-delete-source` tools.
-  Done when: asked "give me the PDF", the concierge returns a guarded download link after approval; asked to delete an unused original, it does so and refuses one in use.
+- **CREATE-TOOL-PDF-WORKBENCH-08.** Fill the concierge gaps: `pdf-export` and `pdf-delete-source` tools. — **Delivered in `0.4.2`**.
+  Done when: asked "give me the PDF", the concierge returns a guarded download link after approval; asked to delete an unused original, it does so and refuses one in use. (Delivered: `POST /documents/:document/export` + approval-held `pdf-export` tool under `document.export`, `pdf-delete-source` tool over `DELETE /sources/:source` under `document.delete` refusing retained sources with `409 pdf_source_retained_by_history`, bound in `authorization.yaml` and documented in `personas/pdf-editor.yaml`.)
 - **CREATE-TOOL-PDF-WORKBENCH-09.** Fill the UX gaps in page work: insert at a position, take chosen pages from another file, drag to reorder, rotate either way.
   Done when: a person drags page 5 before page 2 and inserts pages 2-3 of another original after page 1 with no concierge help.
 - **CREATE-TOOL-PDF-WORKBENCH-10.** Crop, insert blank page, replace page. Add operations `crop`, `insert-blank`, `replace-page`.

@@ -3,9 +3,11 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: without the platform's planned-control helper (an older platform) the studio still opens and simply draws no planned control.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: replace all RP-PUB-01..07 planned placeholders with working controls and add RP-PUB-08 Animate and video timeline controls.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4 (Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken). Your publications, the first screen whenever a person has publications, draws neither the tool row nor the side pane's tabs, so on a phone it had no concierge entry at all: Today hides its ball and its bar's Concierge there because the shared editor says it holds its own. The list's heading row now carries Concierge (on a desktop it steps aside while Today's bar opens the concierge, or while the concierge is open, so there is one entry). On a phone the Concierge sheet now closes with the one chat window's own Close, as with its Done: the window's Close is announced from the pane inside the sheet, outside the editor shell that listens for it.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: wire publishing-parity controls (page drag-reorder, master canvas mode, named styles, in-place object tools, and Download page PNG in Share and export).
  */
 import {createPublishingFeatures} from './publishing-features.mjs';
 import {createPublishingTimeline} from './publishing-timeline.mjs';
+import {createPublishingParity} from './publishing-parity.mjs';
 
 const make=(doc,tag,className,text)=>{const node=doc.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
 const ICONS={
@@ -103,6 +105,7 @@ export function createPublishingShell(api,{foundation,assistant}){
  let rowKey='';
  const features=createPublishingFeatures(api,{layers,sheet,act,onBrandChanged:()=>{rowKey='';refreshRow();}});
  const timeline=createPublishingTimeline(api,{layers,sheet,act});
+ const parity=createPublishingParity(api);
 
  const SECTION_TITLES={text:'Text',format:'Text style',arrange:'Arrange',page:'Page',master:'Master',styles:'Styles',image:'Image'};
  let explicit=null;
@@ -113,6 +116,7 @@ export function createPublishingShell(api,{foundation,assistant}){
   return sheet(SECTION_TITLES[name],nodes,{half:name!=='image'}).then(()=>{if(focus)$(focus)?.focus({preventScroll:true});});
  }
  function layout(){
+  if(state.editingMaster){root.dataset.pubPanel=state.masterItem?'master arrange':'master';return;}
   const item=api.selected(),kind=item?item.storyId?'frame':item.kind:'';
   const auto=!state.document?'summary':!item?'page master':kind==='frame'?'text format':kind==='text'?'format arrange':'arrange';
   root.dataset.pubPanel=explicit&&!auto.split(' ').includes(explicit)?explicit:auto;
@@ -132,9 +136,9 @@ export function createPublishingShell(api,{foundation,assistant}){
   const done=tool('Done','done',()=>api.selectPage(state.page),{phoneOnly:true}),more=moreTool();
   if(state.selectedIds.size>1)return[done,tool(features.isSingleGroupSelected()?'Ungroup':'Group','group',()=>features.toggleGroup()),tool('Delete','trash',()=>features.deleteSelectedItems()),more];
   if(item.storyId)return[done,tool('Text','text',()=>panel('text','story-text'),{phoneOnly:true}),tool('Font','font',()=>panel('format','fmt-font')),tool('Size','size',()=>panel('format','fmt-size')),tool('Colour','colour',()=>panel('format','fmt-color')),tool('Align','align',()=>panel('format','fmt-align')),tool('Arrange','arrange',()=>panel('arrange')),more];
-  if(item.kind==='image')return[done,tool('Arrange','arrange',()=>panel('arrange')),tool('Remove background','cutout',()=>features.removeSelectedImageBackground()),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
+  if(item.kind==='image')return[done,tool('Replace','image',()=>panel('arrange','replace-image-asset')),tool('Arrange','arrange',()=>panel('arrange')),tool('Remove background','cutout',()=>features.removeSelectedImageBackground()),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
   if(item.kind==='rect')return[done,tool('Colour','colour',()=>panel('arrange','pub-fill-field')),tool('Arrange','arrange',()=>panel('arrange')),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
-  return[done,...(item.kind==='text'?[tool('Font','font',()=>panel('format','fmt-font')),tool('Size','size',()=>panel('format','fmt-size'))]:[]),tool('Arrange','arrange',()=>panel('arrange')),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
+  return[done,...(item.kind==='text'?[tool('Text','text',()=>panel('arrange','item-text-value')),tool('Font','font',()=>panel('format','fmt-font')),tool('Size','size',()=>panel('format','fmt-size'))]:[]),tool('Arrange','arrange',()=>panel('arrange')),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
  }
  function refreshRow(){
   const item=api.selected(),key=[state.view,item?(item.storyId?'frame':item.kind)+':'+item.id:'none',Boolean(state.document),state.selectedIds.size,features.isSingleGroupSelected(),features.hasBrandKit(),state.multiSelect].join('|');
@@ -175,15 +179,15 @@ export function createPublishingShell(api,{foundation,assistant}){
   });
  }
  function exportSheet(){
-  const pdf=make(doc,'div','pub-export-row'),mp4=make(doc,'div','pub-export-row'),layoutRow=make(doc,'div','pub-export-row'),check=make(doc,'div','pub-export-row');
+  const pdf=make(doc,'div','pub-export-row'),png=make(doc,'div','pub-export-row'),mp4=make(doc,'div','pub-export-row'),layoutRow=make(doc,'div','pub-export-row'),check=make(doc,'div','pub-export-row');
   const dlPdf=make(doc,'button','pub-secondary','Download PDF'),dlMp4=make(doc,'button','pub-secondary','Download MP4'),social=make(doc,'button','ds-menu-row','Schedule or post…');
   dlPdf.type=dlMp4.type=social.type='button';dlPdf.onclick=act(()=>api.downloadPdf());dlMp4.onclick=act(()=>timeline.downloadMp4());
-  pdf.append(make(doc,'span','pub-export-name','PDF for print'),dlPdf);mp4.append(make(doc,'span','pub-export-name','Animated video (MP4)'),dlMp4);
+  pdf.append(make(doc,'span','pub-export-name','PDF for print'),dlPdf);png.append(make(doc,'span','pub-export-name',`Current page (Page ${state.page+1} PNG)`));mp4.append(make(doc,'span','pub-export-name','Animated video (MP4)'),dlMp4);
   layoutRow.append(make(doc,'span','pub-export-name','Layout file'));check.append(make(doc,'span','pub-export-name','Render and preflight'));
-  return sheet('Share and export',[],{extra:[pdf,mp4,layoutRow,check,social]}).then(layer=>{
+  return sheet('Share and export',[],{extra:[pdf,png,mp4,layoutRow,check,social]}).then(layer=>{
    social.onclick=act(async()=>{await layers.close(layer.dialog);await features.openSocialSheet();});
    const borrow=(node,host)=>{const mark=doc.createComment('export');node.before(mark);host.append(node);node.hidden=false;return()=>mark.replaceWith(node);};
-   const back=[borrow($('export-layout'),layoutRow),borrow($('render'),check),borrow($('cancel-render'),check),borrow($('preflight'),layer.body)];
+   const back=[borrow($('export-png'),png),borrow($('export-layout'),layoutRow),borrow($('render'),check),borrow($('cancel-render'),check),borrow($('preflight'),layer.body)];
    layer.dialog.addEventListener('close',()=>{for(const undo of back.reverse())undo();},{once:true});
   });
  }
@@ -274,11 +278,11 @@ export function createPublishingShell(api,{foundation,assistant}){
   $('pages-toggle').setAttribute('aria-expanded',String(pages==='open'));$('pages-toggle').setAttribute('aria-label',pages==='open'?'Hide pages':'Show pages');$('pages-toggle').title=$('pages-toggle').getAttribute('aria-label');
   $('back-to-list').hidden=state.view!=='editor'||!(state.documents.length||state.document);
   for(const id of ['document-menu','undo','redo','more-menu','open-comments'])$(id).hidden=state.view!=='editor';
-  refreshRow();layout();refreshFormat();syncTabs();timeline.syncTimeline();
+  refreshRow();layout();refreshFormat();syncTabs();timeline.syncTimeline();parity.syncUi();
   const fill=root.querySelector('[data-editor-property="color"]');if(fill)fill.id='pub-fill-field';
  }
  function decorateBoard(section,p,i){features.decorateComments(section,p,i);timeline.decoratePreview();}
  function onDocumentLoaded(view){return features.loadComments(view);}
  function placed(){if(!wide()&&layers.top())void layers.close(layers.top());}
- return{confirm,float,painted,placed,decorateBoard,onDocumentLoaded,refresh:painted,menu,layers};
+ return{confirm,float,painted,placed,decorateBoard,onDocumentLoaded,refresh:painted,menu,layers,wirePageThumb:parity.wirePageThumb,syncParity:parity.syncUi,syncParityDisabled:parity.syncDisabled};
 }

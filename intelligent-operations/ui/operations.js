@@ -3,6 +3,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the authorized incident projection and render local source-format checks without writes or stored credentials.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Normalize explicit adapter mapping drafts locally and invalidate stale identity previews on edits.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: 403 ticket refusal names the product Open Swarm.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.8 (NAV-02): reveal the active nav link horizontally inside the single-row phone nav strip.
  */
 (function () {
   'use strict';
@@ -17,13 +18,21 @@
     if (className) e.className = className;
     return e;
   }
+  function revealInStrip(strip, el) {
+    if (!strip || !el || !strip.clientWidth) return;
+    const start = el.offsetLeft, end = start + el.offsetWidth;
+    if (start < strip.scrollLeft) strip.scrollLeft = start;
+    else if (end > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = end - strip.clientWidth;
+  }
   function route() {
     if (location.hash === '#main') return;
     const page = ['overview','incidents','sources'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
     for (const section of document.querySelectorAll('main>section')) section.hidden = section.id !== page;
+    let active = null;
     for (const link of document.querySelectorAll('nav [data-page]')) {
-      if (link.dataset.page === page) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current');
+      if (link.dataset.page === page) { link.setAttribute('aria-current','page'); active = link; } else link.removeAttribute('aria-current');
     }
+    if (active) revealInStrip(active.parentElement, active);
   }
   function render() {
     const container = $('ticket-list');container.replaceChildren();

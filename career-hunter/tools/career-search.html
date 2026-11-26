@@ -18,6 +18,7 @@
   sort / page.
 
   CHANGE LOG
+  58 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): Save on a job waits while a résumé is being written and saves by itself (tools/career-pending-writes.js, loaded by the page frame). The account's copy of the last search (remember, adopt) is kept on a best-effort basis as before, as batch work, so a search does not show a waiting line; saving or removing a named search is the person's own change and waits like Save. Guard: tests/career-concurrent-writes-browser.test.mjs.
   56 | maintainer@emeraldcoastsystemsgroup.com | G7 adds honest deterministic title-first ordering, preserving chosen sorts and disclosing bounded fallback samples.
   55 | maintainer@emeraldcoastsystemsgroup.com | G17: default fresh phone searches to20 results, retain chosen sizes, show returned ranges and actual card counts, and keep secondary actions in one44px More menu.
   54 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the saved-search panel says the searches are kept on your account, on every device you sign in on (it still said "in this browser" after 1.56.0 moved them to the account); signed out, it says to sign in to keep searches on your account.
@@ -473,8 +474,9 @@ function persistLast(value){
 }
 /** Ask the account for its copy of the searches (GET) or change it by one operation (POST). */
 async function accountRequest(method, body){
+  const automatic = !!body && (body.op === 'remember' || body.op === 'adopt');
   const response = await fetch('/api/career-hunter/search-memory', body
-    ? { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { method });
+    ? { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(automatic ? { careerBatch: true } : {}) } : { method });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message || 'Your account could not keep this search. It is kept in this browser.');
   return data;

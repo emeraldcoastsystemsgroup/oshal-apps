@@ -33,6 +33,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.17.7: the catalog description says what the studio makes. Jarvis names an application from its description (kernel ADR-212), and this one said only "Edit face crops and generation settings in a saved source project ...": on blue (kernel f86cd306, routing scoreboard r1-before, 3 of 3 runs) "Create a pet portrait of my golden retriever as an astronaut" went to Create, and Jarvis wrote that Portrait Studio is "built for editing face crops and generation settings on saved photos". It now says it turns a person's or pet's photo into a professional headshot, a character portrait in a themed scene, or one group scene (the three modes of routes/portrait-catalog.js and the persona), and keeps what the old sentence said. Routed to Portrait Studio 3 of 3 after. No route, tool, bot or permission change.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.17.8 (Roger, 2026-11-17, production: "portrait has a jarvis ball that opens create-editor not a concierge"): the page carries Portrait Studio's own concierge again, the kernel's one Jarvis chat window as portrait-artist in the shared editor, as every Create studio does, so Today hides its ball and its bar's Concierge opens Portrait's own window, alone or as Create's Portrait screen. Presentation only: no route, tool, bot, binding or permission changed. Guarded by tests/portrait-studio-one-chat-window.test.mjs (Test Lab case one-chat-window).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.17.9: enforce portrait.view and portrait.read before querying ps_portraits in routes/home-summary.js (preserving post-read revocation recheck), verify live Production 200 home-summary tile, and close BACKLOG.md Item E. Guarded by tests/home-summary-authz.test.cjs.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.17.10: tool parity (CREATE-TOOL-PORTRAIT-01, -02, -03, -09): concierge read tools (portrait-list, portrait-read, portrait-catalog, portrait-provider-status), approval-held portrait-create from owned photo references, Run again button + POST /portraits/:id/rerun + portrait-rerun on finished and failed gallery rows, and gallery tools (portrait-rename, portrait-delete, portrait-export, portrait-handoff) bound exclusively to existing permissions.
 name: portrait-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -47,7 +48,7 @@ rating:
       degrade: disable
 displayName: Portrait Studio
 description: "Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. It keeps your original photos and saved projects, where you can edit each face crop and the generation settings, and hands finished portraits to the image editor."
-version: 1.17.9
+version: 1.17.10
 chatBot: portrait-artist
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
@@ -329,3 +330,202 @@ tools:
       additionalProperties: false
     usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
     routingTags: [creative, editing, portrait, source]
+  - name: portrait-list
+    displayName: List My Portraits
+    type: api
+    category: creative
+    description: List the signed-in owner's portraits in Portrait Studio, including id, title, status, mode, style, timestamps, result link, and error when failed.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/portraits
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Call portrait-list before answering questions about what portraits exist or whether the latest run finished.
+    routingTags: [creative, portrait, gallery, read]
+  - name: portrait-read
+    displayName: Read Portrait Details
+    type: api
+    category: creative
+    description: Read one owned portrait's exact state, style, layer swaps, error if failed, and download/export links.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/portraits/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned portrait UUID from portrait-list." }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Call portrait-list first to obtain an exact owned portrait UUID, then call portrait-read.
+    routingTags: [creative, portrait, gallery, read]
+  - name: portrait-catalog
+    displayName: Portrait Style Catalog
+    type: api
+    category: creative
+    description: Read the Portrait Studio style presets, swappable layers (background, attire, headwear, prop, finish, framing), group limits, and named export sizes.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/catalog
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Call portrait-catalog to look up exact valid style, background, attire, headwear, prop, finish, framing, and export size IDs before calling portrait-create or portrait-export.
+    routingTags: [creative, portrait, catalog, read]
+  - name: portrait-provider-status
+    displayName: Portrait Provider & Daily Cap Status
+    type: api
+    category: creative
+    description: Read whether an image-generation provider is currently configured and available for this person, along with their 24-hour daily portrait cap usage and remaining count.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/provider-status
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Call portrait-provider-status to check image provider availability and daily cap remaining count before proposing portrait-create or portrait-rerun.
+    routingTags: [creative, portrait, status, read]
+  - name: portrait-create
+    displayName: Create Portrait
+    cardText: Generate a new portrait from your saved photo reference with the selected style and swaps (counts toward your daily portrait cap).
+    type: api
+    category: creative
+    description: Create and queue a new portrait from an owned saved source project (sourceProjectId), uploaded source photo (sourceAssetId), or existing portrait crop (portraitId) using the same daily cap and provider checks as the screen. Held for approval.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/portrait-studio/portraits
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        sourceProjectId: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned saved source project UUID (uses its saved photo crop and defaults)." }
+        sourceAssetId: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned uploaded source asset UUID." }
+        portraitId: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned existing portrait UUID whose saved cropped photo will be reused." }
+        mode: { type: string, enum: [professional, character, group], description: "Portrait mode." }
+        style: { type: string, minLength: 1, maxLength: 80, description: "Exact style preset ID from portrait-catalog." }
+        background: { type: string, maxLength: 80, description: "Optional background layer ID override." }
+        attire: { type: string, maxLength: 80, description: "Optional clothing/attire layer ID override." }
+        headwear: { type: string, maxLength: 80, description: "Optional headwear/hat layer ID override." }
+        prop: { type: string, maxLength: 80, description: "Optional prop layer ID override." }
+        finish: { type: string, maxLength: 80, description: "Optional finish layer ID override." }
+        framing: { type: string, maxLength: 80, description: "Optional framing layer ID override." }
+        notes: { type: string, maxLength: 300, description: "Optional free-text notes (up to 300 characters)." }
+        subjects: { type: integer, minimum: 2, maximum: 6, description: "Number of faces in group mode (2 to 6)." }
+        title: { type: string, maxLength: 120, description: "Optional portrait title (up to 120 characters)." }
+      required: []
+      additionalProperties: false
+    usageInstructions: Check portrait-provider-status and portrait-catalog (plus portrait-studio-source-list or portrait-list for an owned photo reference) first, then propose portrait-create with exact IDs.
+    routingTags: [creative, portrait, generate, write]
+  - name: portrait-rerun
+    displayName: Run Portrait Again
+    cardText: Run this portrait again using the exact same cropped photo, style, and settings (counts toward your daily portrait cap).
+    type: api
+    category: creative
+    description: Run an owned finished or failed portrait again using its saved cropped photo, mode, style, swaps, and title without re-cropping. Counts toward the daily cap and is held for approval.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/portrait-studio/portraits/{input.id}/rerun
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned finished or failed portrait UUID from portrait-list." }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Call portrait-list first to confirm the portrait UUID, and check portrait-provider-status if needed, then call portrait-rerun once.
+    routingTags: [creative, portrait, rerun, write]
+  - name: portrait-rename
+    displayName: Rename Portrait
+    cardText: Rename this portrait in your Portrait Studio gallery.
+    type: api
+    category: creative
+    description: Rename an owned portrait in the Portrait Studio gallery (up to 120 characters). Held for approval.
+    executor:
+      executorType: api
+      apiEndpoint: PATCH /api/portrait-studio/portraits/{input.id}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned portrait UUID from portrait-list." }
+        title: { type: string, minLength: 0, maxLength: 120, description: "New portrait title (up to 120 characters)." }
+      required: [id, title]
+      additionalProperties: false
+    usageInstructions: Call portrait-list first to confirm the exact owned portrait UUID before calling portrait-rename.
+    routingTags: [creative, portrait, gallery, write]
+  - name: portrait-delete
+    displayName: Delete Portrait
+    cardText: Permanently delete this portrait and its saved image files from your Portrait Studio gallery.
+    type: api
+    category: creative
+    description: Permanently delete an owned portrait and its saved files from Portrait Studio. Held for approval.
+    executor:
+      executorType: api
+      apiEndpoint: DELETE /api/portrait-studio/portraits/{input.id}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned portrait UUID from portrait-list." }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Call portrait-list first to verify the exact owned portrait UUID before proposing portrait-delete.
+    routingTags: [creative, portrait, gallery, delete]
+  - name: portrait-export
+    displayName: Export Portrait Size
+    type: api
+    category: creative
+    description: Return the owner-guarded download URL and pixel size metadata for a finished portrait in a named export preset (original, linkedin, square, passport, 300, 600, print, 4x6, portrait, 6x4, landscape).
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/portraits/{input.id}/export-link?size={input.size}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned finished portrait UUID from portrait-list." }
+        size: { type: string, enum: [original, linkedin, square, passport, "300", "600", print, 4x6, portrait, 6x4, landscape], description: "Named export size preset." }
+      required: [id, size]
+      additionalProperties: false
+    usageInstructions: Call portrait-list first to confirm the portrait is finished (done), then call portrait-export with the requested named size.
+    routingTags: [creative, portrait, export, read]
+  - name: portrait-handoff
+    displayName: Send Portrait to Another App
+    cardText: Prepare a handoff link to open this finished portrait in another Create application.
+    type: api
+    category: creative
+    description: Prepare an owner-scoped artifact and open link to send a finished portrait to another Create app (create, publishing-studio, video, presentations, design-studio, or brand-graphics). Held for approval.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/portrait-studio/portraits/{input.id}/handoff
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, minLength: 36, maxLength: 36, description: "Owned finished portrait UUID from portrait-list." }
+        targetApp: { type: string, enum: [create, publishing-studio, video, presentations, design-studio, brand-graphics], description: "Destination application slug." }
+        size: { type: string, enum: [original, linkedin, square, passport, "300", "600", print, 4x6, portrait, 6x4, landscape], description: "Optional export size preset (defaults to original)." }
+      required: [id, targetApp]
+      additionalProperties: false
+    usageInstructions: Call portrait-list first to confirm the portrait is finished (done), then call portrait-handoff with the target app.
+    routingTags: [creative, portrait, handoff, export]

@@ -4,10 +4,12 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-31 11:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Motion and art become server truths on the CONVERSATION path too. The 2026-07-30 playtest showed the table's real play style is the free Ask-the-DM box: the narration said "Zin, you cross east toward Tovin Quill" while Zin's token stood frozen at party start, and a whole investigation chapter produced zero images — because v0.17.3 wired walking and cutaways only into the /explore lead-tap path. Now every ordinary story exchange deterministically matches the person/place/object the fiction engaged, walks the acting hero beside it in an authoritative board write, requests a first-meeting portrait cutaway when the party reaches someone new, and keeps a steady art cadence: whenever the last few story beats carry no image, the newest beat is illustrated.
+ * 2026-11-25 14:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Persist a lightweight board revision whenever a story-motion walk updates the encounter board.
  */
 
 'use strict';
 
+const { captureBoardRevision } = require('./dnd-checkpoint-store');
 const { parsedJson, withTransaction } = require('./dnd-route-helpers');
 const { authoredPropId, walkHeroBeside, walkHeroBesideLead } = require('./dnd-lead-cast');
 
@@ -224,6 +226,7 @@ async function lockedConversationWalk(deps, db, transactional, sub, body, narrat
   // exchange re-derives it from wherever the board actually ended up.
   if (!saved.rowCount) return { scene, state, rev, moved: false, target, heroSlug };
   await db.query('UPDATE dnd_campaigns SET updated_at=now() WHERE campaign_id=$1', [body.campaignId]);
+  await captureBoardRevision(db, sub, body.campaignId, next, 'walk');
   return { scene, state: next, rev: Number(saved.rows[0].rev), moved: true, target, heroSlug };
 }
 

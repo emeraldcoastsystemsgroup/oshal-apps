@@ -10,6 +10,7 @@
  * 2026-07-23 00:16:04 | roger.murphy@emeraldcoastsystemsgroup.com  | Replace metadata-like "commits to Scimitar" cues with natural weapon phrasing and classify declared melee delivery before generic attacks.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Derive optional spoken action declarations from authoritative structured outcomes.
  * 2026-10-13 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 13: the combat highlight request carried only the ledger line, which names no target, so the narration put Pip's arrow at Rikkit's feet while Pip targeted Tallow. The request now opens with who acted, with what, at whom (combatNarrationFacts). Guard: tests/dnd-combat-narration.test.js.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Route resolved combat outcomes through the cutaway beat classifier so big beats request keyed art and common beats play local transitions.
  */
 
 'use strict';
@@ -320,11 +321,13 @@ async function requestDungeonMasterCombatNarration(actor, outcome) {
     });
     if (response && response.ok && response.narration) {
       const accepted = acceptCombatNarration(response);
+      if (typeof handleCombatOutcomeBeats === 'function') handleCombatOutcomeBeats(actor, outcome, accepted.text);
       requestCombatKillCutaway(actor, outcome, accepted.text);
       return accepted;
     }
   } catch (_error) { /* exact rules remain authoritative; use local prose below */ }
   finally { if (timer) clearTimeout(timer); }
+  if (typeof handleCombatOutcomeBeats === 'function') handleCombatOutcomeBeats(actor, outcome, fallback);
   requestCombatKillCutaway(actor, outcome, fallback);
   return { text: fallback, archived: false };
 }

@@ -25,6 +25,10 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Register venture-figure-units: narrated figures read with their unit words, a ratio as a rounded percent, and a rejected section names no machine id (sweep 14); venture-numbers-ui also expects Delete to clear the deleted venture's banners.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: register venture-routing-words: a general question about the workspace ("In one short sentence, what workspace tools can you coordinate here?") claims no Venture Plan bot under the kernel's matching rules, the manifest and persona words agree, and the venture questions still claim the package (UX audit 2026-11-06, jarvis--jarvis-home).
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: register venture-home-ui (the first screen per the UX audit decision): card formulas in words for every registered figure, Break-even naming the searched run, the status line and its details, Rename through PATCH, the venture menu, one primary, the one-line stepper and the phone bottom bar.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Reconcile rebaseline-live-acceptance install pin from venture-plan 1.5.0 to current 1.5.4.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: register venture-compare and venture-compare-browser suites and update rebaseline-live-acceptance pin to venture-plan 1.5.5.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: register venture-fx-console and venture-fx-console-browser suites and update rebaseline-live-acceptance pin to venture-plan 1.5.6.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: register venture-quote-inbox and venture-quote-inbox-browser suites, expect 14 tables in schema-bootstrap-postgres, and update rebaseline-live-acceptance pin to venture-plan 1.5.7.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -818,7 +822,7 @@ cases:
   - id: rebaseline-live-acceptance
     name: The scheduled rebaseline on the installed package, dated
     purpose: >-
-      After venture-plan 1.5.0 is installed, its catalog adopted and the member role granted to both identities, walk
+      After venture-plan 1.5.7 is installed, its catalog adopted and the member role granted to both identities, walk
       the real routes and the real hourly schedule as the operator automation identity (OSHAL_VERIFY_OPERATOR_PAT, a swarm
       administrator, owner of the opted-in ventures) and a second caller (OSHAL_VERIFY_SECOND_PAT, owner of a disabled and
       a dry-run venture), tokens read by name and never printed. The walk spans two scheduled ticks (up to about two and a
@@ -840,7 +844,7 @@ cases:
       - runner:node
       - credential:operator-pat
       - credential:second-pat
-      - install:venture-plan-1.5.0
+      - install:venture-plan-1.5.7
     sideEffects: external-write
     isolation:
       mode: live
@@ -867,7 +871,7 @@ cases:
     expected:
       - Every boot on an installed schema finishes both bootstraps with no error logged (no 40P01 deadlock) and the package's scheduled tick handler then runs with evaluated=0.
       - Every first-install boot finishes both bootstraps with no error logged (no duplicate catalog row) and the scheduled tick handler then runs.
-      - After every boot the catalog holds the 13 tables, each with row security enabled and forced and its owner-or-operator policy, plus the six functions and six triggers the schema declares.
+      - After every boot the catalog holds the 14 tables, each with row security enabled and forced and its owner-or-operator policy, plus the six functions and six triggers the schema declares.
       - The application role is a plain login role without superuser or BYPASSRLS, and the fixture container is removed only after its label is verified.
     prerequisites:
       - runner:node
@@ -1111,4 +1115,159 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: venture-compare
+    name: Side-by-side scenario compare engine and HTTP route
+    purpose: >-
+      Exercise the compiled pure venture-compare module and owner-scoped GET /ventures/:id/scenarios/compare route
+      with synthetic fixtures and zero model calls.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-compare.test.js
+    expected:
+      - Exact integer micro-currency and basis-point metrics and deltas match independent buildVentureModel runs.
+      - Switching baseline inverts deltas symmetrically and surfaces both assumption value/confidence diffs and scenario lever diffs.
+      - Cardinality bounds (2 to 10 distinct scenarios), deduplication, anonymous 401, foreign-owner 404, foreign scenario id 404, zero writes and zero bot calls hold.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixture-venture.js
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-compare-browser
+    name: Side-by-side scenario compare browser contract
+    purpose: >-
+      Render tools/venture.html in headless Chromium at 1440x900 and 412x915 against the compiled venture-routes
+      over a local loopback server with zero model calls.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/venture-compare-browser.test.mjs
+    expected:
+      - Fewer than 2 scenarios shows the empty state; 3 scenarios render side-by-side metrics, deltas, provenance badges and differing assumptions.
+      - Baseline switching flips delta signs, unchecking removes columns, hostile scenario names stay literal text with zero XSS, and both desktop and mobile viewports have zero horizontal overflow and zero pageErrors.
+    prerequisites:
+      - runner:node
+      - toolchain:playwright
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Closes the loopback server and headless Chromium instance after the run.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: venture-fx-console
+    name: Exact FX decimal-to-nano parser and conversion preview guards
+    purpose: >-
+      Exercise tools/venture-fx-console.js and the parity inline helper block in tools/venture.html against the
+      compiled routes/venture-currency.js backend with zero floats and zero model calls.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-fx-console.test.js
+    expected:
+      - Decimal rate strings convert strictly to integer nano-units (1e-9) and fail closed on zero, negative, NaN, overflow, and more than 9 decimal places.
+      - Half-up-away-from-zero BigInt conversion previews agree with routes/venture-currency.js to the exact micro across sub-cent and signed tie vectors.
+      - Safe URL filtering allows only http/https links and neutralizes unsafe schemes to plain text.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tools/venture-fx-console.js
+        - tools/venture.html
+      cleanup: All values are pure in-memory vectors; nothing is written outside the test process.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-fx-console-browser
+    name: FX Evidence Console and foreign-currency quote binding browser contract
+    purpose: >-
+      Render tools/venture.html in headless Chromium at 1440x900 and 412x915 against the compiled venture-routes
+      over a local loopback server with zero model calls.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/venture-fx-console-browser.test.mjs
+    expected:
+      - Recording an immutable EUR to USD 1.085 rate snapshot displays exact rateNanos, Inspect details, zero Edit or Delete controls, and neutralizes unsafe URLs.
+      - Foreign quotes without a recorded FX snapshot show the inline prompt and block submission; bound EUR quotes preview and save both EUR and converted USD with FX provenance.
+      - Both 1440x900 desktop and 412x915 mobile viewports have zero horizontal overflow and zero pageErrors.
+    prerequisites:
+      - runner:node
+      - toolchain:playwright
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Closes the loopback server and headless Chromium instance after the run.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: venture-quote-inbox
+    name: Saved-quote inbox parser, store, and HTTP routes
+    purpose: >-
+      Exercise the compiled pure venture-quote-parser module and owner-scoped quote-inbox store and routes
+      with synthetic fixtures and zero model calls.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-quote-inbox.test.js
+    expected:
+      - Pure SHA-256 matches node crypto and deterministic parsing extracts vendor, exact integer micro-currency price, currency, MOQ, week-to-day lead time, incoterm, and quote ref across EML, CSV, Markdown, and FlateDecode PDF inputs while honestly flagging image-only PDFs.
+      - Foreign-currency promotion refuses unbound quotes with 400 fx_assumption_required before any write, bound promotion records converted reporting amounts and document SHA-256 provenance, double-promote and dismiss-after-promote return 409, and foreign owners get 404.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-quote-inbox-browser
+    name: Saved-quote inbox browser contract
+    purpose: >-
+      Render tools/venture.html in headless Chromium at 1440x900 and 412x915 against the compiled venture-routes
+      over a local loopback server with zero model calls.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/venture-quote-inbox-browser.test.mjs
+    expected:
+      - Attaching pasted and uploaded quote documents populates reviewed candidate fields with SHA-256 digests and extraction notes.
+      - Promoting USD and FX-bound EUR inbox items writes converted quotes with provenance badges, dismissing marks items dismissed, hostile filenames and vendor strings render safely without XSS, and desktop and mobile viewports have zero horizontal overflow and zero pageErrors.
+    prerequisites:
+      - runner:node
+      - toolchain:playwright
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Closes the loopback server and headless Chromium instance after the run.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
     installation: never

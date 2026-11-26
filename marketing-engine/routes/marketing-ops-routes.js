@@ -6,6 +6,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Marketing ops rail (service auth, /api/marketing-ops):
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Compile clean against real core types: type the connector spec/creds as ConnectorSpec/BuildSpecOptions instead of unknown, and pass the full CreateInternalTicketInput shape (workspaceId/assignedAgentId/parentTicketId/external* nulls) the canonical schedule-dispatch caller uses.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.8 (P2): wire reallocationProposals() into the weekly review over real recorded channel costs and conversions, writing proposed `channel_allocation` rows to oshal_marketing_budget_ledger and noting them on the review ticket.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.9 (P5): populate campaign_slug and medium attribution columns on every oshal_marketing_events INSERT via extractEventAttribution (including GSC page-dimension UTM URLs), preserving NULL when unattributed.
  *     the deterministic daily metrics ingest (Search Console via the gsc spec + caller's google
  *     connection, PostHog via its spec, GitHub traffic via env token — every source fail-soft, a
  *     missing source is recorded NO DATA and never invented) and the weekly review (scorecard
@@ -51,6 +53,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runMarketingDailyIngest = runMarketingDailyIngest;
+exports.replaceDayEvents = replaceDayEvents;
 exports.runMarketingWeeklyReview = runMarketingWeeklyReview;
 exports.createMarketingOpsRoutes = createMarketingOpsRoutes;
 const express_1 = require("express");
@@ -63,6 +66,9 @@ const runtime_1 = require("@/app/connectors/runtime");
 const spec_tools_1 = require("@/app/connectors/runtime/spec-tools");
 const notifications_1 = require("@/features/notifications");
 const marketing_model_1 = require("./marketing-model");
+const marketing_budget_model_1 = require("./marketing-budget-model");
+const marketing_budget_1 = require("./marketing-budget");
+const marketing_attribution_model_1 = require("./marketing-attribution-model");
 const logger = (0, logger_1.createChildLogger)({ module: 'marketing-ops-routes' });
 /** Where connector spec yamls live on the box (env-tunable, container default). */
 function connectorSpecDir() {
@@ -120,7 +126,7 @@ async function ensureOpsSchema(pool) {
             ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_marketing_run_ledger', 'user_sub'),
         ],
         requirements: [
-            { table: 'oshal_marketing_events', columns: ['event_id', 'user_sub', 'ts', 'source', 'event', 'value', 'meta'] },
+            { table: 'oshal_marketing_events', columns: ['event_id', 'user_sub', 'ts', 'source', 'campaign_slug', 'medium', 'event', 'value', 'meta'] },
             { table: 'oshal_marketing_scorecard_weeks', columns: ['user_sub', 'week_start', 'data', 'sources'] },
             { table: 'oshal_marketing_run_ledger', columns: ['run_id', 'user_sub', 'channel', 'action', 'outcome', 'detail'] },
         ],
@@ -262,13 +268,22 @@ async function ingestSearchConsole(ctx, sub) {
     const sites = await gscSiteUrls(spec, creds);
     if (!sites.length)
         return { status: 'no_data', events: 0, reason: 'no_sites' };
-    const { totals, succeeded } = await gscDateTotals(spec, creds, sites, window);
+    const { buckets, succeeded } = await gscDateTotals(spec, creds, sites, window);
     if (!succeeded)
         return { status: 'no_data', events: 0, reason: 'query_failed' };
-    const rows = window.dates.flatMap((date) => [
-        { event: 'clicks', date, value: totals.get(date)?.clicks ?? 0, meta: {} },
-        { event: 'impressions', date, value: totals.get(date)?.impressions ?? 0, meta: {} },
-    ]);
+    const rows = [];
+    for (const date of window.dates) {
+        const forDate = [...buckets.values()].filter((b) => b.date === date);
+        if (!forDate.length) {
+            rows.push({ event: 'clicks', date, value: 0, campaignSlug: null, medium: null, meta: {} });
+            rows.push({ event: 'impressions', date, value: 0, campaignSlug: null, medium: null, meta: {} });
+            continue;
+        }
+        for (const b of forDate) {
+            rows.push({ event: 'clicks', date, value: b.clicks, campaignSlug: b.campaignSlug, medium: b.medium, meta: {} });
+            rows.push({ event: 'impressions', date, value: b.impressions, campaignSlug: b.campaignSlug, medium: b.medium, meta: {} });
+        }
+    }
     const written = await replaceDayEvents(ctx, sub, 'gsc', rows);
     return { status: 'ok', events: written };
 }
@@ -285,14 +300,14 @@ async function gscSiteUrls(spec, creds) {
         .filter((e) => typeof e?.siteUrl === 'string' && e.siteUrl !== '' && e.permissionLevel !== 'siteUnverifiedUser')
         .map((e) => String(e.siteUrl));
 }
-/** Aggregate clicks/impressions per date across the owner's sites for the settled window. */
+/** Aggregate clicks/impressions per (date, campaignSlug, medium) across the owner's sites. */
 async function gscDateTotals(spec, creds, sites, window) {
-    const totals = new Map();
+    const buckets = new Map();
     let succeeded = false;
     for (const siteUrl of sites) {
         try {
             const res = await (0, runtime_1.invokeSpecResource)(spec, creds, 'searchanalytics', {
-                siteUrl, startDate: window.startDate, endDate: window.endDate, dimensions: ['date'], rowLimit: 100,
+                siteUrl, startDate: window.startDate, endDate: window.endDate, dimensions: ['date', 'page'], rowLimit: 500,
             });
             if (!res?.body?.ok) {
                 logger.warn({ siteUrl, status: res?.status }, 'gsc searchanalytics query not ok');
@@ -304,17 +319,22 @@ async function gscDateTotals(spec, creds, sites, window) {
                 const date = Array.isArray(row?.keys) ? String(row.keys[0] ?? '') : '';
                 if (!window.dates.includes(date))
                     continue;
-                const bucket = totals.get(date) ?? { clicks: 0, impressions: 0 };
+                const pageUrl = Array.isArray(row?.keys) && row.keys.length > 1 ? String(row.keys[1] ?? '') : '';
+                const attr = (0, marketing_attribution_model_1.extractEventAttribution)({ url: pageUrl, meta: row });
+                const key = `${date}\0${attr.campaignSlug ?? ''}\0${attr.medium ?? ''}`;
+                const bucket = buckets.get(key) ?? {
+                    date, campaignSlug: attr.campaignSlug, medium: attr.medium, clicks: 0, impressions: 0,
+                };
                 bucket.clicks += Number(row?.clicks) || 0;
                 bucket.impressions += Number(row?.impressions) || 0;
-                totals.set(date, bucket);
+                buckets.set(key, bucket);
             }
         }
         catch (err) {
             logger.error({ err, stack: err?.stack, siteUrl }, 'gsc searchanalytics query failed');
         }
     }
-    return { totals, succeeded };
+    return { buckets, succeeded };
 }
 /**
  * PostHog ingest for one owner. The core posthog.yaml (v1.0.0) declares only unbounded list
@@ -400,15 +420,20 @@ async function writeGithubEvents(ctx, sub, byDate) {
     }
     return rows.length ? replaceDayEvents(ctx, sub, 'github', rows) : 0;
 }
-/** Idempotent day-bucket rewrite: delete the same (owner, source, meta.date) rows, then insert. */
+/** Idempotent day-bucket rewrite: delete the same (owner, source, meta.date) rows, then insert with attribution columns. */
 async function replaceDayEvents(ctx, sub, source, rows) {
     if (!rows.length)
         return 0;
     const dates = [...new Set(rows.map((r) => r.date))];
     await ctx.pool.query("DELETE FROM oshal_marketing_events WHERE user_sub = $1 AND source = $2 AND meta->>'date' = ANY($3::text[])", [sub, source, dates]);
     for (const row of rows) {
-        await ctx.pool.query(`INSERT INTO oshal_marketing_events (user_sub, ts, source, event, value, meta)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`, [sub, `${row.date}T00:00:00.000Z`, source, row.event, row.value,
+        const attr = (0, marketing_attribution_model_1.extractEventAttribution)({
+            campaignSlug: row.campaignSlug,
+            medium: row.medium,
+            meta: row.meta,
+        });
+        await ctx.pool.query(`INSERT INTO oshal_marketing_events (user_sub, ts, source, campaign_slug, medium, event, value, meta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`, [sub, `${row.date}T00:00:00.000Z`, source, attr.campaignSlug, attr.medium, row.event, row.value,
             JSON.stringify({ ...row.meta, date: row.date })]);
     }
     return rows.length;
@@ -473,9 +498,10 @@ async function reviewForOwner(ctx, sub, week, fire) {
     const previous = (0, marketing_model_1.scorecardRollup)(events, prevWeek);
     await upsertScorecardWeek(ctx, sub, week, current);
     await upsertScorecardWeek(ctx, sub, prevWeek, previous);
+    const newProposals = await generateWeeklyReallocationProposals(ctx, sub);
     const proposals = await pendingProposalCount(ctx, sub);
     const due = await experimentsDue(ctx, sub);
-    const description = buildReviewDescription(week, prevWeek, current, previous, proposals, due);
+    const description = buildReviewDescription(week, prevWeek, current, previous, proposals, due, newProposals);
     if (!ctx.ticketService)
         throw new Error('ticketService unavailable on the app context');
     const ticket = await ctx.ticketService.createTicket({
@@ -509,6 +535,33 @@ async function upsertScorecardWeek(ctx, sub, week, rollup) {
      VALUES ($1, $2, $3::jsonb, $4::jsonb, now())
      ON CONFLICT (user_sub, week_start)
      DO UPDATE SET data = EXCLUDED.data, sources = EXCLUDED.sources, computed_at = now()`, [sub, week, JSON.stringify(rollup.data), JSON.stringify(rollup.sources)]);
+}
+/** Generate proposed channel_allocation rows from real recorded channel costs for active campaigns. */
+async function generateWeeklyReallocationProposals(ctx, sub) {
+    const created = [];
+    try {
+        const { rows: campaigns } = await ctx.pool.query(`SELECT campaign_id, name, slug, budget_monthly_usd, channels, channel_allocations, finance_project_id
+         FROM oshal_marketing_campaigns
+        WHERE user_sub = $1 AND status = 'active'
+        ORDER BY updated_at DESC LIMIT 50`, [sub]);
+        for (const camp of campaigns) {
+            const existing = await ctx.pool.query(`SELECT entry_id FROM oshal_marketing_budget_ledger
+          WHERE user_sub = $1 AND campaign_id = $2 AND field = 'channel_allocation' AND status = 'proposed'
+          LIMIT 1`, [sub, camp.campaign_id]);
+            if (existing.rows.length > 0)
+                continue;
+            const recorded = await (0, marketing_budget_1.loadRecordedChannelMetrics)(ctx.pool, sub, camp);
+            const perf = (0, marketing_budget_model_1.buildChannelPerformanceInputs)({ campaign: camp, ...recorded });
+            const { proposal, recommendations } = await (0, marketing_budget_1.createReallocationLedgerProposal)(ctx.pool, sub, camp, perf, { proposedBy: 'weekly-review' });
+            if (proposal && recommendations.length >= 2) {
+                created.push(`${String(camp.name)}: ${recommendations[0].channel} -> ${recommendations[1].channel} (${recommendations[0].rationale})`);
+            }
+        }
+    }
+    catch (err) {
+        logger.error({ err, stack: err?.stack }, 'weekly reallocation proposal generation unavailable');
+    }
+    return created;
 }
 /** How many budget proposals await a human decision (0 when the 001 table is not ensured yet). */
 async function pendingProposalCount(ctx, sub) {
@@ -552,7 +605,7 @@ function sourceCell(bucket) {
     return bucket ? `${bucket.events} events / value ${bucket.value}` : 'NO DATA';
 }
 /** The review ticket body: scorecard tables, pending decisions, and the director's brief. */
-function buildReviewDescription(week, prevWeek, current, previous, proposals, due) {
+function buildReviewDescription(week, prevWeek, current, previous, proposals, due, newProposals = []) {
     const lines = [`## Weekly marketing scorecard — week of ${week}`, ''];
     lines.push(`| Source | This week (${week}) | Last week (${prevWeek}) | Status |`, '| --- | --- | --- | --- |');
     const names = [...new Set([...Object.keys(current.sources), ...Object.keys(previous.sources)])].sort();
@@ -564,6 +617,10 @@ function buildReviewDescription(week, prevWeek, current, previous, proposals, du
     lines.push('', `Totals this week: ${current.data.totals.events} events (value ${current.data.totals.value}); `
         + `last week: ${previous.data.totals.events} events (value ${previous.data.totals.value}).`);
     lines.push('', '## Pending budget proposals', proposals > 0 ? `${proposals} proposal(s) awaiting a human decision on the Approvals pane.` : 'None.');
+    if (newProposals.length > 0) {
+        for (const item of newProposals)
+            lines.push(`- [channel_allocation] ${item}`);
+    }
     lines.push('', '## Experiments past their window');
     if (due.length) {
         for (const d of due) {

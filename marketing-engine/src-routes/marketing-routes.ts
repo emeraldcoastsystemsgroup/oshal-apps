@@ -8,6 +8,14 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Split at the 800-line decomposition threshold, with no behavior change: the shared constants, helpers and lazy DDL moved to ./marketing-support, the inline-bot turn runner and prompts to ./marketing-bots, the publish rails plus the consent→cap→confirm gate and the channel consent PUT to ./marketing-publish, the campaign/content handlers to ./marketing-campaigns, and the scorecard/experiment/budget/UTM handlers to ./marketing-measure. This module is now imports plus createMarketingRoutes, registering the same twenty routes in the same order.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Project pending (`status = 'proposed'`) budget proposals as `approvals` on `GET /api/marketing/budget/proposals` for the cross-application Approvals screen (`/cockpit/?screen=approvals`).
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Wire P1 audience store routes (`/audience/contacts`, `/audience/lists`, `/audience/suppressions`, consent export, and export-first contact delete) from ./marketing-audience.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Wire P1 compliance settings, email template catalog/preview, and compliance-gated content approval routes (`/compliance`, `/templates`, `/templates/render`, `/content/:id/approve`) from ./marketing-compliance.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Wire P1 double opt-in sign-up form and confirmation routes (`/audience/signup-forms*`, `/audience/opt-in/confirm`) from ./marketing-optin.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Wire P1 broadcast pipeline, one-click unsubscribe, and recipient preference routes (`/broadcasts*`, `/audience/unsubscribe`, `/audience/preferences/:contactId`) from ./marketing-broadcast.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Wire P3 sequences with per-recipient state and strict per-sequence standing authorization routes (`/sequences*`) from ./marketing-sequences.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | Wire P3 launch plans, grounded retros, and unified marketing calendar routes (`/launch-plans*`, `/calendar`) from ./marketing-launch.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.8 (P2): wire campaign-to-finance-project link, budget summary, and reallocation proposal routes (`/campaigns/:id/finance-project`, `/campaigns/:id/budget-summary`, `/campaigns/:id/reallocation-proposals`) from ./marketing-budget and format `channel_allocation` proposals cleanly on `/approvals`.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.9 (P5): wire attribution funnel, first-touch conversion, and delivery engagement event routes (`/attribution/funnel`, `/attribution/conversions`, `/deliveries/:deliveryId/event`) from ./marketing-attribution.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.10 (P4): wire SMS TCPA/CTIA consent opt-in, clock-controlled recipient-local quiet-hours scheduling, queue read, and STOP/HELP keyword routes (`/audience/sms-opt-in`, `/audience/sms/schedule`, `/audience/sms/queue`, `/audience/sms/keyword`) from ./marketing-sms.
  *
  * @module marketing-routes
  */
@@ -27,6 +35,14 @@ import {
   createExperiment, decideBudgetProposal, getScorecard, getUtm, patchExperiment, rebuildScorecard,
 } from './marketing-measure';
 import { registerAudienceRoutes } from './marketing-audience';
+import { registerComplianceRoutes } from './marketing-compliance';
+import { registerOptInRoutes } from './marketing-optin';
+import { registerBroadcastRoutes } from './marketing-broadcast';
+import { registerSequenceRoutes } from './marketing-sequences';
+import { registerLaunchRoutes } from './marketing-launch';
+import { registerBudgetRoutes } from './marketing-budget';
+import { registerAttributionRoutes } from './marketing-attribution';
+import { registerSmsRoutes } from './marketing-sms';
 
 // ---------------------------------------------------------------------------
 // Schema + factory
@@ -42,10 +58,15 @@ export function formatBudgetApprovals(proposals: Record<string, unknown>[]): Rec
       const next = String(row.new_value ?? '');
       const prev = row.old_value != null && String(row.old_value) !== '' ? ` (from ${String(row.old_value)})` : '';
       const ch = row.channel ? ` · ${String(row.channel)}` : '';
+      const label = field === 'budget_monthly_usd'
+        ? 'Monthly budget'
+        : field === 'channel_allocation'
+          ? 'Channel allocation'
+          : field;
       return {
         id,
         category: 'Budget proposal',
-        title: `${field === 'budget_monthly_usd' ? 'Monthly budget' : field}: ${next}${prev}`,
+        title: `${label}: ${next}${prev}`,
         summary: `Proposed by ${String(row.proposed_by || 'analyst')}${ch}`,
         createdAt: row.created_at || null,
         openHref: '/cockpit/?app=marketing-engine',
@@ -104,6 +125,14 @@ export function createMarketingRoutes(ctx: AppContext): Router {
   router.post('/budget/proposals/:id/decide', authed(ctx, decideBudgetProposal));
 
   registerAudienceRoutes(router, ctx);
+  registerComplianceRoutes(router, ctx);
+  registerOptInRoutes(router, ctx);
+  registerBroadcastRoutes(router, ctx);
+  registerSequenceRoutes(router, ctx);
+  registerLaunchRoutes(router, ctx);
+  registerBudgetRoutes(router, ctx);
+  registerAttributionRoutes(router, ctx);
+  registerSmsRoutes(router, ctx);
 
   return router;
 }

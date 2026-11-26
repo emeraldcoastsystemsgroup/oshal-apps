@@ -5,6 +5,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the Create concierge and its route tools. The catalog bound only HTTP routes, so every turn to create-editor (992feff6) was refused 'operation has no explicit permission binding' before the model ran (live 2026-10-12, POST /api/swarm/bots/992feff6-.../ask 403). The bot needs project.view and project.read (it inspects owned projects; every edit still goes through its own bound route and approval card); each create-* tool carries exactly the permissions of the HTTP route it calls. Owners can now delete their own projects: project.delete (own scope only, rows stay issuer-and-subject scoped) joins the creator and editor roles, so a workspace member no longer needs the admin role to remove what they made.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind reviewed bounded PSD inspection, approved import and separately guarded immutable original export.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: bind the generated-image route and its concierge tool to project.generate, the same named permission as region regeneration.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: bind revision restore (/projects/:id/revisions/restore) and apply-brand (/projects/:id/apply-brand) routes and the five concierge parity tools using existing permissions only.
 version: 1
 resources:
   projects:
@@ -100,6 +101,8 @@ bindings:
     - { id: save-revision, method: POST, path: '/projects/:id/revisions', allOf: [project.view, project.change] }
     - { id: revisions, method: GET, path: '/projects/:id/revisions', allOf: [project.view, project.read] }
     - { id: revision, method: GET, path: '/projects/:id/revisions/:revision', allOf: [project.view, project.read] }
+    - { id: restore-revision, method: POST, path: '/projects/:id/revisions/restore', allOf: [project.view, project.read, project.change] }
+    - { id: apply-brand, method: POST, path: '/projects/:id/apply-brand', allOf: [project.view, project.read, project.change, brand.read] }
     - { id: delete-project, method: DELETE, path: '/projects/:id', allOf: [project.view, project.delete] }
     - { id: export-project, method: GET, path: '/projects/:id/export', allOf: [project.view, project.read, project.export] }
     - { id: read-image, method: GET, path: '/project-assets/:id', allOf: [project.view, project.read] }
@@ -133,3 +136,8 @@ bindings:
     - { id: create-apply-edits, allOf: [project.view, project.read, project.change] }
     - { id: create-export-document, allOf: [project.view, project.read, project.export] }
     - { id: create-generate-image, allOf: [project.view, project.read, project.generate] }
+    - { id: create-list-revisions, allOf: [project.view, project.read] }
+    - { id: create-restore-revision, allOf: [project.view, project.read, project.change] }
+    - { id: create-read-brand-kit, allOf: [project.view, brand.read] }
+    - { id: create-update-brand-kit, allOf: [project.view, brand.change] }
+    - { id: create-apply-brand, allOf: [project.view, project.read, project.change, brand.read] }

@@ -20,7 +20,9 @@
        under the preview puts it in an Attached image bar (thumbnail, Remove) above the variants; each X card says it posts
        with the image and Publish, Schedule and Send to all carry it as mediaRef, so the route uploads it to X with the post.
        A network that posts text only here says "Posts without the image" on its card. The route answered 501 for any
-       media before, so the image could only be downloaded. -->
+       media before, so the image could only be downloaded.
+     4 | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): render the platform selector strip (.plats) as a single-row
+       horizontal scrollable strip on phone viewports (<=760px) with 44px nowrap touch targets and zero document overflow. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -276,6 +278,15 @@
   .vgrid > * { min-width:0; }
   .vcard .vbar, .vcard .pubwrap { flex-wrap:wrap; }
   .vcard .pubwrap { min-width:0; max-width:100%; }
+  @media (max-width:760px) {
+    .plats {
+      flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; max-width:100%; padding-bottom:2px;
+    }
+    .plats::-webkit-scrollbar { display:none; }
+    .plat { flex:0 0 auto; white-space:nowrap; min-height:44px; }
+  }
   @media (max-width:640px) {
     .wrap { padding:20px 15px 70px; }
     .greet { font-size:23px; }

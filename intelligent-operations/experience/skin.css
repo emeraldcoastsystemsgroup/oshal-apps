@@ -1,3 +1,4 @@
+/* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | 1.9.8 (NAV-02): keep phone (<=900px) primary nav, topbar, .git-tabs, .seg-tabs, .replay-choices and .console-chips on single horizontally scrollable rows with >=44px nowrap touch targets and <=60px primary nav height; desktop unchanged. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: style .ops-specialist-bar for active ops-specialist ticket links and Stop controls across Console, Cloud & SSH commands and Pod console. */
 /* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: size .ops-chat-window and iframe.jarvis-chat-frame cleanly inside Console, Cloud & SSH commands, and Pod console at desktop and phone viewports without horizontal overflow. */
 /* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Style active replay mode selectors (RP-OPS-01..02) and the Git explorer Link by URL form panel (RP-OPS-03); remove obsolete planned-control placeholders. */
@@ -93,13 +94,13 @@ pre{font:12px/1.55 var(--skin-mono)}
 /* Narrow screens and the cockpit frame: one sticky, swipeable row of pages instead of a stacked menu. */
 @media(max-width:900px){.console{grid-template-columns:1fr}.console-side{max-height:240px}.console-main{max-height:none;min-height:70vh}
  .shell{grid-template-columns:1fr;min-height:0}
- nav{position:sticky;top:52px;z-index:15;display:flex;flex-wrap:nowrap;align-items:center;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;max-height:none;padding:6px 10px;border-right:0;border-bottom:1px solid var(--skin-border);background:color-mix(in srgb,var(--ops-bg) 82%,transparent);backdrop-filter:blur(var(--skin-blur));-webkit-backdrop-filter:blur(var(--skin-blur))}
+ nav{position:sticky;top:46px;z-index:15;display:flex;flex-wrap:nowrap;align-items:center;gap:4px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%;max-height:none;padding:6px 10px;border-right:0;border-bottom:1px solid var(--skin-border);background:color-mix(in srgb,var(--ops-bg) 82%,transparent);backdrop-filter:blur(var(--skin-blur));-webkit-backdrop-filter:blur(var(--skin-blur))}
  nav::-webkit-scrollbar{display:none}
  nav .nav-label,nav .nav-foot{display:none}
- nav a{flex:none;white-space:nowrap;min-height:30px;margin:0;padding:4px 12px;border-radius:999px;border:1px solid transparent}
+ nav a{flex:0 0 auto;display:inline-flex;align-items:center;white-space:nowrap;min-height:44px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid transparent}
  nav a[aria-current=page]{box-shadow:none;border-color:color-mix(in srgb,var(--ops-accent) 45%,transparent)}
  main{padding:12px 12px 32px}.page-heading .eyebrow{display:none}.page-heading h1{font-size:18px}.lead{font-size:12.5px}
- .topbar{height:46px;padding:0 12px}.topbar .scope{display:none}
+ .topbar{height:46px;min-height:46px;padding:0 12px}.topbar .scope{display:none}.topbar>a{flex:0 0 auto;display:inline-flex;align-items:center;min-height:44px;white-space:nowrap}
  .git-head{flex-wrap:wrap}.git-toolbar label{flex:1;min-width:140px}.git-toolbar select{min-width:0;width:100%}
 }
 @media(max-width:900px){nav{top:46px}#status{font-size:11px;margin-bottom:10px}}
@@ -256,3 +257,10 @@ details.advanced>summary{min-height:44px;display:flex;align-items:center;cursor:
 .ops-chat-window.assistant-unavailable{display:none}
 .ops-chat-window iframe.jarvis-chat-frame{display:block;width:100%;height:100%;border:0}
 @media(max-width:620px){.ops-chat-window{height:420px}}
+@media(max-width:900px){
+ .git-tabs,.replay-choices,.console-chips{display:flex;flex-wrap:nowrap;align-items:center;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}
+ .git-tabs::-webkit-scrollbar,.seg-tabs::-webkit-scrollbar,.replay-choices::-webkit-scrollbar,.console-chips::-webkit-scrollbar{display:none}
+ .git-tab,.replay-choices button,.console-chip{flex:0 0 auto;display:inline-flex;align-items:center;white-space:nowrap;min-height:44px}
+ .seg-tabs{display:inline-flex;flex-wrap:nowrap;align-items:center;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:100%}
+ .seg-tabs a,.seg-tabs button{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:44px}
+}

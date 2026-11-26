@@ -20,6 +20,7 @@ exports.createVideoEditorRoutes = createVideoEditorRoutes;
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve editor effect/sticker/sheet modules, advertise 720p/1080p/4K 30/60fps export profiles, and mount auto-caption, voice TTS and CC0 sound-library routes.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: admit editor-concierge-early.js in EDITOR_ASSETS so Video's editor screen claims Today's concierge entry synchronously before its ES module graph finishes loading.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: accept optional aspectRatio (16:9, 9:16, 1:1) on POST /editor/agent-projects and advertise aspectRatios in GET /editor/capabilities.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: add GET /editor/media for owned media discovery and POST /editor/projects/:id/revisions/restore for non-destructive revision restore.
  */
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
@@ -70,6 +71,11 @@ function pageRoutes(router, env) {
     }));
 }
 function mediaRoutes(router, env) {
+    router.get('/editor/media', (0, video_editor_http_1.admit)(env, 'read'), (0, video_editor_http_1.handler)(env, 'read', async (_req, res, owner) => {
+        const media = await env.store.listMedia(owner);
+        await (0, video_editor_http_1.confirm)(env, 'read', owner)();
+        res.json({ media });
+    }));
     if ((0, video_editor_native_1.nativeMediaRoutes)(router, env))
         return;
     const storage = multer_1.default.diskStorage({
@@ -136,7 +142,25 @@ function projectReads(router, env) {
         res.json({ project });
     }));
 }
+function revisionRestoreRoute(router, env) {
+    router.post('/editor/projects/:id/revisions/restore', (0, video_editor_http_1.admit)(env, 'change'), (0, video_editor_http_1.admit)(env, 'read'), video_editor_http_1.bodyParser, (0, video_editor_http_1.handler)(env, 'change', async (req, res, owner) => {
+        const body = req.body ?? {};
+        (0, video_editor_validation_1.exactFields)(body, ['id', 'revision', 'baseRevision']);
+        const id = (0, video_editor_validation_1.editorId)(req.params.id);
+        if (body.id !== undefined && (0, video_editor_validation_1.editorId)(body.id) !== id)
+            throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_id');
+        const targetRevision = body.revision === undefined ? undefined : (0, video_editor_validation_1.baseRevision)(body.revision);
+        const expectedBase = body.baseRevision === undefined ? undefined : (0, video_editor_validation_1.baseRevision)(body.baseRevision);
+        await (0, video_authorization_1.requireEditorAccess)(env.ctx, 'read', owner);
+        const result = await env.store.restore(owner, id, targetRevision, expectedBase, async () => {
+            await (0, video_authorization_1.requireEditorAccess)(env.ctx, 'read', owner);
+            await (0, video_authorization_1.requireEditorAccess)(env.ctx, 'change', owner);
+        });
+        res.status(201).json(result);
+    }));
+}
 function projectWrites(router, env) {
+    revisionRestoreRoute(router, env);
     const agent = (0, video_editor_validation_1.loadTimelineAgent)(env.ctx.appPackageDir ?? (0, node_path_1.resolve)(__dirname, '..'));
     router.get('/editor/editing-contract', (0, video_editor_http_1.admit)(env, 'view'), (0, video_editor_http_1.handler)(env, 'view', async (_req, res) => {
         res.json((await agent).editingContract());

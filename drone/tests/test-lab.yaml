@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register flight-bar-layout (Land, Return home and Abort ALL stay on screen at 412x915 and at the bottom of the canvas at 1440x900; one exclusive map view; one no-drone empty state; no drone poll with an empty fleet). battery-unknown waits for the canvas empty state.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: register phone-first-screen (lane mobilesweep2).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: register one-chat-window (the Operator chat is the kernel's one chat window as Drone Ops' concierge, at 1440 and 412, with the screen on every turn, the saved draft drawn after the turn and a flight as its approval card); chat-no-drone expects the window's no-drone help line instead of a disabled input and Send; audience-view expects the main script without a chat of its own and the gated mount module.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Quote the case drone-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -218,7 +219,7 @@ cases:
 
   - id: drone-bot-tools-contract
     name: Inline concierge posture, tool schemas, plain-prose rule, and tool_call fence
-    purpose: Verify drone-operator declares explicit inline posture, chatBot binding, object inputSchemas on all four tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.
+    purpose: 'Verify drone-operator declares explicit inline posture, chatBot binding, object inputSchemas on all four tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.'
     level: unit
     runner:
       kind: node-test

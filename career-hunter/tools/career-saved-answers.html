@@ -4,6 +4,7 @@
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
+  4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: Standing answers lists gender, Hispanic or Latino and race beside veteran and disability, each a closed list whose blank choice declines the question on the form.
   3 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: How Career fills in a form, three choices that save at once with Undo: Typing (Like a person, the default, slower and changing nothing inside the page, or Fast), Window (In front, the default, or Behind my other windows, which is offered only with Fast) and Submit (Stop before Submit, the default, or Submit after I approve), with a line saying why Like a person is the default. The standing answers gain Protected veteran and Disability (No, Yes, or blank, which declines that question on the form) and Citizenship.
   2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): the Attestations group, two switches off by default: Tick the employer's terms box for me, and Sign the self-identification form with my name and today's date, each saying what Career does in his name and what happens when it is off. A switch saves at once with the revision the page read and offers Undo, which puts the earlier answers back while nothing changed after; Save answers offers Undo too.
   1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.4): Saved answers, reached from Settings. Answers Career may give on an employer's form for you: the standing ones you give up front (authorized to work, needs sponsorship, how you heard about the job, phone type), and every answer you kept on an application card with Keep this answer for next time, each with its question's words, your answer, where it came from and when, and Remove. Saves name the revision the page read (GET and POST /saved-answers), so another window's change is never overwritten. Designed after the saved screening-question answers of the job sites' own application settings: a short form, then a list with one Remove per answer; one column at 412 px.
@@ -80,6 +81,15 @@
       <label for="disabilityStatus">Disability
         <select id="disabilityStatus"><option value="">Decline on the form</option><option>No</option><option>Yes</option></select>
         <small class="note">Blank means Career declines the disability question on the form.</small></label>
+      <label for="gender">Gender
+        <select id="gender"><option value="">Decline on the form</option><option>Male</option><option>Female</option></select>
+        <small class="note">Blank means Career declines the gender question on the form.</small></label>
+      <label for="hispanicLatino">Hispanic or Latino
+        <select id="hispanicLatino"><option value="">Decline on the form</option><option>No</option><option>Yes</option></select>
+        <small class="note">Blank means Career declines the Hispanic or Latino question on the form.</small></label>
+      <label for="race">Race
+        <select id="race"><option value="">Decline on the form</option><option>White</option><option>Black or African American</option><option>Asian</option><option>American Indian or Alaska Native</option><option>Native Hawaiian or Other Pacific Islander</option><option>Two or more races</option></select>
+        <small class="note">Blank means Career declines the race question on the form.</small></label>
       <label for="citizenship">Citizenship
         <input id="citizenship" maxlength="200" placeholder="For example: U.S. citizen">
         <small class="note">For a form that asks it apart from work authorization. Blank: Career leaves it to you.</small></label>
@@ -115,7 +125,7 @@
 <script>
 'use strict';
 (() => {
-  const API = '/api/career-hunter', $ = (id) => document.getElementById(id), FIELDS = ['workAuthorization', 'sponsorship', 'heard', 'phoneType', 'veteranStatus', 'disabilityStatus', 'citizenship'];
+  const API = '/api/career-hunter', $ = (id) => document.getElementById(id), FIELDS = ['workAuthorization', 'sponsorship', 'heard', 'phoneType', 'veteranStatus', 'disabilityStatus', 'citizenship', 'gender', 'hispanicLatino', 'race'];
   const FLAGS = { input: 'flagInput', window: 'flagWindow', submit: 'flagSubmit' };
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let current = null;

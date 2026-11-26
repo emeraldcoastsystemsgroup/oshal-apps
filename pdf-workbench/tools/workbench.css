@@ -6,6 +6,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4, phones (the trial check, 2026-11-06: 142 px of bars before content): the app bar is one row, the document title (cut with an ellipsis) beside Save and the shell's More, which now also holds the Document menu and Download.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every colour, line, radius, size and space from the --ds-* tokens; solid controls with a 3:1 edge (no gradient, inset highlight, glow, hover lift or fade), one 2px focus ring, radii 10/14/20, the six-size type scale, sentence-case labels, 44px targets on touch, opaque menus and sheets in the top layer, a white paper page in every theme, the modes as the phone's bottom bar, the canvas wide on a desktop (the Documents rail leaves for the document menu), and no platform font name in the source.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: styles for word-level markup selection and handles, live freehand ink SVG overlay, corner resize handles, signature drawing pad, photo reorder list, single-page pager, two-page facing spread and night reading mode.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: styles for reader zoom/jump/text-layer bar, annotations list sheet rows, zoom scaling and clean @media print layout.
  */
 :root{color-scheme:light dark}
 html,body{overscroll-behavior:contain}
@@ -156,9 +157,26 @@ body{margin:0;min-height:100dvh;font:var(--ds-text-body,400 16px/24px system-ui,
 .pdf-word-selection{position:absolute;inset:0;pointer-events:none;z-index:5}
 .pdf-word-highlight{position:absolute;background:rgb(37 99 235 / .24);border-bottom:2px solid #2563eb;pointer-events:none}
 .pdf-word-handle{position:absolute!important;width:24px!important;min-width:24px!important;height:24px!important;min-height:24px!important;padding:0!important;margin:-12px 0 0 -12px!important;border-radius:12px!important;border:2px solid #fff!important;background:#2563eb!important;pointer-events:auto;touch-action:none;cursor:ew-resize}
-.pdf-word-bar{position:absolute;transform:translate(-50%,-100%);display:flex;gap:4px;padding:4px;border:1px solid var(--ds-edge);border-radius:10px;background:var(--ds-surface);box-shadow:var(--ds-elev-float);pointer-events:auto;z-index:6}
-.pdf-pager{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 auto 16px}
+.pdf-word-bar{position:absolute;transform:translate(-50%,-100%);display:flex;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 8px);gap:4px;padding:4px;border:1px solid var(--ds-edge);border-radius:10px;background:var(--ds-surface);box-shadow:var(--ds-elev-float);pointer-events:auto;z-index:6}
+.pdf-word-bar.is-below{transform:translate(-50%,0)}
+@media(max-width:800px){.pdf-word-bar{left:50%!important;width:max-content;max-width:calc(100% - 8px)}}
+.pdf-pager{position:sticky;top:0;z-index:12;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:0 auto 16px;padding:6px 10px;border:1px solid var(--ds-hairline);border-radius:12px;background:var(--ds-surface);max-width:100%}
+.pdf-reader-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pdf-page-jump{width:64px!important;min-width:56px;text-align:center;padding:0 8px!important;font-variant-numeric:tabular-nums}
+.pdf-zoom-readout{font:600 14px/20px var(--ds-font);color:var(--ds-ink-2);min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
 .pdf-pager-label{font:600 14px/20px var(--ds-font);color:var(--ds-ink-2);font-variant-numeric:tabular-nums}
+.pdf-chrome[data-pdf-fit-width=false] .pages{align-items:safe center;overflow-x:auto}
+.pdf-chrome[data-pdf-fit-width=false] .page{width:calc(min(100%,820px) * var(--pdf-zoom, 1));flex:none}
+.pdf-text-layer{position:absolute;inset:0;z-index:4;pointer-events:auto;user-select:text;-webkit-user-select:text;cursor:text}
+.pdf-text-word{position:absolute;color:transparent;white-space:pre;line-height:1;font-size:12px;overflow:hidden}
+.pdf-text-word::selection{background:rgb(37 99 235 / .3);color:transparent}
+.pdf-chrome[data-pdf-select-text=true] .pdf-object{pointer-events:none}
+.pdf-ann-list{display:grid;gap:10px;margin-top:12px}
+.pdf-ann-row{display:grid;gap:10px;padding:10px;border:1px solid var(--ds-hairline);border-radius:10px;background:var(--ds-surface-2)}
+.pdf-ann-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pdf-ann-swatch{width:16px;height:16px;border-radius:4px;border:1px solid var(--ds-edge);flex:none}
+.pdf-ann-summary{flex:1 1 140px;min-width:0}
+.pdf-ann-editor{display:grid;gap:8px;padding-top:8px;border-top:1px solid var(--ds-hairline)}
 .pdf-chrome[data-pdf-layout=single] .pages>.page:not(.is-current-page){display:none}
 .pdf-chrome[data-pdf-layout=two-page] .pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;justify-items:center;gap:24px;max-width:1440px;margin:0 auto}
 .pdf-chrome[data-pdf-night=true] .pdf-page-surface{background:#141821}
@@ -245,3 +263,11 @@ body{margin:0;min-height:100dvh;font:var(--ds-text-body,400 16px/24px system-ui,
  .ds-layer .ef-assistant{height:min(64dvh,560px)}
 }
 @media(prefers-reduced-motion:reduce){:is(.wb,.ef-editor,.ds-layer) :is(button,.btn){transition:none}}
+@media print{
+ .wb-bar,.pdf-modebar,.pdf-reader-bar,.ef-header-slot,.ef-status-slot,.ef-inspector,.ef-navigation,.ef-concierge,.pdf-object,.pdf-word-selection,.pdf-text-layer,.ds-layer,.status{display:none!important}
+ body,.ef-editor,.ef-shell,.ef-body,.ef-viewport,.wb-center{display:block!important;height:auto!important;overflow:visible!important;padding:0!important;margin:0!important;background:#fff!important}
+ .pages{display:block!important}
+ .page{display:block!important;width:100%!important;max-width:none!important;margin:0 0 12pt!important;break-after:page;page-break-after:always}
+ .page:last-child{break-after:auto;page-break-after:auto}
+ .pdf-page-surface,.pdf-page-surface>img{filter:none!important;background:#fff!important}
+}

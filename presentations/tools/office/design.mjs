@@ -10,6 +10,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window): the kernel's concierge pane frames that window now (kernel 00c62f98), and AI Office lays itself out around it. Generate a draft is a row above the window instead of under it, where it left the window's composer ending 64 px above the desktop rail's bottom and took the phone sheet's room; what it does is unchanged (its starter sentence goes into the window's message box through the pane's stand-in box). The phone's Concierge sheet is a chat sheet (ds-chat): as tall as a sheet may be, so the window has the room a conversation needs (it had a 308 px frame, and its composer covered its own Summarize starter, so a tap there landed on the composer). The window's own Close closes that sheet: the editor shell that hears it on a desktop is not around the sheet, so the Close did nothing there.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Offer genuine RTF in the Word Export sheet through the existing permission-guarded saved-revision download.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Keep `#slide-notes-panel` synchronized with home/document view switches and count slide speaker notes as presentation content.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 2.20.14: add "Recap a meeting…" entry inside the `+ New` menu linking to /api/presentations/recap/app.
  */
 import{clone,uid,plain}from'./model.mjs';
 /** @description Whether the page that frames this editor owns the screen's one assistant (?assistant=host). @returns {boolean} */
@@ -82,7 +83,7 @@ function bindHomeAndHeader({root,layers,act,menu,sheet}){
  const inertNode=id=>$(id)?.disabled;
  const setView=view=>{root.dataset.officeView=view;document.documentElement.dataset.officeView=view;$('office-home').hidden=view!=='home';$('document-canvas').hidden=view==='home';if($('slide-notes-panel'))$('slide-notes-panel').hidden=view==='home'||state.model.kind!=='pptx';};
  const focusFirstLine=()=>requestAnimationFrame(()=>{if(root.dataset.officeView!=='document'||!editable())return;$('document-canvas').querySelector('.office-word-page [contenteditable=true]')?.focus({preventScroll:true});});
- const newMenu=anchor=>menu('New',[{label:'Blank document',id:'new-docx',run:()=>startNew('docx')},{label:'Presentation',id:'new-pptx',run:()=>startNew('pptx')},{label:'Spreadsheet',id:'new-xlsx',run:()=>startNew('xlsx')}],anchor);
+ const newMenu=anchor=>menu('New',[{label:'Blank document',id:'new-docx',run:()=>startNew('docx')},{label:'Presentation',id:'new-pptx',run:()=>startNew('pptx')},{label:'Spreadsheet',id:'new-xlsx',run:()=>startNew('xlsx')},'-',{label:'Recap a meeting…',id:'new-recap',run:()=>{window.location.assign('/api/presentations/recap/app');}}],anchor);
  async function startNew(kind){if(!await newDocument(kind))return;state.reading=false;setView('document');invalidate();notify();if(kind==='docx')focusFirstLine();}
  function paintHome(){
   const list=$('office-home-list'),rows=state.documents??[];

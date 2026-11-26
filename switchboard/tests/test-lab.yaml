@@ -16,6 +16,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): register the calendar, compose and streams P2 surface case.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7: register switchboard-ux-batch7 covering Stage merge into Compose, Threads merge into Inbox (?group=person), and Inbox/Today layout guards.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: register publish-media: an attached image is uploaded to X (chunked v2 upload on api.twitter.com) and the post names its media id; a refused upload posts nothing; Streams, Stage and the Calendar executor carry the image; the Composer offers Attach to posts.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): register switchboard-nav-phone Chromium browser test verifying single-row phone (412x915) navigation strips with 44px targets and zero horizontal overflow plus desktop (1440x900) cleanliness across Switchboard surfaces.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -280,4 +281,29 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: switchboard-nav-phone
+    name: Phone (412x915) single-row scrollable navigation strips
+    purpose: 'Verify every visible Switchboard navigation and filter strip renders in a single horizontal scrollable row at 412x915 with 44px touch targets, single-line labels, active-item reveal, and zero page-level overflow, while desktop 1440x900 renders cleanly.'
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/switchboard-nav-phone.test.mjs
+    expected:
+      - 'Standalone Today at 412x915 keeps #sbTopnav and #wsbar on 1 row each with >=44px nowrap items, horizontal overflow scrolling, active item visible, and document scrollWidth <= 412.'
+      - 'Framed Today at 412x915 hides #sbTopnav while keeping #wsbar on 1 row.'
+      - 'Inbox (#channels, #workspaces, #groupBar), Calendar (.controls, .nav), Compose (#plats), Streams (#snav), and Workspaces render with 1 row per strip, >=44px targets, scrollWidth <= 412, and 0 page errors.'
+      - 'Desktop 1440x900 renders every primary Switchboard surface with 0 page errors and scrollWidth <= 1440.'
+    prerequisites:
+      - 'runner:node'
+      - 'browser:chromium'
+      - 'fixture:store-toolchain'
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
     installation: never

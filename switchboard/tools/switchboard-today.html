@@ -5,6 +5,7 @@
   SEQ | AUTHOR                                  | DESCRIPTION
   =============================================================================
   1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-today, FIX-LAYOUT): withhold in-page nav when framed in cockpit and place All apps first when standalone; remove #topRefreshBtn and add aria-label Refresh on 44px #refreshBtn; convert empty-state channel pills to a unified plain dot-and-word legend; apply solid --ds-accent + --ds-on-accent tokens and --ds-font; greet by local hour immediately on boot.
+  2   | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): render .sb-topnav and .wsbar as single-row horizontal scrollable strips on phone viewports (<=760px) with 44px nowrap touch targets and active-item reveal without document overflow.
   =============================================================================
 -->
 <html lang="en" data-theme="midnight">
@@ -284,6 +285,15 @@
   .legend .bot { margin-left:auto; display:flex; align-items:center; gap:7px; color:var(--accent); }
   .legend .bot svg { width:13px; height:13px; }
 
+  @media (max-width:760px) {
+    .sb-topnav, .wsbar {
+      flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; max-width:100%;
+    }
+    .sb-topnav::-webkit-scrollbar, .wsbar::-webkit-scrollbar { display:none; }
+    .sb-navlink, .wspill { flex:0 0 auto; white-space:nowrap; min-height:44px; }
+  }
   @media (max-width:620px) {
     .wrap { padding:20px 15px 50px; }
     .tiles { grid-template-columns:1fr; }
@@ -513,6 +523,12 @@
   // ── workspace switcher: scope the board to a brand desk (persisted; ADR-113) ──
   var WSHEX={brass:"#d99a4e",emerald:"#12a488",indigo:"#5b6ef5",magenta:"#c53b8e",slate:"#8892a0",teal:"#25b0a0",coral:"#f2704e",amber:"#e0a83a"};
   function selectedWs(){ try{ return localStorage.getItem("switchboard.ws")||""; }catch(e){ return ""; } }
+  function revealInStrip(strip, el){
+    if(!strip || !el || !strip.clientWidth) return;
+    var start=el.offsetLeft, end=start+el.offsetWidth;
+    if(start<strip.scrollLeft) strip.scrollLeft=start;
+    else if(end>strip.scrollLeft+strip.clientWidth) strip.scrollLeft=end-strip.clientWidth;
+  }
   function renderWsBar(list){
     var bar=document.getElementById("wsbar");
     if(!list.length){ bar.hidden=true; return; }
@@ -522,6 +538,7 @@
       html+='<div class="wspill'+(sel===w.workspaceId?" on":"")+'" data-ws="'+esc(w.workspaceId)+'"><span class="wd" style="background:'+(WSHEX[w.color]||WSHEX.brass)+'"></span>'+esc(w.name)+'</div>';
     });
     bar.innerHTML=html; bar.hidden=false;
+    if(typeof bar.querySelector==="function") revealInStrip(bar, bar.querySelector(".wspill.on"));
   }
   function loadWorkspaces(){
     fetch("/api/switchboard/workspaces",{headers:{Accept:"application/json"}})
@@ -560,12 +577,16 @@
   } catch (e) {
     if (topnav) topnav.hidden = true;
   }
+  if (topnav && !topnav.hidden && typeof topnav.querySelector === "function") {
+    revealInStrip(topnav, topnav.querySelector('.sb-navlink[aria-current="page"], .sb-navlink.on'));
+  }
 
   document.addEventListener("click",function(e){
     var b=e.target.closest("#refreshBtn"); if(b){ load(true); return; }
     var p=e.target.closest(".wspill"); if(p){
       try{ localStorage.setItem("switchboard.ws", p.dataset.ws||""); }catch(err){}
       document.querySelectorAll(".wspill").forEach(function(x){ x.classList.toggle("on", x===p); });
+      revealInStrip(document.getElementById("wsbar"), p);
       load(true);
     }
   });

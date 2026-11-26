@@ -2,15 +2,18 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (design APPLY-ORBIT 5.4): Saved answers, kept in the person's own apply_profile.json. Work authorisation and sponsorship are written under the keys normalizeAutofillProfile already reads (work_authorization, requires_sponsorship), how the person heard about a job and their phone type beside them (how_heard, phone_type), and every answer to an employer's question in an `answers` list keyed by Career's existing question id (question:<sha256 of the question's normalised words and type>, career-submission-browser.js). A page write names the revision it read, so two tabs never overwrite each other; an answer kept on an application card (the kernel card route's `kept`, which lists only answers the person ticked Keep on) is upserted by its question id. Every other key of the file is kept as it was.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): Attestations, two switches kept as `attest: {terms, self_id_signature}` and both off unless he switched one on: tick the employer's terms box for him, and sign the self-identification form with his name and today's date. Every save keeps the file as it was (apply-profile-backups/<revision>.json) and Undo puts it back, only while nothing changed after that save. They are kept here beside the other Saved answers, not in the main résumé: a main-résumé edit changes career_db.json, which every prepared job's documents are judged against (career-application-draft.js source), so a switch there would mark every prepared résumé to be generated again.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: two standing answers beside work authorisation and sponsorship, veteran status and disability status (Yes, No or blank, kept as veteran_status and disability_status; a blank one means Career declines that question on the form), and citizenship (free text, kept as citizenship, for a form that asks it apart from work authorisation). How Career fills in a form (career-apply-flags.js), three settings kept as apply_flags and read with the rest; setFlags changes them with the revision the page read and keeps Undo, as the Attestations do.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6 (Roger, 2026-11-25: "just set this information ... add my preferences to my profile"): three more standing self-identification answers, gender (Male, Female), Hispanic or Latino (Yes, No) and race (the EEO-1 categories), kept as gender, hispanic_latino and race, each closed to its choices and blank meaning Career declines the question on the form, as veteran and disability already were.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const queue=require('./career-submission-queue'),flagsOf=require('./career-apply-flags');
 const FILE='apply_profile.json',MAX_BYTES=512*1024,MAX_ANSWERS=200,MAX_VALUE=2000,MAX_TEXT=500;
 const STANDING=[['workAuthorization','work_authorization'],['sponsorship','requires_sponsorship'],['heard','how_heard'],['phoneType','phone_type'],
- ['veteranStatus','veteran_status'],['disabilityStatus','disability_status'],['citizenship','citizenship']];
-/** Standing answers that are only Yes, No or blank: a blank one is declined on the form. */
-const YES_NO=['veteranStatus','disabilityStatus'];
+ ['veteranStatus','veteran_status'],['disabilityStatus','disability_status'],['citizenship','citizenship'],
+ ['gender','gender'],['hispanicLatino','hispanic_latino'],['race','race']];
+/** Self-identification standing answers and the only words each may hold; a blank one is declined on the form. */
+const CLOSED={veteranStatus:['Yes','No'],disabilityStatus:['Yes','No'],hispanicLatino:['Yes','No'],gender:['Male','Female'],
+ race:['White','Black or African American','Asian','American Indian or Alaska Native','Native Hawaiian or Other Pacific Islander','Two or more races']};
 const ID=/^question:[a-f0-9]{64}$/,HASH=/^[a-f0-9]{64}$/,BACKUPS='apply-profile-backups',KEEP_BACKUPS=10;
 const ATTEST=[['terms','terms'],['selfIdSignature','self_id_signature']];
 const fail=(code,message,status=409)=>{throw new queue.SubmissionError(code,message,status);};
@@ -85,7 +88,7 @@ function setStanding(dir,revision,values){
   if(!(key in values))continue;
   if(typeof values[key]!=='string')fail('answers_invalid','Each answer is text.',400);
   const value=clean(values[key],MAX_VALUE);
-  if(YES_NO.includes(key)&&!['','Yes','No'].includes(value))fail('answers_invalid','Veteran status and disability status are Yes, No or blank.',400);
+  if(CLOSED[key]&&value&&!CLOSED[key].includes(value))fail('answers_invalid',`${key==='race'?'Race':key==='gender'?'Gender':'Veteran status, disability status and Hispanic or Latino'} take only the choices the page lists, or blank.`,400);
   if(value)raw[field]=value;else delete raw[field];
  }
  return save(dir,raw);
@@ -157,8 +160,9 @@ function setFlags(dir,revision,values){
 }
 /**
  * @description The standing answers a packet may carry as facts. @param {object} saved read() output.
- * @returns {{heard:string,phoneType:string,veteranStatus:string,disabilityStatus:string,citizenship:string}}
+ * @returns {{heard:string,phoneType:string,veteranStatus:string,disabilityStatus:string,citizenship:string,gender:string,hispanicLatino:string,race:string}}
  */
 const standingFacts=saved=>({heard:saved.standing.heard,phoneType:saved.standing.phoneType,veteranStatus:saved.standing.veteranStatus,
- disabilityStatus:saved.standing.disabilityStatus,citizenship:saved.standing.citizenship});
+ disabilityStatus:saved.standing.disabilityStatus,citizenship:saved.standing.citizenship,gender:saved.standing.gender,
+ hispanicLatino:saved.standing.hispanicLatino,race:saved.standing.race});
 module.exports={FILE,questionId,read,setStanding,setAttest,setFlags,undo,remove,keep,standingFacts};

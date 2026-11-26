@@ -1,3 +1,15 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Exact-owner persistence for the manual video editor: one short transaction per operation stamped with the verified owner for the forced policy, every statement also naming both owner columns, optimistic baseRevision saves under the project row lock, 100 retained revisions, media references verified against the owner's immutable uploads, and per-owner quotas serialized by an owner advisory lock.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: the owner lock is shared with the export store, and revision retention never retires a revision a queued or running export is rendering (the export row would otherwise cascade away mid-encode).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Deleting a project returns the exports its rows cascade away, so the route can stop their jobs and remove their files; before this a deleted project left its export files on disk with no row that could ever reach them.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: delete one owned upload that no retained revision uses (a mistaken import, or an acceptance run's own fixture), file first and then its row, under the owner lock; one a revision still uses is refused.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Use the explicitly declared native full-read-set revision CAS while retaining PostgreSQL advisory admission.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: list owned uploaded media with ready sourceMetadata, include concise summaries in revision history, and restore prior revisions non-destructively as new immutable revisions.
+ */
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoEditorStore = void 0;
@@ -13,6 +25,27 @@ function metadata(row) {
 function media(row) {
     return { id: row.asset_id, kind: row.kind, bytes: Number(row.byte_length), sha256: row.sha256, container: row.container, videoCodec: row.video_codec,
         audioCodec: row.audio_codec, width: row.width, height: row.height, frames: row.frames, durationMs: row.duration_ms, hasAudio: row.has_audio };
+}
+function mediaListItem(row, motion) {
+    const item = media(row), secs = (item.durationMs / 1000).toFixed(1);
+    const title = item.kind === 'video' ? `Uploaded clip (${item.width}x${item.height}, ${secs}s)` : `Uploaded audio (${secs}s)`;
+    const sourceMetadata = item.kind === 'video'
+        ? { kind: 'video', asset: item.id, name: title, frames: item.frames, width: item.width, height: item.height, audio: item.hasAudio, ...(motion ? { motion } : {}) }
+        : { kind: 'audio', asset: item.id, name: title, frames: item.frames };
+    return { ...item, title, mimeType: item.kind === 'video' ? 'video/mp4' : 'audio/wav',
+        createdAt: new Date(row.created_at ?? Date.now()).toISOString(), sourceMetadata };
+}
+function revisionSummary(doc) {
+    if (!doc || typeof doc !== 'object')
+        return 'Saved revision';
+    const ratio = doc.aspectRatio ?? '16:9';
+    if (doc.version === 2) {
+        const tracks = Array.isArray(doc.tracks) ? doc.tracks : [];
+        const clips = tracks.reduce((sum, item) => sum + (Array.isArray(item.clips) ? item.clips.length : 0), 0);
+        return `${clips} ${clips === 1 ? 'clip' : 'clips'} · ${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'} · ${ratio}`;
+    }
+    const segs = Array.isArray(doc.segments) ? doc.segments.length : 0;
+    return `${segs} ${segs === 1 ? 'clip' : 'clips'} · ${ratio}`;
 }
 /** @description Every source a document references must be one of the owner's uploads with exactly the recorded metadata. */
 function sameMedia(source, row) {
@@ -144,10 +177,38 @@ class VideoEditorStore {
             const project = await client.query('SELECT 1 FROM video_edit_projects WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3', [owner.issuer, owner.sub, id]);
             if (!project.rows.length)
                 throw new video_editor_types_1.EditorError(404, 'video_edit_project_not_found');
-            const result = await client.query(`SELECT revision,title,created_at FROM video_edit_revisions
+            const result = await client.query(`SELECT revision,title,created_at,document FROM video_edit_revisions
         WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 ORDER BY revision DESC LIMIT ${video_editor_types_1.EDITOR_LIMITS.retainedRevisions}`, [owner.issuer, owner.sub, id]);
-            return result.rows.map(row => ({ revision: row.revision, title: row.title, createdAt: new Date(row.created_at).toISOString() }));
+            return result.rows.map(row => ({ revision: row.revision, title: row.title, createdAt: new Date(row.created_at).toISOString(), summary: revisionSummary(row.document) }));
         });
+    }
+    /** @description Non-destructively restore a prior retained revision (or immediately previous revision when omitted) as a new immutable revision. */
+    async restore(owner, id, targetRevision, expectedBase, confirm) {
+        return this.transaction(owner, true, async (client) => {
+            await this.ownerLock(client, owner);
+            const locked = await client.query(`SELECT ${METADATA} FROM video_edit_projects WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 FOR UPDATE`, [owner.issuer, owner.sub, id]);
+            if (!locked.rows[0])
+                throw new video_editor_types_1.EditorError(404, 'video_edit_project_not_found');
+            const current = locked.rows[0].current_revision;
+            if (expectedBase !== undefined && current !== expectedBase)
+                throw new video_editor_types_1.EditorError(409, 'video_edit_revision_conflict');
+            if (current >= video_editor_types_1.EDITOR_LIMITS.revisionNumber)
+                throw new video_editor_types_1.EditorError(409, 'video_edit_revision_limit');
+            if (targetRevision !== undefined && targetRevision === current)
+                throw new video_editor_types_1.EditorError(409, 'video_edit_revision_already_current');
+            const source = targetRevision === undefined
+                ? await client.query('SELECT revision,title,document FROM video_edit_revisions WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND revision<$4 ORDER BY revision DESC LIMIT 1', [owner.issuer, owner.sub, id, current])
+                : await client.query('SELECT revision,title,document FROM video_edit_revisions WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND revision=$4', [owner.issuer, owner.sub, id, targetRevision]);
+            if (!source.rows[0]?.document)
+                throw new video_editor_types_1.EditorError(targetRevision === undefined ? 409 : 404, targetRevision === undefined ? 'video_edit_no_prior_revision' : 'video_edit_revision_not_found');
+            const chosen = source.rows[0], input = { title: chosen.title, document: chosen.document };
+            await this.appendRevision(client, owner, id, current + 1, input);
+            const updated = await client.query(`UPDATE video_edit_projects SET title=$4,current_revision=$5,updated_at=NOW()
+        WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, current + 1, current]);
+            if (!updated.rows.length)
+                throw new video_editor_types_1.EditorError(409, 'video_edit_revision_conflict');
+            return { project: { ...metadata(updated.rows[0]), document: input.document }, restoredFromRevision: chosen.revision };
+        }, confirm);
     }
     /** @description Create a project at revision 1. @param owner - Owner. @param input - Validated input. @param confirm - Recheck. @returns Snapshot. */
     async create(owner, input, confirm) {
@@ -189,6 +250,19 @@ class VideoEditorStore {
             await client.query('DELETE FROM video_edit_projects WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$4', [owner.issuer, owner.sub, id, expected]);
             return exports.rows.map(row => row.export_id);
         }, confirm);
+    }
+    /** @description List the owner's uploaded media newest first with ready sourceMetadata for addSource. */
+    async listMedia(owner) {
+        return this.transaction(owner, false, async (client) => {
+            const result = await client.query(`SELECT ${MEDIA},created_at FROM video_edit_assets WHERE owner_issuer=$1 AND owner_sub=$2 ORDER BY created_at DESC,asset_id LIMIT ${video_editor_types_1.EDITOR_LIMITS.ownerMedia}`, [owner.issuer, owner.sub]);
+            const ids = result.rows.map(row => row.asset_id), lineage = new Map();
+            if (ids.length) {
+                const links = await client.query('SELECT asset_id,source FROM video_edit_motion_sources WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=ANY($3::uuid[])', [owner.issuer, owner.sub, ids]);
+                for (const link of links.rows)
+                    lineage.set(link.asset_id, link.source);
+            }
+            return result.rows.map(row => mediaListItem(row, lineage.get(row.asset_id)));
+        });
     }
     /** @description One of the owner's uploads. @param owner - Owner. @param id - Media UUID. @returns Metadata; another owner's is 404. */
     async getMedia(owner, id) {

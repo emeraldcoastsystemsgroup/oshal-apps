@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                  | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0 (Roger, 2026-11-21: "making sure there is a version of the resume that fills their stuff accurately .. we keep getting offset .. we have a tabbed resume and for the input fields it needs to be clearly labeled"): the parse résumé, Resume_Parse.docx. The job's own tailored résumé (the same roles, bullets and dates, after the years truth and role rules) laid out for an employer's résumé parser such as Workday's Autofill with Resume: one column, no table, tab, text box, column, header, footer or picture, one standard font, the headings Contact Information, Summary, Experience, Education, Certifications and Skills, and every value on its own labelled line (Job Title, Company, Through, Location, Start Date, End Date; School, Degree, Field of Study, Start Date, End Date), each date MM/YYYY, a year alone when only the year is recorded, or Present. The same content renders to the same bytes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: Location is the recorded role's, as Work history saves it: a location the generated entry carries never replaces the record's or stands in for one the record does not hold (no Location line then, as before); an entry no record anchors (other experience, open-source work) keeps its own.
 """Parse résumé: the job's tailored résumé laid out for an employer's résumé parser."""
 from __future__ import annotations
 
@@ -84,7 +85,7 @@ def _recorded(item: dict, roles: list) -> dict | None:
 
 def _role_lines(item: dict, parent: dict | None, roles: list) -> list[tuple[str, str]]:
     """One role's labelled lines in order: Job Title, Company, Through (a client engagement), Location, Start Date,
-    End Date. Dates come from the recorded role when one is this entry, else from the entry's span."""
+    End Date. Dates and location come from the recorded role when one is this entry, else from the entry itself."""
     record = _recorded(item, roles)
     if record is not None:
         start = parse_date(record.get("start"))
@@ -94,7 +95,9 @@ def _role_lines(item: dict, parent: dict | None, roles: list) -> list[tuple[str,
     lines = [("Job Title", _text(item.get("title"))), ("Company", _text(item.get("org") or item.get("employer")))]
     if parent is not None:
         lines.append(("Through", _text(parent.get("org") or parent.get("employer"))))
-    location = _text(item.get("location")) or _text((record or {}).get("location"))
+    # The recorded role's location as Work history saved it; a location the generated entry carries never replaces it
+    # or stands in for one the record does not hold. Only an entry no record anchors keeps its own.
+    location = _text(record.get("location")) if record is not None else _text(item.get("location"))
     lines += [("Location", location), ("Start Date", start), ("End Date", end)]
     return [(label, value) for label, value in lines if value]
 

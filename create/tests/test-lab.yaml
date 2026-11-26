@@ -35,6 +35,8 @@
 # 30 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New merges into Home as a sheet; register the Home cards unit case (meta in words, match counts, planned controls, Blank starts, skeletons) and restate the workspace and New expectations for the merged Home.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z (production): register create-concierge-entry, Create's Image editor and Portrait screens inside the shipped Today page, where every concierge entry a person sees is pressed for real and must open the one chat window as that screen's own application's concierge.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: register editor-text-styling-browser (CREATE-TOOL-CREATE-04) covering text styling controls, double-click in-place canvas typing, PNG/SVG export, and concierge apply-edits.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | Quote the case editor-flip-browser expected line in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: register create-parity-1205 and editor-parity-1205-browser covering CREATE-TOOL-CREATE-02, -08, -10, -29 and CREATE-TOOL-BRAND-01..-03.
 version: 1
 cases:
   - id: editor-foundation-adapter
@@ -1189,7 +1191,7 @@ cases:
       files: [tests/browser/create-flip-proof.mjs]
     expected:
       - On-screen Flip horizontal and Flip vertical buttons mirror exported PNG pixels accurately, persist across reload, and obey undo/redo and layer locks.
-      - Concierge update patch { flipX: false, flipY: false } flips the photo back to pixel-identical original PNG output and rejects invalid or locked flips.
+      - 'Concierge update patch { flipX: false, flipY: false } flips the photo back to pixel-identical original PNG output and rejects invalid or locked flips.'
       - Controls meet touch-target sizing with zero horizontal overflow at 1440x900 and 412x915.
     prerequisites: [runner:node, browser:chromium, source:core-dependencies]
     sideEffects: fixture-write
@@ -1209,6 +1211,42 @@ cases:
       - Double-clicking an unlocked text layer opens the aligned inline canvas editor; Backspace edits text rather than deleting the layer; Escape cancels without dirtying history; blur and Ctrl/Cmd+Enter commit one undoable edit; locked text refuses inline editing.
       - Italic, underline, line height, letter spacing, outline color/width, and shadow work from Format controls and concierge apply-edits, survive autosave and reload, and appear in exported PNG pixels and SVG markup.
       - Desktop 1440x900 and phone 412x915 layouts have zero horizontal overflow and zero page errors.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close the exact browser and loopback fixture; synthetic documents only. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1536 }
+    installation: never
+
+  - id: create-parity-1205
+    name: Create 1.20.5 tool parity unit and store contracts
+    purpose: Verify CREATE-TOOL-CREATE-02, -08, -10, -29 and CREATE-TOOL-BRAND-01..-03 without a browser or external services.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/create-parity-1205.test.js]
+    expected:
+      - Store restoreRevision restores the immediately previous retained revision or an explicit revision as a new immutable revision while enforcing conflicts and owner isolation.
+      - applyBrandToProject maps canvas background, shapes, text fonts and readable contrast colors deterministically, places the owned logo once, leaves locked layers untouched, and returns every layer change.
+      - Canvas size up to 8192 px (32 MP) is accepted identically by editor and concierge and out-of-range dimensions fail with identical wording.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+
+  - id: editor-parity-1205-browser
+    name: Text alignment controls, Apply my brand and single Undo in Chromium
+    purpose: Prove CREATE-TOOL-CREATE-02, -08, -10 and CREATE-TOOL-BRAND-03 end-to-end in real Chromium at 1440x900 and 412x915.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/browser/create-parity-1205-proof.mjs]
+    expected:
+      - Left, Center and Right text alignment buttons move exported PNG ink and SVG anchors, persist across reload, and stay in sync with concierge align updates and revision restore.
+      - Apply my brand applies kit colors, fonts and owned logo once without duplication, matches the server apply-brand route, and reverts completely in one Undo step.
+      - Desktop 1440x900 and phone 412x915 layouts keep 44px touch targets with zero horizontal overflow and zero page errors.
     prerequisites: [runner:node, browser:chromium, source:core-dependencies]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close the exact browser and loopback fixture; synthetic documents only. }

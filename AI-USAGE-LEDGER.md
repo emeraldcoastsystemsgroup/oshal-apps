@@ -125,6 +125,7 @@ Coverage: 90 packages, 90 rated, 0 unrated.
 | portrait-studio | 32 / 128 (declared) | portrait-generation | portrait | T0 | hosted | disable | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |
+| presentations | 128 / 512 (declared) | meeting-recap-summary | meeting recap summary notes | T2 | none | template | not yet measured | none recorded |
 | print-ingest | 32 / 128 (declared) | print-queue-classify | printed document | T1 | none | template | not yet measured | none recorded |
 | program-instructions | 32 / 128 (declared) | instruction-writing | instruction text for one program version | T3 | none | disable | not yet measured | none recorded |
 | publishing-studio | 384 / 1536 (declared) | publishing-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |

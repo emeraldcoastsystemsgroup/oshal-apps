@@ -29,6 +29,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (open-work audit 2026-11-10, RP-BRG-01..07): the seven greyed "Not available yet" controls work. Templates opens six prefilled briefs with storyboards as a new editable source. Brand kit writes the person's Create brand kit into the brief the render reads (create becomes an optional dependency; without Create the control is not shown). Comment keeps threads with replies and Resolve inside the owner-scoped source revisions (new typed operations, no new table, route or permission). Download links a finished build's file from Vids (home-summary now carries each build's job id and status). Resize keeps 16:9 here and hands 9:16 or 1:1 to Video Studio. Schedule or post hands the brief to Switchboard Compose (new offer prepare-post), which posts now or on its calendar after a confirmation. A scene's Edit on canvas opens it on AI Office's canvas. authorization.yaml is unchanged.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Release 1.4.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: what a person reads or hears in Brand Graphics names the product Open Swarm and retires the Oh-shal pronunciation rule; technical identifiers keep their forms.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3 (tool parity CREATE-TOOL-BRAND-04, -05, -06, -07): replace the cli executor on brand_graphic with an api executor on POST /api/brand-graphics/renders (held for approval) and add read tool brand-graphics-job-status on GET /api/brand-graphics/renders; enable lastingStorage for per-owner rendered MP4 clips and job records under OSHAL_PACKAGE_DATA_DIR; send title, sourceLink, voiceover, music, brandStyle (my-brand or oshal look), durationSec, aspect (16:9, 9:16, 1:1), and format (mp4) with in-app video preview and MP4 download.
 name: brand-graphics
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -42,8 +43,9 @@ rating:
       generation: hosted
       degrade: disable
 displayName: Brand Graphics
-description: "Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing."
-version: 1.4.2
+description: "Edit and save brand briefs with an AI partner, render motion clips in your brand kit or the Open Swarm look, preview and download MP4s, and hand source into document and video editing."
+version: 1.4.3
+lastingStorage: true
 authorization:
   version: 1
   catalog: authorization.yaml
@@ -225,35 +227,62 @@ tools:
     routingTags: [creative, editing, storyboard, source]
   - name: brand_graphic
     displayName: Make an Open Swarm brand graphic
-    type: cli
+    type: api
     category: media
     description: >-
       Create an on-brand Open Swarm motion graphic / intro clip from a short brief
-      (e.g. "intro for daily trade recap"). Produces the validated electric brand
-      look in Google Vids — graphic, optional Tyra voiceover, optional serious
-      evening-news music — and returns the project URL. Runs on the remote Vids
-      worker machine's signed-in Chrome.
+      (e.g. "intro for daily trade recap"). Renders an MP4 clip in the signed-in
+      person's brand kit or the Open Swarm look, preserving title, sourceLink,
+      voiceover, music, durationSec, aspect (16:9, 9:16, 1:1), and format (mp4),
+      and records the completed job under Recorded work.
     executor:
-      executorType: cli
-      cliCommand: node {packageDir}/tools/oshal-brand.js intro {input}
+      executorType: api
+      apiEndpoint: POST /api/brand-graphics/renders
     defaultAuthMode: ask
     requiresApproval: true
-    timeoutMs: 600000
+    cardText: Render a brand motion clip
+    timeoutMs: 120000
     inputSchema:
       type: object
+      additionalProperties: false
       properties:
-        brief: { type: string, description: "Short brief, e.g. 'intro for daily trade recap'" }
-        subject: { type: string, description: "What the graphic is for (flavors the mood; defaults to the brief)" }
-        voiceover: { type: string, description: "Spoken line; if set, the Tyra voiceover is added" }
-        music: { type: boolean, description: "Add the serious evening-news music bed (default true for an intro)" }
+        brief: { type: string, minLength: 1, maxLength: 2000, description: "Short brief, e.g. '10-second intro for daily recap'" }
+        title: { type: string, maxLength: 120, description: "Clip title shown on screen and in Recorded work" }
+        sourceLink: { type: string, maxLength: 2000, description: "Optional http(s) source attribution link" }
+        brandMode: { type: string, enum: [intro, graphic], description: "intro (Brand intro) or graphic (Graphic bumper)" }
+        voiceover: { type: string, maxLength: 1000, description: "Optional spoken voiceover line" }
+        music: { type: string, enum: [none, clean-pulse, warm-ambient, broadcast-sting], description: "Music choice (default broadcast-sting for intro, none for graphic)" }
+        brandStyle: { type: string, enum: [my-brand, oshal], description: "my-brand uses the signed-in person's brand kit; oshal uses the Open Swarm look" }
+        durationSec: { type: integer, minimum: 5, maximum: 60, description: "Clip length in seconds (5-60, default 10)" }
+        aspect: { type: string, enum: ["16:9", "9:16", "1:1"], description: "Aspect ratio: 16:9, 9:16, or 1:1" }
+        format: { type: string, enum: [mp4], description: "Output format (mp4)" }
       required: [brief]
     usageInstructions: >-
-      Call with {brief}. Keep any spoken finance line filter-safe: percentages +
-      industry names only — never company names, never the words "dollars"/"trades".
-      Never request a talking on-screen anchor (Veo refuses it). Returns {ok,url}.
-    routingTags: [brand, graphics, intro, motion-graphic, vids, veo]
-    skills: [brand-graphics, veo-prompt-craft, browser-operate]
+      Call with {brief} and optional title, sourceLink, brandMode, voiceover, music,
+      brandStyle, durationSec, aspect, and format. Keep any spoken finance line
+      filter-safe: percentages and industry names only — never company names, never
+      the words "dollars" or "trades". Requires explicit approval; when no renderer
+      or worker is available it refuses honestly and queues nothing.
+    routingTags: [brand, graphics, intro, motion-graphic, render, mp4]
+    skills: [brand-graphics, veo-prompt-craft]
     tags: [brand-graphics]
+  - name: brand-graphics-job-status
+    displayName: Brand Graphics Job Status
+    type: api
+    category: media
+    description: Check the signed-in owner's saved brand motion clip builds, their status, settings, and download URLs.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/brand-graphics/renders
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Call when asked how the last build went or to inspect past brand clip renders and download links. Read-only; never starts a render.
+    routingTags: [brand, graphics, status, jobs, history]
 
 # Cockpit ribbon tile + embedded surface. Reuses the Vids Studio job-queue surface
 # (the brand jobs run through the same worker), served by the vids app's routes.

@@ -27,6 +27,8 @@ Base: `/api/pdf-workbench`. Authenticated current original owner only. No query/
 | GET `/jobs/:id/ocr/:page/:offset` | ocr | Explicit selected-page OCR text chunk with quality/confidence |
 | POST `/jobs/:id/cancel` | job.manage | `{}`; only active work changes state |
 | GET `/documents/:id/revisions/:n/content` | export | Current guarded complete PDF<=4MiB |
+| POST `/documents/:id/export` | export | `{revision?}` guarded download link receipt (`downloadUrl`, `filename`, `bytes`, `sha256`) |
+| GET `/documents/:id/navigate?page=n` | read | Validated 1-based page jump receipt (`openUrl` with `?page=n` and `pdf:go-to-page` `surfaceOp`) |
 | DELETE `/documents/:id` | delete | Delete derivative history, retain originals |
 
 Tool POST bodies may include `id`, which must exactly match the path and is removed before model validation. Unknown fields refuse. Repeated same key and identical intent return the same source/document/job receipt; differing intent refuses409. A delayed revision cannot overwrite a newer head. A confirmed failed/cancelled intent needs a fresh key for explicit retry. Job state is queued/rendering/ready/failed/cancelled; ready alone proves committed output. Terminal receipts are bounded16/owner; evicted old job refs are unavailable. Document history remains intact.

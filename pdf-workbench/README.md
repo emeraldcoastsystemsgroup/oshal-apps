@@ -134,3 +134,9 @@ transparent inserted images and reimported-image transforms through Poppler.
 save/reopen/export, focused invalid fields, phone drawers, immutable asset
 references, one-click object selection after property blur and Undo pixel reset.
 These source tests do not establish installed provider availability.
+
+## Tool parity updates (0.4.2)
+
+- **Concierge export and source cleanup (`CREATE-TOOL-PDF-WORKBENCH-08`):** Added `POST /api/pdf-workbench/documents/:document/export` with the approval-held `pdf-export` tool returning a guarded download link under `document.export`, and added the approval-held `pdf-delete-source` tool over `DELETE /api/pdf-workbench/sources/:source` (deleting unused originals and refusing history-referenced sources).
+- **Annotations list and `update-annotation` (`CREATE-TOOL-PDF-WORKBENCH-05`):** Added an interactive Annotations list sheet (`List` in Annotate mode and `Annotations…` in More) with Edit, Move and Delete actions that commit new revisions and support Undo, paired with `update-annotation` proportional `quadPoints`/`points` remapping and optional cross-page moves.
+- **Reader controls and `pdf-go-to-page` (`CREATE-TOOL-PDF-WORKBENCH-03`):** Added a document reader bar with Zoom in/out, Fit width, touch pinch-to-zoom, Page jump input, Select text layer + long-press Sentence/Copy (available to read-only viewers too), Print with `@media print` styling, `?page=` URL navigation, and the `pdf-go-to-page` concierge tool + `pdf:go-to-page` surface bridge handler.

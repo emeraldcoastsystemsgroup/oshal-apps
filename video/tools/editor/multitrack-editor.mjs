@@ -2,12 +2,13 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add direct multitrack controls and measured waveforms to the existing private Video editor without adding another project store.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0: deselect() clears the chosen clip, so Done in the clip tool row returns to the main tools.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Size multitrack clip bars by speed-adjusted duration and display speed badges.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-12): add inline Rename track and Delete track header controls and wire Duplicate clip.
  */
 import { migrateMultitrack, applyMultitrack } from './multitrack-model.mjs';
 import { timelineFrames } from './timeline-validation.mjs';
 import { mediaUrl } from './editor-api.mjs';
 import { clipDurationFrames, formatSpeed } from './editor-effects.mjs';
-let selected = null;
+let selected = null, renamingTrack = null;
 const $ = id => document.getElementById(id);
 const fields = ['start', 'in', 'out', 'volume', 'x', 'y', 'scale', 'opacity', 'fadeIn', 'fadeOut', 'brightness', 'contrast', 'saturation'];
 const button = (text, run, disabled = false) => { const node = document.createElement('button'); node.type = 'button'; node.textContent = text; node.disabled = disabled; node.onclick = run; return node; };
@@ -22,13 +23,50 @@ export function createMultitrackEditor(ctx) {
 
   const snapped = value => { const step = Number($('multiSnapFrames').value); return $('multiSnap').checked && Number.isSafeInteger(step) && step >= 1 && step <= 300 ? Math.round(value / step) * step : value; };
 
+  function trackRenameForm(track) {
+    const form = document.createElement('form'); form.className = 'multi-track-rename'; form.dataset.renameForm = track.id;
+    const input = document.createElement('input'); input.type = 'text'; input.maxLength = 120; input.value = track.name;
+    input.setAttribute('aria-label', `New name for ${track.name}`); input.dataset.renameTrackInput = track.id;
+    const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save name'; save.dataset.renameTrackSave = track.id;
+    const cancel = button('Cancel', () => { renamingTrack = null; render(); }); cancel.dataset.renameTrackCancel = track.id;
+    form.onsubmit = event => {
+      event.preventDefault();
+      const next = input.value.trim();
+      if (!next) { ctx.error('Track name is required.'); return; }
+      renamingTrack = null;
+      operate({ type: 'renameTrack', id: track.id, name: next });
+    };
+    input.onkeydown = event => { if (event.key === 'Escape') { renamingTrack = null; render(); } };
+    form.append(input, save, cancel);
+    return { form, input };
+  }
+
+  function trackHeader(track, timeline) {
+    const head = document.createElement('div'); head.className = 'multi-track-head';
+    const heading = document.createElement('h3'); heading.textContent = `${track.name} · ${track.kind}`; heading.dataset.trackHeading = track.id;
+    const canEdit = ctx.editable(), onlyTrack = timeline.tracks.length <= 1;
+    const muteBtn = button(track.muted ? 'Unmute' : 'Mute', () => operate({ type: 'track', id: track.id, patch: { muted: !track.muted } }), !canEdit);
+    const lockBtn = button(track.locked ? 'Unlock' : 'Lock', () => operate({ type: 'track', id: track.id, patch: { locked: !track.locked } }), !canEdit);
+    const renameBtn = button('Rename track', () => { renamingTrack = track.id; render(); }, !canEdit || track.locked);
+    renameBtn.dataset.renameTrack = track.id; renameBtn.setAttribute('aria-label', `Rename track ${track.name}`);
+    const delBtn = button('Delete track', () => operate({ type: 'deleteTrack', id: track.id }), !canEdit || track.locked || onlyTrack);
+    delBtn.dataset.deleteTrack = track.id; delBtn.setAttribute('aria-label', `Delete track ${track.name}`);
+    delBtn.title = onlyTrack ? 'Cannot delete the last remaining track' : track.locked ? 'Unlock the track before deleting it' : `Delete ${track.name}`;
+    head.append(heading, muteBtn, lockBtn, renameBtn, delBtn);
+    if (renamingTrack === track.id && canEdit && !track.locked) {
+      const { form, input } = trackRenameForm(track);
+      head.append(form);
+      queueMicrotask(() => { input.focus(); input.select(); });
+    }
+    return head;
+  }
+
   function listTracks(timeline) {
     const list = $('multiTracks'); list.replaceChildren();
+    if (renamingTrack && !timeline.tracks.some(item => item.id === renamingTrack)) renamingTrack = null;
     for (const track of timeline.tracks) {
-      const row = document.createElement('section'); row.className = 'multi-track';
-      const heading = document.createElement('h3'); heading.textContent = `${track.name} · ${track.kind}`; row.append(heading);
-      row.append(button(track.muted ? 'Unmute' : 'Mute', () => operate({ type: 'track', id: track.id, patch: { muted: !track.muted } }), !ctx.editable()),
-        button(track.locked ? 'Unlock' : 'Lock', () => operate({ type: 'track', id: track.id, patch: { locked: !track.locked } }), !ctx.editable()));
+      const row = document.createElement('section'); row.className = 'multi-track'; row.dataset.trackId = track.id;
+      row.append(trackHeader(track, timeline));
       const strip = document.createElement('div'); strip.className = 'multi-clips';
       for (const clip of track.clips) {
         const dur = clipDurationFrames(clip.in, clip.out, clip.speed ?? 100);
@@ -120,6 +158,15 @@ export function createMultitrackEditor(ctx) {
   $('multi-transition').onchange = () => operate({ type: 'clip', id: selected, patch: { transition: $('multi-transition').value } });
   $('multi-audioEnabled').onchange = () => operate({ type: 'clip', id: selected, patch: { audioEnabled: $('multi-audioEnabled').checked } });
   $('multiSplit').onclick = () => operate({ type: 'split', id: selected, frame: Number($('multiSplitFrame').value) });
+  $('multiDuplicate').onclick = () => {
+    const own = find(); if (!own) return;
+    const beforeIds = new Set(own.track.clips.map(clip => clip.id));
+    if (operate({ type: 'duplicateClip', id: selected })) {
+      const target = ctx.doc().tracks?.find(item => item.id === own.track.id);
+      const created = target?.clips.find(clip => !beforeIds.has(clip.id));
+      if (created) { selected = created.id; render(); ctx.onSelect?.(); }
+    }
+  };
   $('multiRemove').onclick = () => operate({ type: 'removeClip', id: selected });
   $('multiRipple').onclick = () => operate({ type: 'removeClip', id: selected, ripple: true });
   $('multiExtractAudio').onclick = () => operate({ type: 'extractAudio', id: selected, track: $('multiAudioTrack').value });

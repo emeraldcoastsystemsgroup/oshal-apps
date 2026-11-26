@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                  | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16 20:45Z: "i can not find where to see my expanded experience.. it doesnt show anywhere ... it covers like 20 different companies over a 4 year span when i was consulting in the field"). His client engagements (`project_ledger`) and client accounts (`named_accounts`) were always in the main résumé file, intact, and no screen read them except two flat lines lists at the end of Download my data. view() gives Work history every engagement and every account group, whole, in the order saved, each engagement with the job it was done under; apply_edit() adds, changes, moves and removes an engagement, its bullets and an account group through the same revision-checked, backed-up, audited main-résumé edit every Work history change uses. Stored in the keys they already had, so nothing moves: an entry gains `start`, `end`, `bullets` and `job` (the id of its job) only when the person writes them, and keys this page does not know are kept as they are.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: a client engagement has its own location (key `location`, the person's own words on one line, at most 120 characters), shown and edited on Work history like its role and industry; an empty one takes the key away.
 """Client engagements (project_ledger) and client accounts (named_accounts): the Work history view and its edits."""
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ _KEYS = {
 _OPS = {'engagement': ('add', 'set', 'remove', 'move'), 'engagement-bullet': ('add', 'set', 'remove', 'move'),
         'accounts': ('add', 'set', 'remove')}
 # What the page calls a field, and where it is stored. `months` is the length the ledger has always recorded.
-_STORED = {'project': 'project', 'role': 'role', 'industry': 'industry', 'start': 'start', 'end': 'end',
+_STORED = {'project': 'project', 'role': 'role', 'industry': 'industry', 'location': 'location', 'start': 'start', 'end': 'end',
            'months': 'duration_months', 'tech': 'tech', 'job': 'job', 'public': 'public'}
 _KNOWN = {*_STORED.values(), 'bullets'}
 MAX_ENGAGEMENTS = 300
@@ -104,7 +105,7 @@ def _engagement_view(index: int, item, roles: list) -> dict:
     months = entry.get('duration_months')
     return {
         'index': index, 'project': _name(item), 'role': _text(entry.get('role')), 'industry': _text(entry.get('industry')),
-        'start': _text(entry.get('start')), 'end': _text(entry.get('end')),
+        'location': _text(entry.get('location')), 'start': _text(entry.get('start')), 'end': _text(entry.get('end')),
         'months': months if isinstance(months, (int, float)) and not isinstance(months, bool) else None,
         'tech': _texts(entry.get('tech')), 'bullets': _bullets_of(entry),
         'job': _job_of(entry, roles), 'public': entry.get('public') is not False, 'other': _other(entry),
@@ -225,6 +226,8 @@ def _written(key: str, value, raw: dict):
         return text
     if key in ('role', 'industry'):
         return _bounded(value, TEXT_MAX, 'role' if key == 'role' else 'industry')
+    if key == 'location':
+        return _bounded(value, work_history.LOCATION_MAX_CHARS, 'location')
     if key in ('start', 'end'):
         return _month(value, key)
     if key == 'months':
@@ -248,7 +251,7 @@ def _unchanged(key: str, current, written) -> bool:
     """A value that reads the same as the one saved is left exactly as saved (spacing included)."""
     if key == 'tech':
         return _texts(current) == written
-    if key in ('project', 'role', 'industry', 'start', 'end'):
+    if key in ('project', 'role', 'industry', 'location', 'start', 'end'):
         return isinstance(current, str) and ' '.join(current.split()) == written
     return current == written and type(current) is type(written)
 

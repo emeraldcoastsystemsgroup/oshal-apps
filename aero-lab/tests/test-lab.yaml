@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register design-tool-schema: the design tools name the route's design fields, each optional.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: register one-chat-window (Draft with AI is the kernel's one chat window, told the sliders; a draft the concierge offers shows with Apply to sliders and runs nothing) and window-draft (POST /draft/design and the propose-aero-draft route: a draft is checked against the person's sliders as a /chat reply's is, shown to that person alone, cleared once applied or by the next turn); aero-designer-chat expects the surface to send its sliders before each window turn.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register aero-layout (two views, one primary run, closed design groups with Reset to preset, field decimals, one-line presets, the engine popover, the phone bottom bar).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Quote the case aero-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -633,7 +634,7 @@ cases:
     installation: never
   - id: aero-bot-tools-contract
     name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
-    purpose: Verify aero-designer declares explicit inline posture, chatBot binding, object inputSchemas on all seven tools, plain-prose + ```tool_call {"tool": ...} rules, and route execution under caller principal.
+    purpose: 'Verify aero-designer declares explicit inline posture, chatBot binding, object inputSchemas on all seven tools, plain-prose + ```tool_call {"tool": ...} rules, and route execution under caller principal.'
     level: unit
     runner:
       kind: node-test

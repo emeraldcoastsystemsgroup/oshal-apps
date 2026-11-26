@@ -14,6 +14,7 @@ exports.loadProjectAgent = loadProjectAgent;
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate bounded inert project JSON and canonical immutable raster asset references without trusting identity fields.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: surface validator TypeError messages as bounded `detail` on invalid_project_document so editor and concierge report identical validation errors.
  */
 const create_project_types_1 = require("./create-project-types");
 const node_crypto_1 = require("node:crypto");
@@ -84,8 +85,8 @@ function validateDocument(value, validate) {
     try {
         return validate(JSON.parse(serialized), { assetMode: 'reference' });
     }
-    catch {
-        throw new create_project_types_1.ProjectError(400, 'invalid_project_document');
+    catch (error) {
+        throw new create_project_types_1.ProjectError(400, 'invalid_project_document', error instanceof TypeError ? error.message.slice(0, 200) : undefined);
     }
 }
 /** Validate create/save envelopes independently of Express body-parser configuration. */

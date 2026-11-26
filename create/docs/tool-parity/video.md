@@ -10,9 +10,9 @@
 
 | Capability | Tier | Industry mobile | Industry desktop | Our UX control | Our concierge tool | Status |
 |---|---|---|---|---|---|---|
-| Upload a video clip from the device | basic | Yes | Yes | `editor.html` `#addClip` (H.264 MP4 only) | none. `addSource` needs an existing upload id, and no tool uploads or lists media | UX only |
+| Upload a video clip from the device | basic | Yes | Yes | `editor.html` `#addClip` (H.264 MP4) and `#uploadedMedia` owned library | `video-list-media` lists owned uploads with ready `sourceMetadata` for `video-apply-edits` `addSource` + `addClip` (device file upload stays UX) | both (owned uploads; device upload UX) |
 | Upload everyday phone footage (MOV/HEVC, over 30 s) | basic | Yes† | Yes† | none (refused, limits in `video-editor-routes.ts` `capabilities()`) | none | missing |
-| Add an audio or music file | basic | Yes | Yes | `editor.html` `#addBed` (WAV only, no MP3 or M4A) | none. Same upload gap | UX only |
+| Add an audio or music file | basic | Yes | Yes | `editor.html` `#addBed` (WAV only, no MP3 or M4A) and `#uploadedMedia` owned library | `video-list-media` lists owned WAV uploads with ready `sourceMetadata` for `addSource` + `addClip` | both (owned WAV uploads; device upload UX) |
 | Add a still image, logo, sticker, or stock media and music | basic | Yes (Premiere stickers, images, stock; CapCut†) | Yes† | none | none | missing |
 | Place a source on the timeline | basic | Yes | Yes | `multitrack-editor.mjs` `#multiPlaceSource`; "Add to timeline" in `timeline-view.mjs` | `video-apply-edits` `addClip` | both |
 | Trim a clip by typed frame numbers | basic | Yes | Yes | `editor.html` `#trimIn`/`#trimOut`, `#multi-in`/`#multi-out` | `clip` patch `in`/`out` | both |
@@ -21,11 +21,11 @@
 | Delete a clip | basic | Yes | Yes | `#removeSegment`, `#multiRemove` | `removeClip` | both |
 | Ripple delete | basic | Yes† | Yes† | `#multiRipple` | `removeClip` with `ripple: true` | both |
 | Move or reorder clips | basic | Yes | Yes | `#moveLeft`/`#moveRight`; drag in `multitrack-editor.mjs` (HTML5 drag, which touch screens do not fire); typed `#multi-start` | `moveClip` | both |
-| Copy, paste or duplicate a clip with its settings | basic | Yes† | Yes† | none | none. `addClip` starts fresh, with no settings | missing |
+| Copy, paste or duplicate a clip with its settings | basic | Yes† | Yes† | `Duplicate` in clip tool row (`#duplicateSegment`, `#multiDuplicate`) | `video-apply-edits` `duplicateClip` | both |
 | Several video and audio tracks | basic | Yes | Yes | `#multiAddTrack` (4 video, 8 audio) | `addTrack` | both |
 | Mute or lock a track | basic | Yes† | Yes† | Mute/Lock buttons in `multitrack-editor.mjs` | `track` patch `muted`/`locked` | both |
-| Rename a track | basic | not confirmed | Yes† | none (name is set only when the track is added) | `track` patch `name` | concierge only |
-| Delete a track | basic | Yes† | Yes† | none | none. No such operation in `agent-tools.mjs` | missing |
+| Rename a track | basic | not confirmed | Yes† | Inline `Rename track` control on each track header in `multitrack-editor.mjs` | `video-apply-edits` `renameTrack` (and `track` patch `name`) | both |
+| Delete a track | basic | Yes† | Yes† | `Delete track` control on each track header in `multitrack-editor.mjs` (disabled on last remaining track) | `video-apply-edits` `deleteTrack` | both |
 | Change speed, reverse, freeze frame | basic | Yes (CapCut speed ramp, free) | Yes† | none | none. `clip` patch has no speed field | missing |
 | Crop, rotate, flip | basic | Yes† | Yes† | none | none | missing |
 | Position, scale, opacity | basic | Yes† | Yes† | `#multi-x`, `#multi-y`, `#multi-scale`, `#multi-opacity` | `clip` patch | both |
@@ -51,11 +51,11 @@
 | Live preview on a sequential timeline | basic | Yes | Yes | `editor-player.mjs` (first timeline version only) | none. The concierge cannot view video | UX only |
 | Live preview of a multitrack timeline | basic | Yes | Yes | none. `editor-player.mjs` shows "Use Render preview" | none | missing |
 | Rendered preview | basic | not confirmed | Yes† | `#renderPreview` (640x360) | `video-render-project` with `variant: preview` | both |
-| Undo and redo | basic | Yes† | Yes† | `#undo`, `#redo`, Ctrl+Z | none. No revert tool or operation | UX only |
-| See earlier versions and restore one | pro | not confirmed | Yes† | none. Routes `GET /editor/projects/:id/revisions` exist; the page does not use them | none | missing |
+| Undo and redo | basic | Yes† | Yes† | `#undo`, `#redo`, Ctrl+Z | `video-restore-revision` (approval-held; omitting `revision` restores immediately previous saved revision) | both |
+| See earlier versions and restore one | pro | not confirmed | Yes† | Project menu → `Version history…` sheet with per-revision `Restore` button | `video-list-revisions` and `video-restore-revision` (non-destructive new revision) | both |
 | Create, open and rename a project | basic | Yes | Yes | `#newProject`, `#projectList`, `#projectName` (a new screen project starts sequential) | `video-new-project` (starts multitrack), `video-list-projects`, `video-read-project`, `rename` | both |
 | Copy or delete a project | basic | Yes† | Yes† | `#saveAsNew`, `#deleteProject` | none | UX only |
-| Vertical or square canvas, auto reframe | basic | Yes (Premiere auto reframe) | Yes† | none. Fixed 1280x720 (`PROFILE`) | none | missing |
+| Vertical or square canvas, auto reframe | basic | Yes (Premiere auto reframe) | Yes† | `#projectAspectRatio`, Project → `New project` and `Aspect ratio…` sheets (16:9, 9:16, 1:1; auto reframe still missing) | `video-new-project` `aspectRatio`, `video-apply-edits` `project` patch | both (aspect ratios; auto reframe missing) |
 | Export MP4, with status, cancel and download | basic | Yes | Yes | `#exportMp4`, `#cancelExport`, `#downloadExport` | `video-render-project`, `video-render-status`, `video-list-renders`, `video-cancel-render` | both |
 | Export 1080p or 4K, timelines over 60 s | basic to pro | Yes (CapCut 1080p free, 4K Pro; Premiere 4K HDR) | Yes | none. 720p and 60 s are fixed | none | missing |
 | Generate a short or a series from an idea | AI | not confirmed | Yes (CapCut AI Video Maker) | `tools/video.html` `#sbBtn`, `#genBtn`, `#seriesBtn`, `#pumpBox` | none. No tool for `/storyboard`, `/generate` or `/series`; the persona redirects people to the screen | UX only |
@@ -68,17 +68,17 @@ Rows not in the table because neither side offers them today: multicam, nested s
 ## 3. Backlog (ordered by what people hit first)
 
 - **CREATE-TOOL-VIDEO-01: Accept ordinary phone footage and audio.** Done when: a 2-minute iPhone MOV (HEVC) and an MP3 upload, get converted, appear in the media list, and export correctly.
-- **CREATE-TOOL-VIDEO-02: Vertical and square projects.** Done when: a person picks 9:16, 1:1 or 16:9 on a new project, on screen and through the concierge, and the exported MP4 measures that shape in ffprobe.
+- **CREATE-TOOL-VIDEO-02: Vertical and square projects.** **Delivered in 1.14.5** — 9:16, 1:1 and 16:9 on screen (`#projectAspectRatio`, Project → New project / Aspect ratio sheets) and through the concierge (`video-new-project` `aspectRatio`, `video-apply-edits` `project` patch), with FFmpeg/ffprobe-verified MP4 export dimensions.
 - **CREATE-TOOL-VIDEO-03: Live preview of a multitrack timeline.** Done when: pressing Space on a two-track project shows both layers, titles and sound in the browser without a render job, and a test compares one frame with the Render preview output.
-- **CREATE-TOOL-VIDEO-04: Let the concierge use media the person already uploaded.** Done when: a tool lists owned uploads, and "put the clip I uploaded yesterday on the timeline" produces an approval card with `addSource` and `addClip` and saves a revision.
+- **CREATE-TOOL-VIDEO-04: Let the concierge use media the person already uploaded.** **Delivered in 1.14.6** — `GET /editor/media` and `video-list-media` list owned uploads with ready `sourceMetadata` for `video-apply-edits` (`addSource` + `addClip`), paired with the on-screen Uploaded library panel in Add media.
 - **CREATE-TOOL-VIDEO-05: Touch-friendly timeline.** Done when: on a 412 px phone a person drags a clip to move it and drags its edge to trim it, with no number box, and the saved in, out and start values match.
 - **CREATE-TOOL-VIDEO-06: Automatic captions.** Done when: a button and a concierge operation turn a clip's speech into timed captions that the person can then correct, and the export shows them.
 - **CREATE-TOOL-VIDEO-07: Edit and style text.** Done when: a person and the concierge can both change an existing title's words, font, colour and background without deleting it, and the export matches.
 - **CREATE-TOOL-VIDEO-08: Speed, reverse, freeze, crop, rotate, flip.** Done when: each has a control and a `clip` patch field, and an export of a 10 s clip at 2x speed measures 5 s.
-- **CREATE-TOOL-VIDEO-09: Concierge undo and version history.** Done when: "undo that" restores the previous revision through an approval card, and the screen lists revisions with a Restore button.
+- **CREATE-TOOL-VIDEO-09: Concierge undo and version history.** **Delivered in 1.14.6** — `video-list-revisions` and approval-held `video-restore-revision` (`POST /editor/projects/:id/revisions/restore`, defaulting to immediately previous revision when omitted) restore non-destructively as a new revision, paired with Project → Version history… and per-revision Restore on screen.
 - **CREATE-TOOL-VIDEO-10: Transition library.** Done when: at least cross dissolve, wipe and slide can be placed between two clips on screen and by the concierge, and the export shows the overlap.
 - **CREATE-TOOL-VIDEO-11: Concierge reaches the rest of the screen.** Done when: tools exist for storyboard, generate, series, duplicate project and delete project, each held for approval, and every one is proven by a chat turn.
-- **CREATE-TOOL-VIDEO-12: Timeline management gaps.** Done when: a person can duplicate a clip with its settings, delete a track and rename a track on screen, and the concierge can do the same.
+- **CREATE-TOOL-VIDEO-12: Timeline management gaps.** **Delivered in 1.14.6** — `duplicateClip` (preserving all clip settings), `renameTrack`, and `deleteTrack` (refusing to delete the last remaining track) are shipped on screen (clip tool row Duplicate, inline Rename track / Delete track on track headers) and in `video-apply-edits` / `/editing-contract`.
 - **CREATE-TOOL-VIDEO-13: Higher output and longer timelines.** Done when: a 5-minute project exports at 1080p, with a stated plan for 4K, and the limits read from `capabilities` change on screen and in the contract together.
 - **CREATE-TOOL-VIDEO-14: Stills, logos and stock.** Done when: a PNG logo can sit on an upper track with keyframed position, placed by hand and by the concierge.
 - **CREATE-TOOL-VIDEO-15: Voiceover and speech clean-up.** Done when: a person records narration from the microphone onto an audio track, can run a clean-up step on it, and the concierge can apply the clean-up.

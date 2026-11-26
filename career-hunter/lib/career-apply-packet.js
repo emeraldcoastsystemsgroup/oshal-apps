@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the facts carry the state's abbreviation beside its full name (address.state_abbrev; the site's rules pick which a field takes) and posting.employer, the posting's employer, which the kernel's rules read for Previously worked for this employer. With normalizeAutofillProfile now reading application_contact, a record's street, city, state, postal code and country reach address.line1, address.city, address.state, address.postal and address.country.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): an employer site Career has no rules for is no longer refused as site_unsupported. Which form is filled and in which rules comes from career-apply-sites.js formFor (the posting's own engine, the engine its company page embeds at that engine's own address, else the generic site); the approval screen names it, says where an embedded form really opens, and for a site filled in the careful general rules says what that means and that Career stops before any button that sends the application.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: an installation may name exact hosts that use a site's form, in the package setting CAREER_APPLY_SITE_HOSTS ({"workday":["careers.example.com"]}): an employer whose own careers address fronts its Workday form. A malformed setting is refused, never half read; a host is matched exactly, never as a suffix.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: the facts carry his standing gender, Hispanic or Latino and race answers too (selfid.gender male or female, selfid.hispanic yes or no, selfid.race white, black, asian, american-indian, pacific-islander or two-or-more), the words the kernel's apply_selfid.rs takes; a blank one is no fact.
  */
 'use strict';
 const queue=require('./career-submission-queue'),roles=require('./career-resume-roles'),sites=require('./career-apply-sites'),flagsOf=require('./career-apply-flags');
@@ -20,10 +21,14 @@ const FACT_SLOTS=[['name.first','firstName'],['name.middle','middleName'],['name
  ['address.state','state'],['address.state_abbrev','stateAbbrev'],['address.postal','postalCode'],['address.country','country'],['links.linkedin','linkedin'],
  ['links.website','website'],['links.github','github'],['eligibility.authorized','workAuthorization'],['eligibility.sponsorship','sponsorship']];
 const STANDING_SLOTS=[['source.heard','heard'],['phone.type','phoneType'],['eligibility.citizenship','citizenship']];
-/** His standing self-identification answers, as the kernel takes them: yes or no, and no fact for a blank one (declined). */
-const SELFID_SLOTS=[['selfid.veteran','veteranStatus'],['selfid.disability','disabilityStatus']];
+/** His standing self-identification answers, as the kernel takes them (apply_selfid.rs), and no fact for a blank one (declined). */
+const SELFID_SLOTS=[['selfid.veteran','veteranStatus'],['selfid.disability','disabilityStatus'],['selfid.hispanic','hispanicLatino'],['selfid.gender','gender'],['selfid.race','race']];
+const SELFID_VALUES={yes:'yes',no:'no',male:'male',female:'female',white:'white','black or african american':'black',asian:'asian',
+ 'american indian or alaska native':'american-indian','native hawaiian or other pacific islander':'pacific-islander','two or more races':'two-or-more'};
 /** The posting's employer, which the kernel reads for Previously worked for this employer (its fact posting.employer). */
 const POSTING_SLOT='posting.employer';
+/** Whether a self-identification value is one its slot takes: yes or no, male or female, or a race. */
+const selfidFits=(slot,value)=>slot==='selfid.gender'?['male','female'].includes(value):slot==='selfid.race'?!['yes','no','male','female'].includes(value):['yes','no'].includes(value);
 const fail=(code,message,status=409)=>{throw new queue.SubmissionError(code,message,status);};
 const text=value=>typeof value==='string'||typeof value==='number'?String(value).replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,MAX_TEXT):'';
 
@@ -53,7 +58,7 @@ function facts(profile,standing){
  for(const [slot,key] of FACT_SLOTS){const value=text(profile?.[key]);if(value)out[slot]=value;}
  if(!out['name.full']&&out['name.first']&&out['name.last'])out['name.full']=[out['name.first'],out['name.middle'],out['name.last']].filter(Boolean).join(' ');
  for(const [slot,key] of STANDING_SLOTS){const value=text(standing?.[key]);if(value)out[slot]=value;}
- for(const [slot,key] of SELFID_SLOTS){const value=text(standing?.[key]).toLowerCase();if(value==='yes'||value==='no')out[slot]=value;}
+ for(const [slot,key] of SELFID_SLOTS){const value=SELFID_VALUES[text(standing?.[key]).toLowerCase()];if(value&&selfidFits(slot,value))out[slot]=value;}
  return out;
 }
 /**

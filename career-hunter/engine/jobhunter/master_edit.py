@@ -9,6 +9,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): the saved portfolio is read (read_section field `portfolio`) and replaced whole (an edit of field `portfolio`, portfolio.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Like an engagement edit it is refused, never fitted, when the main résumé moved after the form read it; it is refused in words when it would grow the main résumé past what job scoring reads, and its refusal reads as the form's own words (error portfolio_refused) rather than a card's.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: the person's own years by skill and in total are read (read_section field `years`) and replaced whole (an edit of field `years`, years_edit.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Like a portfolio edit it is refused, never fitted, when the main résumé moved after the form read it, and its refusal reads as the form's own words (error years_refused) rather than a card's.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: the overview and a role page carry each job's location ('' when it has none), so the concierge reads it before it proposes a change; a job change may set it (field role, key location, work_history.py).
 """Model-free bounded access to the current owner's master resume."""
 from __future__ import annotations
 
@@ -80,7 +81,8 @@ def _section_values(raw, field, index, result):
                                  'count': len(raw.get(key, [])) if isinstance(raw.get(key, []), list) else None,
                                  'editable': False} for key in QUALIFICATIONS)
         values = [{'index': n, 'title': role['title'], 'org': role['org'], 'span': role['span'],
-                   'start': role['start'], 'end': role['end'], **{key: role.get(key, '') for key in ('id', *role_hierarchy.FIELDS)},
+                   'start': role['start'], 'end': role['end'], 'location': role.get('location', ''),
+                   **{key: role.get(key, '') for key in ('id', *role_hierarchy.FIELDS)},
                    'bullets': len(role['bullets']), 'stories': len(role['stories'])}
                   for n, role in enumerate(doc['experience'])]
     elif field == 'experience':
@@ -88,7 +90,7 @@ def _section_values(raw, field, index, result):
             raise ValueError('role index is outside the current profile')
         role = doc['experience'][index]
         result['role'] = {key: role[key] for key in ('title', 'org', 'span', 'start', 'end')}
-        result['role'].update({key: role.get(key, '') for key in ('id', *role_hierarchy.FIELDS)})
+        result['role'].update({key: role.get(key, '') for key in ('location', 'id', *role_hierarchy.FIELDS)})
         result['role']['index'] = index
         values = role['bullets']
     else:

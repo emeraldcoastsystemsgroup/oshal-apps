@@ -35,11 +35,20 @@
                                              confidence }
                                                        -> { assumption, supersededId? }
     GET    /ventures/:id/assumptions/:key/history      -> { revisions: [...] }
+    GET    /ventures/:id/bom                           -> { lines: [...] }
+    GET    /ventures/:id/vendors                       -> { vendors: [...] }
+    POST   /ventures/:id/vendors                       -> 201 { vendor }
+    GET    /ventures/:id/fx-assumptions                -> { fxAssumptions: [...] }
+    GET    /ventures/:id/fx-assumptions/:fxId          -> { fxAssumption }
+    POST   /ventures/:id/fx-assumptions                -> 201|200 { fxAssumption, idempotentReplay }
+    GET    /ventures/:id/quotes                        -> { quotes: [...] }
+    POST   /ventures/:id/quotes                        -> 201 { quote, assumption, supersededId, model }
     POST   /ventures/:id/model  { scenarioId? }        -> { model }
     GET    /ventures/:id/model                         -> { model | null }
     GET    /ventures/:id/model/figures/:figureKey      -> { figure, derivation }
     GET    /ventures/:id/sensitivity?target=           -> { targetFigureKey?, tornado|bars }
     GET    /ventures/:id/inversion                     -> { inversions, plannedRunUnits }
+    GET    /ventures/:id/scenarios/compare?ids=&baseline= -> { baselineScenarioId, scenarios, rows, assumptionDiffs }
     GET    /ventures/:id/documents                     -> { catalog?, documents }
     GET    /ventures/:id/documents/:docKey             -> { document: { bodyMd, ... } }
     POST   /ventures/:id/documents/:docKey/regenerate  -> 202 { runId }
@@ -410,6 +419,40 @@
   .stale { opacity: .55; transition: opacity .15s; }
   .footnote { font-size: 11px; color: var(--vp-faint); line-height: 1.5; margin-top: 8px; }
 
+  /* ── scenario compare ──────────────────────────────────────────────── */
+  .cmp-picks { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+  .cmp-opt { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px;
+             border: 1px solid var(--vp-line); border-radius: 9px; background: var(--vp-panel2);
+             cursor: pointer; font-size: 13px; font-weight: 600; max-width: 100%; }
+  .cmp-opt:hover { border-color: var(--vp-accent); }
+  .cmp-opt input[type=checkbox] { width: 16px; height: 16px; margin: 0; accent-color: var(--vp-accent); flex: 0 0 auto; }
+  .cmp-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .cmp-controls label.f { margin-bottom: 0; flex: 1 1 200px; min-width: 160px; max-width: 320px; }
+  .cmp-delta { font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .cmp-badges { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .cmp-head { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+
+  /* ── fx evidence & supplier quotes ─────────────────────────────────── */
+  .fx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .fx-preview { font-size: 12.5px; color: var(--vp-muted); padding: 8px 10px; border: 1px solid var(--vp-line);
+                border-radius: 8px; background: var(--vp-panel2); margin: 6px 0 10px; overflow-wrap: anywhere; }
+  .fx-preview.ok { border-color: color-mix(in srgb, var(--vp-good) 50%, transparent); color: var(--vp-ink); }
+  .fx-preview.bad { border-color: color-mix(in srgb, var(--vp-bad) 55%, transparent); color: var(--vp-bad); }
+  .fx-inspect { border: 1px solid var(--vp-line2); border-radius: 10px; padding: 12px; background: var(--vp-panel2); margin-top: 10px; }
+  .fx-kv { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr); gap: 4px 10px; font-size: 12.5px; overflow-wrap: anywhere; }
+  .fx-kv dt { color: var(--vp-muted); font-weight: 600; margin: 0; }
+  .fx-kv dd { margin: 0; color: var(--vp-ink); }
+  .fx-badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .fx-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .fx-section-head h2 { margin: 0; }
+  .qi-item { border: 1px solid var(--vp-line2); border-radius: 10px; padding: 12px; background: var(--vp-panel2); margin-top: 10px; }
+  .qi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .qi-notes { margin: 6px 0 10px; padding-left: 18px; font-size: 12.5px; color: var(--vp-muted); }
+  .qi-notes li { margin: 2px 0; overflow-wrap: anywhere; }
+  .qi-meta { font-size: 11.5px; color: var(--vp-faint); overflow-wrap: anywhere; }
+  .qi-item input[type="file"] { max-width: 100%; }
+  #inboxPasteText { width: 100%; min-height: 82px; box-sizing: border-box; font-family: var(--vp-mono, monospace); font-size: 12.5px; }
+
   @media (max-width: 940px) {
     .shell { padding: 8px 10px 10px; }
     .card { padding: 12px; margin-bottom: 10px; }
@@ -421,7 +464,7 @@
   }
   @media (max-width: 640px) {
     body.has-venture { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
-    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 85; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 85; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 2px; margin: 0; padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
             background: linear-gradient(var(--vp-panel), var(--vp-panel)), var(--vp-bg);
             border-top: 1px solid var(--vp-line2); }
@@ -432,6 +475,7 @@
     body.has-venture #toast { bottom: calc(72px + env(safe-area-inset-bottom)); }
     #stageCard { margin-left: 0; }
     .head-actions-row button { flex: 1 1 auto; }
+    .fx-kv { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
 <!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
@@ -509,6 +553,7 @@
       <button class="tab on" data-view="plan" type="button"><i class="codicon codicon-dashboard"></i> Decision</button>
       <button class="tab" data-view="assumptions" type="button"><i class="codicon codicon-list-tree"></i> Assumptions <span class="cnt" id="tabAsmCnt"></span></button>
       <button class="tab" data-view="numbers" type="button"><i class="codicon codicon-graph"></i> Numbers</button>
+      <button class="tab" data-view="compare" type="button"><i class="codicon codicon-diff"></i> Compare <span class="cnt" id="tabCmpCnt"></span></button>
       <button class="tab" data-view="documents" type="button"><i class="codicon codicon-book"></i> Documents <span class="cnt" id="tabDocCnt"></span></button>
     </div>
     </div>
@@ -516,6 +561,7 @@
     <div id="view-plan" class="view"></div>
     <div id="view-assumptions" class="view" hidden></div>
     <div id="view-numbers" class="view" hidden></div>
+    <div id="view-compare" class="view" hidden></div>
     <div id="view-documents" class="view" hidden></div>
 
     <div class="card" id="emptyCard">
@@ -587,6 +633,12 @@
   var S = {
     ventures: [], ventureId: null, venture: null,
     model: null, assumptions: [], summary: null,
+    fxAssumptions: [], fxInspected: null, fxFeedback: null, fxSubmitting: false,
+    quotes: [], vendors: [], bomLines: [], quoteFeedback: null, quoteSubmitting: false,
+    quoteDraft: null,
+    quoteInbox: [], inboxFeedback: null, inboxSubmitting: false, inboxBusyId: null,
+    scenarios: [], compareIds: [], compareBaseline: '',
+    compareData: null, compareError: '', compareLoading: false,
     inversions: null, tornado: null, tornadoTarget: '',
     documents: [], catalog: [], doc: null,
     run: null, runTimer: null, view: 'plan',
@@ -689,7 +741,7 @@
     ['recomputeBtn', 'researchBtn'].forEach(function (id) {
       var b = $(id); if (b) b.disabled = on || (id === 'researchBtn' && runActive());
     });
-    ['view-plan', 'view-assumptions', 'view-numbers', 'view-documents'].forEach(function (id) {
+    ['view-plan', 'view-assumptions', 'view-numbers', 'view-compare', 'view-documents'].forEach(function (id) {
       var el = $(id); if (el) el.classList.toggle('stale', on);
     });
   }
@@ -878,21 +930,40 @@
       api('GET', '/ventures/' + encodeURIComponent(id)).catch(function (e) { return fail(e, 'Venture'); }),
       api('GET', '/ventures/' + encodeURIComponent(id) + '/assumptions').catch(function () { return null; }),
       api('GET', '/ventures/' + encodeURIComponent(id) + '/model').catch(function () { return null; }),
-      api('GET', '/ventures/' + encodeURIComponent(id) + '/documents').catch(function () { return null; })
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/documents').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/fx-assumptions').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/quotes').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/vendors').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/bom').catch(function () { return null; }),
+      api('GET', '/ventures/' + encodeURIComponent(id) + '/quote-inbox').catch(function () { return null; })
     ]).then(function (res) {
       var detail = res[0] || {};
       S.venture = detail.venture || detail || null;
+      S.scenarios = Array.isArray(detail.scenarios) ? detail.scenarios : [];
+      S.compareIds = S.scenarios.slice(0, 10).map(function (sc) { return sc.id; });
+      S.compareBaseline = S.compareIds[0] || '';
+      S.compareData = null; S.compareError = ''; S.compareLoading = false;
       S.assumptions = ((res[1] && res[1].assumptions) || []).map(normAssumption);
       S.summary = (res[1] && res[1].summary) || null;
       S.model = normModel(res[2] && (res[2].model !== undefined ? res[2].model : res[2])) ||
                 normModel(detail.latestModel);
       S.documents = (res[3] && res[3].documents) || [];
       S.catalog = ((res[3] && res[3].catalog) || []).map(normCatalogEntry);
+      S.fxAssumptions = (res[4] && Array.isArray(res[4].fxAssumptions))
+        ? res[4].fxAssumptions : (Array.isArray(detail.fxAssumptions) ? detail.fxAssumptions : []);
+      S.fxInspected = null; S.fxFeedback = null; S.fxSubmitting = false;
+      S.quotes = (res[5] && Array.isArray(res[5].quotes)) ? res[5].quotes : [];
+      S.vendors = (res[6] && Array.isArray(res[6].vendors)) ? res[6].vendors : [];
+      S.bomLines = (res[7] && Array.isArray(res[7].lines)) ? res[7].lines : [];
+      S.quoteInbox = (res[8] && Array.isArray(res[8].items)) ? res[8].items : [];
+      S.quoteFeedback = null; S.quoteSubmitting = false; S.quoteDraft = null;
+      S.inboxFeedback = null; S.inboxSubmitting = false; S.inboxBusyId = null;
       busy(false);
       showLatestRun(detail.latestRun || null);
       renderAll();
       loadInversion();
       loadTornado();
+      if (S.view === 'compare' && S.compareIds.length >= 2) loadCompare();
     });
   }
 
@@ -943,6 +1014,10 @@
     var btn = $('deleteYes'); btn.disabled = true;
     api('DELETE', '/ventures/' + encodeURIComponent(S.ventureId)).then(function () {
       S.ventureId = null; S.model = null; S.doc = null; S.tornado = null; S.assumptions = [];
+      S.fxAssumptions = []; S.fxInspected = null; S.fxFeedback = null; S.fxSubmitting = false;
+      S.quotes = []; S.vendors = []; S.bomLines = []; S.quoteFeedback = null; S.quoteSubmitting = false; S.quoteDraft = null;
+      S.quoteInbox = []; S.inboxFeedback = null; S.inboxSubmitting = false; S.inboxBusyId = null;
+      S.scenarios = []; S.compareIds = []; S.compareBaseline = ''; S.compareData = null; S.compareError = ''; S.compareLoading = false;
       // The deleted venture's run banner, posture tiles and publish banner go with it (sweep 14: they stayed under
       // "VENTURES Nothing yet."), and a run still being watched stops repainting them.
       clearInterval(S.runTimer); S.run = null;
@@ -952,7 +1027,7 @@
       $('deleteConfirm').hidden = true; $('ventureMenu').hidden = true;
       ['headActions', 'stageCard', 'tabs', 'renameBtn', 'deleteVentureBtn'].forEach(function (x) { $(x).hidden = true; });
       document.body.classList.remove('has-venture');
-      ['plan', 'assumptions', 'numbers', 'documents'].forEach(function (k) { $('view-' + k).hidden = true; $('view-' + k).innerHTML = ''; });
+      ['plan', 'assumptions', 'numbers', 'compare', 'documents'].forEach(function (k) { $('view-' + k).hidden = true; $('view-' + k).innerHTML = ''; });
       $('vName').textContent = HEAD0.name; $('vIdea').innerHTML = HEAD0.idea;
       $('emptyCard').hidden = false;
       toast('Deleted \u201c' + name + '\u201d.', 'ok');
@@ -1533,17 +1608,25 @@
   function renderAssumptions() {
     if (S.view !== 'assumptions') return;
     var el = $('view-assumptions');
+    if (!el) return;
+    el.textContent = '';
+    var ledgerHost = domEl('div');
+    ledgerHost.id = 'asmLedgerHost';
     if (!S.assumptions.length) {
-      el.innerHTML = '<div class="card"><h2>No assumptions registered</h2>' +
+      ledgerHost.innerHTML = '<div class="card"><h2>No assumptions registered</h2>' +
         '<p class="muted small" style="margin:0">Every number this app prints has to rest on a registered assumption ' +
         'carrying a source and a confidence — that is the rule that stops a plan being fluent nonsense. ' +
         '<b>Run the analysts</b> to have the bots draft them, then replace the ones that matter with real quotes.</p></div>';
-      return;
+    } else {
+      ledgerHost.innerHTML = ledgerSummaryHtml() + '<div class="card">' + assumptionGroupsHtml() +
+        '<div class="footnote">Editing writes a NEW revision and supersedes the old one — a quote never erases the guess it ' +
+        'replaced, so the evidence that a number used to be invented survives.</div></div>';
     }
-
-    el.innerHTML = ledgerSummaryHtml() + '<div class="card">' + assumptionGroupsHtml() +
-      '<div class="footnote">Editing writes a NEW revision and supersedes the old one — a quote never erases the guess it ' +
-      'replaced, so the evidence that a number used to be invented survives.</div></div>';
+    el.appendChild(ledgerHost);
+    el.appendChild(buildQuoteInboxSection());
+    el.appendChild(buildQuotesSection());
+    el.appendChild(buildFxEvidenceSection());
+    syncQuoteFxControls();
     drawCharts();
   }
 
@@ -1618,6 +1701,1233 @@
   }
   function safeUrl(u) {
     return /^https?:\/\//i.test(String(u)) ? String(u) : '#';
+  }
+
+  /* ═══ fx helpers (parity-tested against tools/venture-fx-console.js) ═══ */
+
+  var FX_RATE_SCALE = 1000000000;
+  var FX_RATE_SCALE_BIG = 1000000000n;
+  var MAX_FX_RATE_NANOS = 1000000 * FX_RATE_SCALE;
+  var MAX_FX_RATE_NANOS_BIG = 1000000000000000n;
+  var MAX_SAFE_MICROS = 9007199254740000;
+  var MAX_SAFE_MICROS_BIG = 9007199254740000n;
+  var FX_CURRENCY_SYMBOLS = { USD: '$', EUR: '€', GBP: '£', JPY: '¥', CNY: '¥' };
+  var FX_COMMON_CURRENCIES = ['USD', 'EUR', 'CNY', 'GBP', 'JPY', 'MXN', 'CAD', 'KRW', 'TWD', 'VND'];
+  var FX_SOURCE_KIND_OPTS = [
+    ['published-source', 'Published source (ECB, Fed, Reuters)'],
+    ['vendor-quote', 'Vendor quote / bank quote'],
+    ['user-entered', 'User entered']
+  ];
+
+  function fxError(code, message) {
+    var err = new Error(message);
+    err.code = code;
+    return err;
+  }
+
+  function fxNormalizeCurrency(raw) {
+    var code = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+    return /^[A-Z]{3}$/.test(code) ? code : null;
+  }
+
+  function parseScaledDecimal(raw, maxDecimals, code, label) {
+    if (typeof raw !== 'string') throw fxError(code, label + ' must be a decimal string');
+    var trimmed = raw.trim();
+    if (!trimmed) throw fxError(code, label + ' is required');
+    if (trimmed.charAt(0) === '-') throw fxError(code, label + ' cannot be negative');
+    var match = /^(?:(\d+)(?:\.(\d*))?|\.(\d+))$/.exec(trimmed);
+    if (!match) throw fxError(code, label + ' must be a plain decimal number');
+    var intPart = match[1] || '0';
+    var fracPart = match[2] !== undefined ? match[2] : (match[3] || '');
+    if (fracPart.length > maxDecimals) {
+      throw fxError(code, label + ' supports at most ' + maxDecimals + ' decimal places');
+    }
+    var padded = fracPart.padEnd(maxDecimals, '0');
+    var scale = 10n ** BigInt(maxDecimals);
+    return BigInt(intPart) * scale + BigInt(padded || '0');
+  }
+
+  function parseDecimalToNanos(str) {
+    var nanos = parseScaledDecimal(str, 9, 'invalid_fx_rate', 'Exchange rate');
+    if (nanos <= 0n) throw fxError('invalid_fx_rate', 'Exchange rate must be greater than zero');
+    if (nanos > MAX_FX_RATE_NANOS_BIG) {
+      throw fxError('invalid_fx_rate', 'Exchange rate exceeds maximum supported value (1,000,000)');
+    }
+    return Number(nanos);
+  }
+
+  function formatNanosAsRate(nanos) {
+    if (typeof nanos !== 'number' || !Number.isSafeInteger(nanos) || nanos <= 0 || nanos > MAX_FX_RATE_NANOS) {
+      throw fxError('invalid_fx_rate', 'rateNanos must be a positive safe integer');
+    }
+    var big = BigInt(nanos);
+    var whole = big / FX_RATE_SCALE_BIG;
+    var frac = String(big % FX_RATE_SCALE_BIG).padStart(9, '0').replace(/0+$/, '');
+    return frac ? String(whole) + '.' + frac : String(whole);
+  }
+
+  function parseDecimalToMicros(str) {
+    var micros = parseScaledDecimal(str, 6, 'invalid_currency_amount', 'Amount');
+    if (micros > MAX_SAFE_MICROS_BIG) {
+      throw fxError('invalid_currency_amount', 'Amount exceeds exact micro-currency range');
+    }
+    return Number(micros);
+  }
+
+  function fxDivideHalfAway(numerator, denominator) {
+    var quotient = numerator / denominator;
+    var remainder = numerator % denominator;
+    if (remainder === 0n) return quotient;
+    var magnitude = remainder < 0n ? -remainder : remainder;
+    if (magnitude * 2n < denominator) return quotient;
+    return quotient + (numerator < 0n ? -1n : 1n);
+  }
+
+  function convertMicrosPreview(supplierMicros, rateNanos) {
+    if (typeof supplierMicros !== 'number' || !Number.isSafeInteger(supplierMicros)
+        || Math.abs(supplierMicros) > MAX_SAFE_MICROS) {
+      throw fxError('invalid_currency_amount', 'supplierMicros must be exact integer micros');
+    }
+    if (typeof rateNanos !== 'number' || !Number.isSafeInteger(rateNanos)
+        || rateNanos <= 0 || rateNanos > MAX_FX_RATE_NANOS) {
+      throw fxError('invalid_fx_rate', 'rateNanos must be a positive integer within bounds');
+    }
+    var converted = fxDivideHalfAway(BigInt(supplierMicros) * BigInt(rateNanos), FX_RATE_SCALE_BIG);
+    if (converted > MAX_SAFE_MICROS_BIG || converted < -MAX_SAFE_MICROS_BIG) {
+      throw fxError('fx_conversion_overflow', 'Converted amount exceeds exact micro-currency range');
+    }
+    return Number(converted);
+  }
+
+  function formatCurrencyMicros(micros, currencyCode) {
+    if (typeof micros !== 'number' || !Number.isSafeInteger(micros)) return '—';
+    var code = fxNormalizeCurrency(currencyCode) || 'USD';
+    var neg = micros < 0;
+    var absBig = BigInt(neg ? -micros : micros);
+    var whole = absBig / 1000000n;
+    var fracFull = String(absBig % 1000000n).padStart(6, '0');
+    var fracTrimmed = fracFull.replace(/0+$/, '');
+    var decimals = fracTrimmed.length <= 2 ? fracFull.slice(0, 2) : fracTrimmed;
+    var sym = FX_CURRENCY_SYMBOLS[code];
+    var formatted = sym
+      ? sym + group(String(whole)) + '.' + decimals
+      : code + ' ' + group(String(whole)) + '.' + decimals;
+    return neg ? '(' + formatted + ')' : formatted;
+  }
+
+  function safeHttpUrl(raw) {
+    var s = typeof raw === 'string' ? raw.trim() : '';
+    if (!/^https?:\/\/\S+$/i.test(s)) return null;
+    try {
+      var parsed = new URL(s);
+      return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function buildFxSourceRef(sourceRef, notes) {
+    var ref = typeof sourceRef === 'string' ? sourceRef.trim() : '';
+    var note = typeof notes === 'string' ? notes.trim() : '';
+    if (!ref && !note) throw fxError('invalid_fx_source', 'Source URL or reference is required');
+    var combined = ref && note ? ref + ' | ' + note : (ref || note);
+    if (combined.length > 500) {
+      throw fxError('invalid_fx_source', 'Source reference plus notes must be at most 500 characters');
+    }
+    return combined;
+  }
+
+  function parseSourceRefParts(sourceRef) {
+    var raw = typeof sourceRef === 'string' ? sourceRef.trim() : '';
+    var sep = raw.indexOf(' | ');
+    var head = sep >= 0 ? raw.slice(0, sep).trim() : raw;
+    var notes = sep >= 0 ? raw.slice(sep + 3).trim() : '';
+    var url = safeHttpUrl(head);
+    return { url: url, label: head, notes: notes };
+  }
+
+  function filterSnapshotsForPair(snapshots, sourceCurrency, reportingCurrency) {
+    var src = fxNormalizeCurrency(sourceCurrency);
+    var rep = fxNormalizeCurrency(reportingCurrency);
+    if (!src || !rep || src === rep || !Array.isArray(snapshots)) return [];
+    return snapshots.filter(function (fx) {
+      return fx && fx.sourceCurrency === src && fx.reportingCurrency === rep;
+    }).slice().sort(function (a, b) {
+      var byObs = String(b.observedAt || '').localeCompare(String(a.observedAt || ''));
+      if (byObs !== 0) return byObs;
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+  }
+
+  function makeFxIdempotencyKey(sourceCurrency, reportingCurrency) {
+    var src = (fxNormalizeCurrency(sourceCurrency) || 'fx').toLowerCase();
+    var rep = (fxNormalizeCurrency(reportingCurrency) || 'usd').toLowerCase();
+    var rand = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    return ('fx-' + src + '-' + rep + '-' + Date.now().toString(36) + '-' + rand).slice(0, 120);
+  }
+
+  /* ═══ end fx helpers ═════════════════════════════════════════════════ */
+
+  /* ═══ view: fx evidence & supplier quotes (pure DOM / textContent) ══ */
+
+  function ventureReportingCurrency() {
+    return fxNormalizeCurrency(S.venture && S.venture.currency) || 'USD';
+  }
+
+  function defaultObservedAtIso() {
+    return new Date().toISOString().slice(0, 19) + 'Z';
+  }
+
+  function fxField(labelText, inputEl) {
+    var lbl = domEl('label', 'f');
+    lbl.appendChild(domEl('span', null, labelText));
+    lbl.appendChild(inputEl);
+    return lbl;
+  }
+
+  function fxSelectEl(id, options, selectedVal) {
+    var sel = document.createElement('select');
+    sel.id = id;
+    options.forEach(function (item) {
+      var opt = document.createElement('option');
+      opt.value = item[0];
+      opt.textContent = item[1];
+      if (item[0] === selectedVal) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+
+  function fxInputEl(id, type, value, placeholder) {
+    var inp = document.createElement('input');
+    inp.id = id;
+    inp.type = type || 'text';
+    if (value !== undefined && value !== null) inp.value = String(value);
+    if (placeholder) inp.placeholder = placeholder;
+    return inp;
+  }
+
+  function renderFeedbackBanner(feedback, id) {
+    var box = domEl('div', feedback ? 'banner ' + feedback.tone : '');
+    box.id = id;
+    if (!feedback) { box.hidden = true; return box; }
+    box.textContent = feedback.text;
+    return box;
+  }
+
+  function updateFxRatePreview() {
+    var preview = $('fxRateNanosPreview');
+    var srcInp = $('fxSourceCurrency');
+    var rateInp = $('fxRateDecimal');
+    if (!preview || !srcInp || !rateInp) return;
+    var rep = ventureReportingCurrency();
+    var src = fxNormalizeCurrency(srcInp.value);
+    var rawRate = rateInp.value.trim();
+    if (!rawRate) {
+      preview.className = 'fx-preview';
+      preview.textContent = 'Enter a positive decimal rate (up to 9 decimal places) to preview exact integer rateNanos.';
+      return;
+    }
+    try {
+      var nanos = parseDecimalToNanos(rawRate);
+      if (src && src === rep) {
+        preview.className = 'fx-preview bad';
+        preview.textContent = 'Source currency must differ from reporting currency (' + rep + ').';
+        return;
+      }
+      var pair = (src || 'SRC') + ' \u2192 ' + rep;
+      preview.className = 'fx-preview ok nums';
+      preview.textContent = 'Exact rateNanos: ' + group(String(nanos)) + ' (1 ' + (src || 'SRC') + ' = ' +
+        formatNanosAsRate(nanos) + ' ' + rep + ' · ' + pair + ')';
+    } catch (e) {
+      preview.className = 'fx-preview bad';
+      preview.textContent = e && e.message ? e.message : 'Invalid exchange rate.';
+    }
+  }
+
+  function captureQuoteDraft() {
+    var cur = $('quoteCurrency');
+    if (!cur) return;
+    S.quoteDraft = {
+      vendorId: ($('quoteVendorId') && $('quoteVendorId').value) || '',
+      bomLineId: ($('quoteBomLineId') && $('quoteBomLineId').value) || '',
+      qtyBreak: ($('quoteQtyBreak') && $('quoteQtyBreak').value) || '1000',
+      unitCost: ($('quoteUnitCost') && $('quoteUnitCost').value) || '',
+      toolingCost: ($('quoteToolingCost') && $('quoteToolingCost').value) || '0',
+      currency: cur.value || ventureReportingCurrency(),
+      fxAssumptionId: ($('quoteFxAssumptionId') && $('quoteFxAssumptionId').value) || '',
+      incoterm: ($('quoteIncoterm') && $('quoteIncoterm').value) || 'FOB',
+      documentRef: ($('quoteDocRef') && $('quoteDocRef').value) || '',
+      notes: ($('quoteNotes') && $('quoteNotes').value) || ''
+    };
+  }
+
+  function readFxFormPayload() {
+    var rep = ventureReportingCurrency();
+    var src = fxNormalizeCurrency(($('fxSourceCurrency') && $('fxSourceCurrency').value) || '');
+    if (!src) throw fxError('invalid_currency', 'Source currency must be a 3-letter ISO code (e.g. EUR, CNY, GBP).');
+    if (src === rep) throw fxError('redundant_fx_assumption', 'Source currency must differ from reporting currency (' + rep + ').');
+    var rateNanos = parseDecimalToNanos(($('fxRateDecimal') && $('fxRateDecimal').value) || '');
+    var sourceRef = buildFxSourceRef(($('fxSourceRef') && $('fxSourceRef').value) || '', ($('fxNotes') && $('fxNotes').value) || '');
+    var observedRaw = (($('fxObservedAt') && $('fxObservedAt').value) || '').trim();
+    var observedDate = new Date(observedRaw);
+    if (!observedRaw || !isFinite(observedDate.valueOf())) {
+      throw fxError('invalid_fx_observed_at', 'Observed at must be a valid ISO timestamp (e.g. 2026-11-25T17:00:00Z).');
+    }
+    return {
+      sourceCurrency: src, reportingCurrency: rep, rateNanos: rateNanos,
+      sourceKind: ($('fxSourceName') && $('fxSourceName').value) || 'published-source',
+      sourceRef: sourceRef, observedAt: observedDate.toISOString(),
+      idempotencyKey: makeFxIdempotencyKey(src, rep)
+    };
+  }
+
+  function submitFxSnapshot() {
+    if (!S.ventureId || S.fxSubmitting) return;
+    captureQuoteDraft();
+    var payload;
+    try { payload = readFxFormPayload(); }
+    catch (e) { S.fxFeedback = { tone: 'bad', text: e.message || 'Invalid FX input.' }; renderAssumptions(); return; }
+    S.fxSubmitting = true;
+    var btn = $('fxSaveBtn'); if (btn) btn.disabled = true;
+    api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/fx-assumptions', payload)
+      .then(function (r) {
+        var created = r && r.fxAssumption;
+        S.fxFeedback = {
+          tone: 'ok',
+          text: created
+            ? ('Recorded immutable FX snapshot ' + created.id + ' (' + created.sourceCurrency + ' \u2192 ' +
+               created.reportingCurrency + ' @ ' + formatNanosAsRate(created.rateNanos) + ', ' +
+               group(String(created.rateNanos)) + ' nanos).')
+            : 'Recorded immutable FX snapshot.'
+        };
+        if (created && S.quoteDraft && S.quoteDraft.currency === created.sourceCurrency) {
+          S.quoteDraft.fxAssumptionId = created.id;
+        }
+        return api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/fx-assumptions');
+      })
+      .then(function (listRes) {
+        S.fxSubmitting = false;
+        if (listRes && Array.isArray(listRes.fxAssumptions)) S.fxAssumptions = listRes.fxAssumptions;
+        renderAssumptions();
+      })
+      .catch(function (e) {
+        S.fxSubmitting = false;
+        S.fxFeedback = { tone: 'bad', text: (e && e.payload && e.payload.detail) || (e && e.message) || 'Could not record FX snapshot.' };
+        renderAssumptions();
+      });
+  }
+
+  function inspectFxSnapshot(fxId) {
+    if (!S.ventureId || !fxId) return;
+    captureQuoteDraft();
+    api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/fx-assumptions/' + encodeURIComponent(fxId))
+      .then(function (r) {
+        S.fxInspected = (r && r.fxAssumption) || null;
+        renderAssumptions();
+      })
+      .catch(function (e) {
+        var detail = (e && e.payload && e.payload.detail) || (e && e.message) || 'Could not load FX snapshot.';
+        S.fxFeedback = { tone: 'bad', text: detail };
+        renderAssumptions();
+      });
+  }
+
+  function buildFxRefNode(sourceRef) {
+    var parts = parseSourceRefParts(sourceRef);
+    var wrap = domEl('div');
+    if (parts.url) {
+      var a = document.createElement('a');
+      a.href = parts.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = parts.label;
+      wrap.appendChild(a);
+    } else if (parts.label) {
+      wrap.appendChild(domEl('span', null, parts.label));
+    }
+    if (parts.notes) {
+      wrap.appendChild(domEl('div', 'arow-src', parts.notes));
+    }
+    return wrap;
+  }
+
+  function buildFxCurrencyInput(rep) {
+    var srcInp = fxInputEl('fxSourceCurrency', 'text', '', 'EUR');
+    srcInp.maxLength = 3;
+    srcInp.setAttribute('list', 'fxCurrencyList');
+    srcInp.autocomplete = 'off';
+    var dl = document.createElement('datalist');
+    dl.id = 'fxCurrencyList';
+    FX_COMMON_CURRENCIES.filter(function (c) { return c !== rep; }).forEach(function (c) {
+      var o = document.createElement('option'); o.value = c; dl.appendChild(o);
+    });
+    var wrap = fxField('Source currency (ISO)', srcInp);
+    wrap.appendChild(dl);
+    return { wrap: wrap, input: srcInp };
+  }
+
+  function buildFxFormNode() {
+    var form = document.createElement('form');
+    form.id = 'fxForm';
+    form.noValidate = true;
+    var rep = ventureReportingCurrency();
+    var grid1 = domEl('div', 'fx-grid');
+    var srcPart = buildFxCurrencyInput(rep);
+    grid1.appendChild(srcPart.wrap);
+    var repInp = fxInputEl('fxReportingCurrency', 'text', rep, '');
+    repInp.readOnly = true;
+    repInp.setAttribute('aria-readonly', 'true');
+    grid1.appendChild(fxField('Target currency (venture)', repInp));
+    var rateInp = fxInputEl('fxRateDecimal', 'text', '', '1.085');
+    rateInp.setAttribute('inputmode', 'decimal');
+    grid1.appendChild(fxField('Exchange rate (target / source)', rateInp));
+    grid1.appendChild(fxField('Observed at (ISO UTC)', fxInputEl('fxObservedAt', 'text', defaultObservedAtIso(), '2026-11-25T17:00:00Z')));
+    form.appendChild(grid1);
+
+    var preview = domEl('div', 'fx-preview',
+      'Enter a positive decimal rate (up to 9 decimal places) to preview exact integer rateNanos.');
+    preview.id = 'fxRateNanosPreview';
+    form.appendChild(preview);
+
+    var grid2 = domEl('div', 'fx-grid');
+    grid2.appendChild(fxField('Source kind', fxSelectEl('fxSourceName', FX_SOURCE_KIND_OPTS, 'published-source')));
+    grid2.appendChild(fxField('Source URL or reference',
+      fxInputEl('fxSourceRef', 'text', '', 'https://www.ecb.europa.eu/... or ECB daily reference')));
+    grid2.appendChild(fxField('Notes (optional)', fxInputEl('fxNotes', 'text', '', 'Q4 tooling quote FX reference')));
+    form.appendChild(grid2);
+
+    var actions = domEl('div', 'row');
+    var saveBtn = domEl('button', null, S.fxSubmitting ? 'Recording\u2026' : 'Record immutable FX snapshot');
+    saveBtn.type = 'submit'; saveBtn.id = 'fxSaveBtn'; saveBtn.disabled = !!S.fxSubmitting;
+    actions.appendChild(saveBtn);
+    form.appendChild(actions);
+    form.appendChild(renderFeedbackBanner(S.fxFeedback, 'fxFeedback'));
+    srcPart.input.addEventListener('input', updateFxRatePreview);
+    rateInp.addEventListener('input', updateFxRatePreview);
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); submitFxSnapshot(); });
+    return form;
+  }
+
+  function buildFxSnapshotRow(fx) {
+    var tr = document.createElement('tr');
+    var pairTd = document.createElement('td');
+    var badges = domEl('div', 'fx-badges');
+    badges.appendChild(domEl('b', null, fx.sourceCurrency + ' \u2192 ' + fx.reportingCurrency));
+    badges.appendChild(domEl('span', 'chip c-observed', 'Immutable'));
+    pairTd.appendChild(badges);
+    tr.appendChild(pairTd);
+
+    var rateTd = domEl('td', 'num');
+    rateTd.appendChild(domEl('div', 'nums', formatNanosAsRate(fx.rateNanos)));
+    rateTd.appendChild(domEl('div', 'faint small nums', group(String(fx.rateNanos)) + ' nanos'));
+    tr.appendChild(rateTd);
+
+    var srcTd = document.createElement('td');
+    srcTd.appendChild(domEl('span', 'chip neutral', fx.sourceKind || 'user-entered'));
+    srcTd.appendChild(buildFxRefNode(fx.sourceRef || ''));
+    tr.appendChild(srcTd);
+    tr.appendChild(domEl('td', 'nums small', String(fx.observedAt || '').replace('T', ' ').slice(0, 19)));
+
+    var idTd = document.createElement('td');
+    idTd.appendChild(domEl('code', 'small', fx.id));
+    tr.appendChild(idTd);
+
+    var actTd = document.createElement('td', 'num');
+    var inspBtn = domEl('button', 'subtle', 'Inspect');
+    inspBtn.type = 'button';
+    inspBtn.setAttribute('data-fx-inspect', fx.id);
+    inspBtn.addEventListener('click', function () { inspectFxSnapshot(fx.id); });
+    actTd.appendChild(inspBtn);
+    tr.appendChild(actTd);
+    return tr;
+  }
+
+  function buildFxSnapshotsTable() {
+    var list = S.fxAssumptions || [];
+    if (!list.length) {
+      return domEl('p', 'muted small',
+        'No FX snapshots recorded for this venture yet. Record one above before entering a foreign-currency supplier quote.');
+    }
+    var wrap = domEl('div', 'tbl');
+    var tbl = document.createElement('table');
+    tbl.id = 'fxSnapshotsTable';
+    var thead = document.createElement('thead');
+    var htr = document.createElement('tr');
+    ['Pair', 'Rate (exact nanos)', 'Source & notes', 'Observed at', 'Snapshot', ''].forEach(function (h, idx) {
+      htr.appendChild(domEl('th', idx === 1 ? 'num' : null, h));
+    });
+    thead.appendChild(htr);
+    tbl.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    list.forEach(function (fx) { tbody.appendChild(buildFxSnapshotRow(fx)); });
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+    return wrap;
+  }
+
+  function buildFxInspectPanel() {
+    var fx = S.fxInspected;
+    if (!fx) return null;
+    var panel = domEl('div', 'fx-inspect');
+    panel.id = 'fxInspectPanel';
+    var head = domEl('div', 'fx-section-head');
+    head.appendChild(domEl('h3', null, 'FX Snapshot Details — ' + fx.sourceCurrency + ' \u2192 ' + fx.reportingCurrency));
+    var closeBtn = domEl('button', 'subtle', 'Close');
+    closeBtn.type = 'button';
+    closeBtn.id = 'fxInspectClose';
+    closeBtn.addEventListener('click', function () { captureQuoteDraft(); S.fxInspected = null; renderAssumptions(); });
+    head.appendChild(closeBtn);
+    panel.appendChild(head);
+
+    var dl = document.createElement('dl');
+    dl.className = 'fx-kv';
+    var rows = [
+      ['Snapshot ID', fx.id],
+      ['Currency pair', fx.sourceCurrency + ' \u2192 ' + fx.reportingCurrency],
+      ['Decimal rate', formatNanosAsRate(fx.rateNanos)],
+      ['Exact rateNanos', group(String(fx.rateNanos))],
+      ['Source kind', fx.sourceKind],
+      ['Observed at', fx.observedAt],
+      ['Authored by', fx.authoredBy || '—'],
+      ['Idempotency key', fx.idempotencyKey || '—'],
+      ['Recorded at', fx.createdAt || '—'],
+      ['Posture', 'Immutable append-only record (cannot be edited or deleted)']
+    ];
+    rows.forEach(function (pair) {
+      dl.appendChild(domEl('dt', null, pair[0]));
+      dl.appendChild(domEl('dd', 'nums', pair[1]));
+    });
+    dl.appendChild(domEl('dt', null, 'Source & notes'));
+    var refDd = document.createElement('dd');
+    refDd.appendChild(buildFxRefNode(fx.sourceRef || ''));
+    dl.appendChild(refDd);
+    panel.appendChild(dl);
+    return panel;
+  }
+
+  function buildFxEvidenceSection() {
+    var card = domEl('div', 'card');
+    card.id = 'fxEvidenceSection';
+    var head = domEl('div', 'fx-section-head');
+    head.appendChild(domEl('h2', null, 'FX Evidence'));
+    var badges = domEl('div', 'fx-badges');
+    badges.appendChild(domEl('span', 'chip c-observed', 'Immutable · Append-only'));
+    badges.appendChild(domEl('span', 'chip neutral', String((S.fxAssumptions || []).length) + ' recorded'));
+    head.appendChild(badges);
+    card.appendChild(head);
+    card.appendChild(domEl('p', 'muted small',
+      'Rates are evidence in exact integer nano-units (1e-9), never mutable settings. Append a new snapshot whenever a market or bank rate changes.'));
+    card.appendChild(buildFxFormNode());
+    card.appendChild(domEl('h3', null, 'Recorded FX snapshots'));
+    card.appendChild(buildFxSnapshotsTable());
+    var inspected = buildFxInspectPanel();
+    if (inspected) card.appendChild(inspected);
+    return card;
+  }
+
+  function quoteCurrencyOptions() {
+    var rep = ventureReportingCurrency();
+    var seen = {};
+    var out = [];
+    function add(code) {
+      var c = fxNormalizeCurrency(code);
+      if (c && !seen[c]) { seen[c] = true; out.push([c, c === rep ? c + ' (venture reporting)' : c]); }
+    }
+    add(rep);
+    (S.fxAssumptions || []).forEach(function (fx) { add(fx.sourceCurrency); });
+    FX_COMMON_CURRENCIES.forEach(add);
+    return out;
+  }
+
+  function renderQuoteMissingFxPrompt(missingEl, cur, rep) {
+    missingEl.hidden = false;
+    missingEl.textContent = '';
+    missingEl.appendChild(domEl('span', null,
+      'No immutable FX snapshot recorded for ' + cur + ' \u2192 ' + rep +
+      ' yet. Record FX evidence in the FX Evidence section below before saving this quote. '));
+    var jump = domEl('button', 'link', 'Prefill FX Evidence for ' + cur + ' \u2192 ' + rep);
+    jump.type = 'button';
+    jump.addEventListener('click', function () {
+      var srcInp = $('fxSourceCurrency');
+      if (srcInp) { srcInp.value = cur; updateFxRatePreview(); }
+      var rateInp = $('fxRateDecimal');
+      if (rateInp) rateInp.focus();
+    });
+    missingEl.appendChild(jump);
+  }
+
+  function renderQuoteConversionPreview(previewEl, selectedFx, cur, rep) {
+    var unitRaw = (($('quoteUnitCost') && $('quoteUnitCost').value) || '').trim();
+    var toolRaw = (($('quoteToolingCost') && $('quoteToolingCost').value) || '').trim();
+    previewEl.hidden = false;
+    if (!unitRaw) {
+      previewEl.className = 'fx-preview';
+      previewEl.textContent = 'Bound rate: 1 ' + cur + ' = ' + formatNanosAsRate(selectedFx.rateNanos) + ' ' + rep +
+        '. Enter a unit cost to preview exact integer conversion.';
+      return;
+    }
+    try {
+      var unitMicros = parseDecimalToMicros(unitRaw);
+      var convUnit = convertMicrosPreview(unitMicros, selectedFx.rateNanos);
+      var line = formatCurrencyMicros(unitMicros, cur) + ' ' + cur + ' @ ' + formatNanosAsRate(selectedFx.rateNanos) +
+        ' \u2192 ' + formatCurrencyMicros(convUnit, rep) + ' ' + rep + ' (' + group(String(convUnit)) + ' micros)';
+      if (toolRaw && toolRaw !== '0') {
+        var toolMicros = parseDecimalToMicros(toolRaw);
+        line += ' · Tooling: ' + formatCurrencyMicros(toolMicros, cur) + ' \u2192 ' +
+          formatCurrencyMicros(convertMicrosPreview(toolMicros, selectedFx.rateNanos), rep);
+      }
+      previewEl.className = 'fx-preview ok nums';
+      previewEl.textContent = line;
+    } catch (e) {
+      previewEl.className = 'fx-preview bad';
+      previewEl.textContent = e && e.message ? e.message : 'Enter a valid decimal amount.';
+    }
+  }
+
+  function syncQuoteFxControls() {
+    var curEl = $('quoteCurrency'), groupEl = $('quoteFxGroup'), fxSel = $('quoteFxAssumptionId');
+    var previewEl = $('quoteFxPreview'), missingEl = $('quoteFxMissingPrompt'), saveBtn = $('quoteSaveBtn');
+    if (!curEl || !groupEl || !fxSel || !previewEl || !missingEl) return;
+    var rep = ventureReportingCurrency();
+    var cur = fxNormalizeCurrency(curEl.value) || rep;
+    var isForeign = cur !== rep;
+    groupEl.hidden = !isForeign;
+    if (!isForeign) {
+      fxSel.textContent = ''; fxSel.required = false;
+      previewEl.hidden = true; missingEl.hidden = true;
+      if (saveBtn) saveBtn.disabled = !!S.quoteSubmitting || !(S.vendors || []).length;
+      return;
+    }
+    var matches = filterSnapshotsForPair(S.fxAssumptions, cur, rep);
+    var prevVal = fxSel.value || (S.quoteDraft && S.quoteDraft.fxAssumptionId) || '';
+    fxSel.textContent = ''; fxSel.required = true;
+    matches.forEach(function (fx) {
+      var opt = document.createElement('option');
+      opt.value = fx.id;
+      opt.textContent = fx.sourceCurrency + ' \u2192 ' + fx.reportingCurrency + ' @ ' +
+        formatNanosAsRate(fx.rateNanos) + ' (' + String(fx.observedAt || '').slice(0, 10) + ' · ' + fx.id.slice(0, 8) + ')';
+      fxSel.appendChild(opt);
+    });
+    if (matches.some(function (fx) { return fx.id === prevVal; })) fxSel.value = prevVal;
+    else if (matches.length) fxSel.value = matches[0].id;
+    if (!matches.length) {
+      fxSel.hidden = true; previewEl.hidden = true;
+      renderQuoteMissingFxPrompt(missingEl, cur, rep);
+      if (saveBtn) saveBtn.disabled = true;
+      return;
+    }
+    fxSel.hidden = false; missingEl.hidden = true;
+    if (saveBtn) saveBtn.disabled = !!S.quoteSubmitting || !(S.vendors || []).length;
+    var selectedFx = matches.filter(function (fx) { return fx.id === fxSel.value; })[0] || matches[0];
+    renderQuoteConversionPreview(previewEl, selectedFx, cur, rep);
+  }
+
+  function addQuickVendor(nameInput, btn) {
+    if (!S.ventureId) return;
+    var name = String((nameInput && nameInput.value) || '').trim();
+    if (!name) { S.quoteFeedback = { tone: 'bad', text: 'Enter a vendor name first.' }; renderAssumptions(); return; }
+    captureQuoteDraft();
+    if (btn) btn.disabled = true;
+    api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/vendors', { name: name, kind: 'cm' })
+      .then(function (r) {
+        var v = r && r.vendor;
+        if (v) {
+          S.vendors = (S.vendors || []).concat([v]);
+          if (S.quoteDraft) S.quoteDraft.vendorId = v.id;
+          S.quoteFeedback = { tone: 'ok', text: 'Added vendor "' + v.name + '".' };
+        }
+        renderAssumptions();
+      })
+      .catch(function (e) {
+        if (btn) btn.disabled = false;
+        S.quoteFeedback = { tone: 'bad', text: (e && e.message) || 'Could not add vendor.' };
+        renderAssumptions();
+      });
+  }
+
+  function readQuoteFormPayload() {
+    var rep = ventureReportingCurrency();
+    var vendorId = (($('quoteVendorId') && $('quoteVendorId').value) || '').trim();
+    if (!vendorId) throw fxError('quote_vendor_required', 'Select or add a supplier before recording a quote.');
+    var cur = fxNormalizeCurrency(($('quoteCurrency') && $('quoteCurrency').value) || rep) || rep;
+    var isForeign = cur !== rep;
+    var fxId = (($('quoteFxAssumptionId') && $('quoteFxAssumptionId').value) || '').trim();
+    if (isForeign && !fxId) {
+      throw fxError('fx_assumption_required', 'Foreign-currency quotes require a recorded FX snapshot for ' + cur + ' \u2192 ' + rep + '.');
+    }
+    var unitCostMicros = parseDecimalToMicros(($('quoteUnitCost') && $('quoteUnitCost').value) || '');
+    var toolStr = (($('quoteToolingCost') && $('quoteToolingCost').value) || '0').trim() || '0';
+    var toolingCostMicros = parseDecimalToMicros(toolStr);
+    var qtyRaw = Number(($('quoteQtyBreak') && $('quoteQtyBreak').value) || 1);
+    var payload = {
+      vendorId: vendorId,
+      bomLineId: (($('quoteBomLineId') && $('quoteBomLineId').value) || '').trim() || null,
+      qtyBreak: isFinite(qtyRaw) && qtyRaw >= 1 ? Math.floor(qtyRaw) : 1,
+      unitCostMicros: unitCostMicros, toolingCostMicros: toolingCostMicros, currency: cur,
+      incoterm: (($('quoteIncoterm') && $('quoteIncoterm').value) || '').trim() || null,
+      documentRef: (($('quoteDocRef') && $('quoteDocRef').value) || '').trim() || null,
+      notes: (($('quoteNotes') && $('quoteNotes').value) || '').trim() || null
+    };
+    if (isForeign) payload.fxAssumptionId = fxId;
+    return payload;
+  }
+
+  function submitSupplierQuote() {
+    if (!S.ventureId || S.quoteSubmitting) return;
+    captureQuoteDraft();
+    var rep = ventureReportingCurrency(), payload;
+    try { payload = readQuoteFormPayload(); }
+    catch (e) { S.quoteFeedback = { tone: 'bad', text: e.message || 'Invalid quote input.' }; renderAssumptions(); return; }
+    S.quoteSubmitting = true;
+    var saveBtn = $('quoteSaveBtn'); if (saveBtn) saveBtn.disabled = true;
+    api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/quotes', payload)
+      .then(function (r) {
+        if (r && r.model) S.model = normModel(r.model);
+        var saved = r && r.quote;
+        S.quoteDraft = null;
+        S.quoteFeedback = {
+          tone: 'ok',
+          text: saved
+            ? ('Recorded quote in ' + saved.currency + ' (' + formatCurrencyMicros(saved.unitCostMicros, saved.currency) +
+               (saved.fxAssumptionId
+                 ? ' \u2192 ' + formatCurrencyMicros(saved.reportingUnitCostMicros, saved.reportingCurrency || rep) +
+                   ' ' + (saved.reportingCurrency || rep) + ' via FX ' + saved.fxAssumptionId.slice(0, 8) : '') + ').')
+            : 'Recorded supplier quote.'
+        };
+        return Promise.all([
+          api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/quotes').catch(function () { return null; }),
+          api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/assumptions').catch(function () { return null; })
+        ]);
+      })
+      .then(function (res) {
+        S.quoteSubmitting = false;
+        if (res[0] && Array.isArray(res[0].quotes)) S.quotes = res[0].quotes;
+        if (res[1] && Array.isArray(res[1].assumptions)) {
+          S.assumptions = res[1].assumptions.map(normAssumption); S.summary = res[1].summary || S.summary;
+        }
+        renderAll();
+      })
+      .catch(function (e) {
+        S.quoteSubmitting = false;
+        S.quoteFeedback = { tone: 'bad', text: (e && e.payload && e.payload.detail) || (e && e.message) || 'Could not record quote.' };
+        renderAssumptions();
+      });
+  }
+
+  function buildSavedQuoteRow(q, maps, repFallback) {
+    var tr = document.createElement('tr');
+    var vTd = document.createElement('td');
+    vTd.appendChild(domEl('b', null, maps.vendor[q.vendorId] || q.vendorId));
+    var meta = [q.bomLineId ? (maps.bom[q.bomLineId] || q.bomLineId) : null, 'Qty ' + count(q.qtyBreak || 1), q.incoterm].filter(Boolean).join(' · ');
+    vTd.appendChild(domEl('div', 'faint small', meta));
+    tr.appendChild(vTd);
+
+    var origTd = domEl('td', 'num');
+    origTd.appendChild(domEl('div', 'nums', formatCurrencyMicros(q.unitCostMicros, q.currency) + ' ' + q.currency));
+    if (q.toolingCostMicros > 0) origTd.appendChild(domEl('div', 'faint small nums', 'Tooling ' + formatCurrencyMicros(q.toolingCostMicros, q.currency)));
+    tr.appendChild(origTd);
+
+    var repCur = q.reportingCurrency || repFallback;
+    var repTd = domEl('td', 'num');
+    var repAmt = isNum(q.reportingUnitCostMicros) ? q.reportingUnitCostMicros : q.unitCostMicros;
+    repTd.appendChild(domEl('div', 'nums', formatCurrencyMicros(repAmt, repCur) + ' ' + repCur));
+    if (isNum(q.reportingToolingCostMicros) && q.reportingToolingCostMicros > 0) {
+      repTd.appendChild(domEl('div', 'faint small nums', 'Tooling ' + formatCurrencyMicros(q.reportingToolingCostMicros, repCur)));
+    }
+    tr.appendChild(repTd);
+
+    var fxTd = document.createElement('td');
+    if (q.fxAssumptionId) {
+      var fxRow = maps.fx[q.fxAssumptionId];
+      var chip = domEl('span', 'chip c-observed', 'FX ' + q.fxAssumptionId.slice(0, 8));
+      chip.title = 'Immutable FX snapshot ' + q.fxAssumptionId;
+      chip.setAttribute('data-fx-id', q.fxAssumptionId);
+      fxTd.appendChild(chip);
+      if (fxRow) fxTd.appendChild(domEl('div', 'faint small nums', fxRow.sourceCurrency + ' \u2192 ' + fxRow.reportingCurrency + ' @ ' + formatNanosAsRate(fxRow.rateNanos)));
+    } else {
+      fxTd.appendChild(domEl('span', 'chip neutral', 'Same currency'));
+    }
+    tr.appendChild(fxTd);
+
+    var refTd = document.createElement('td');
+    if (q.documentRef) refTd.appendChild(domEl('div', 'small', q.documentRef));
+    if (q.notes) refTd.appendChild(domEl('div', 'arow-src', q.notes));
+    if (q.receivedAt) refTd.appendChild(domEl('div', 'faint small nums', String(q.receivedAt).slice(0, 10)));
+    tr.appendChild(refTd);
+    return tr;
+  }
+
+  function buildSavedQuotesTable() {
+    var quotes = S.quotes || [];
+    if (!quotes.length) {
+      return domEl('p', 'muted small',
+        'No supplier quotes recorded yet. Record a domestic or foreign-currency quote below to supersede model estimates.');
+    }
+    var maps = { vendor: {}, bom: {}, fx: {} };
+    (S.vendors || []).forEach(function (v) { maps.vendor[v.id] = v.name; });
+    (S.bomLines || []).forEach(function (l) { maps.bom[l.id] = l.ref + ' — ' + l.partName; });
+    (S.fxAssumptions || []).forEach(function (fx) { maps.fx[fx.id] = fx; });
+    var wrap = domEl('div', 'tbl');
+    var tbl = document.createElement('table');
+    tbl.id = 'quotesTable';
+    var thead = document.createElement('thead');
+    var htr = document.createElement('tr');
+    ['Supplier & part', 'Supplier quote', 'Reporting amount', 'FX provenance', 'Reference'].forEach(function (h, i) {
+      htr.appendChild(domEl('th', (i === 1 || i === 2) ? 'num' : null, h));
+    });
+    thead.appendChild(htr);
+    tbl.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    var repFallback = ventureReportingCurrency();
+    quotes.forEach(function (q) { tbody.appendChild(buildSavedQuoteRow(q, maps, repFallback)); });
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+    return wrap;
+  }
+
+  function buildQuickVendorPrompt() {
+    var quick = domEl('div', 'banner info');
+    quick.appendChild(domEl('div', 'small', 'Add a supplier first so quotes can be attributed to a named vendor:'));
+    var qRow = domEl('div', 'row');
+    qRow.style.marginTop = '8px';
+    var qName = fxInputEl('quickVendorName', 'text', '', 'Supplier name (e.g. EuroMold GmbH)');
+    qName.style.flex = '1 1 200px';
+    var qBtn = domEl('button', null, 'Add vendor');
+    qBtn.type = 'button'; qBtn.id = 'quickVendorBtn';
+    qBtn.addEventListener('click', function () { addQuickVendor(qName, qBtn); });
+    qRow.appendChild(qName); qRow.appendChild(qBtn);
+    quick.appendChild(qRow);
+    return quick;
+  }
+
+  function buildQuoteFxGroup(draft) {
+    var fxGroup = domEl('div');
+    fxGroup.id = 'quoteFxGroup'; fxGroup.hidden = true;
+    var fxSel = fxSelectEl('quoteFxAssumptionId', [], draft.fxAssumptionId || '');
+    fxGroup.appendChild(fxField('Immutable FX snapshot (required for foreign quote)', fxSel));
+    var fxPrev = domEl('div', 'fx-preview'); fxPrev.id = 'quoteFxPreview';
+    fxGroup.appendChild(fxPrev);
+    var fxMissing = domEl('div', 'banner warn'); fxMissing.id = 'quoteFxMissingPrompt'; fxMissing.hidden = true;
+    fxGroup.appendChild(fxMissing);
+    return { group: fxGroup, select: fxSel };
+  }
+
+  function buildQuoteFormNode() {
+    var form = document.createElement('form');
+    form.id = 'quoteForm'; form.noValidate = true;
+    var draft = S.quoteDraft || {}, rep = ventureReportingCurrency();
+    if (!(S.vendors || []).length) form.appendChild(buildQuickVendorPrompt());
+
+    var grid1 = domEl('div', 'fx-grid');
+    var vendorOpts = (S.vendors || []).length ? S.vendors.map(function (v) { return [v.id, v.name]; }) : [['', '(Add a vendor above)']];
+    grid1.appendChild(fxField('Supplier', fxSelectEl('quoteVendorId', vendorOpts, draft.vendorId || vendorOpts[0][0])));
+    var bomOpts = [['', '(No specific BOM line)']].concat((S.bomLines || []).map(function (l) { return [l.id, l.ref + ' — ' + l.partName]; }));
+    grid1.appendChild(fxField('BOM line (optional)', fxSelectEl('quoteBomLineId', bomOpts, draft.bomLineId || '')));
+    grid1.appendChild(fxField('Qty break', fxInputEl('quoteQtyBreak', 'number', draft.qtyBreak || '1000', '1000')));
+    var curSel = fxSelectEl('quoteCurrency', quoteCurrencyOptions(), draft.currency || rep);
+    grid1.appendChild(fxField('Quote currency', curSel));
+    form.appendChild(grid1);
+
+    var grid2 = domEl('div', 'fx-grid');
+    var unitInp = fxInputEl('quoteUnitCost', 'text', draft.unitCost || '', '10.00'); unitInp.setAttribute('inputmode', 'decimal');
+    grid2.appendChild(fxField('Unit cost (quote currency)', unitInp));
+    var toolInp = fxInputEl('quoteToolingCost', 'text', draft.toolingCost || '0', '0'); toolInp.setAttribute('inputmode', 'decimal');
+    grid2.appendChild(fxField('Tooling cost (quote currency)', toolInp));
+    grid2.appendChild(fxField('Incoterm', fxInputEl('quoteIncoterm', 'text', draft.incoterm || 'FOB', 'FOB')));
+    grid2.appendChild(fxField('Quote document ref', fxInputEl('quoteDocRef', 'text', draft.documentRef || '', 'RFQ-2026-11')));
+    form.appendChild(grid2);
+
+    var fxPart = buildQuoteFxGroup(draft);
+    form.appendChild(fxPart.group);
+    form.appendChild(fxField('Notes (optional)', fxInputEl('quoteNotes', 'text', draft.notes || '', 'Valid 30 days')));
+
+    var actions = domEl('div', 'row');
+    var saveBtn = domEl('button', null, S.quoteSubmitting ? 'Saving quote\u2026' : 'Record supplier quote');
+    saveBtn.type = 'submit'; saveBtn.id = 'quoteSaveBtn';
+    saveBtn.disabled = !!S.quoteSubmitting || !(S.vendors || []).length;
+    actions.appendChild(saveBtn);
+    form.appendChild(actions);
+    form.appendChild(renderFeedbackBanner(S.quoteFeedback, 'quoteFeedback'));
+
+    curSel.addEventListener('change', function () { captureQuoteDraft(); syncQuoteFxControls(); });
+    fxPart.select.addEventListener('change', function () { captureQuoteDraft(); syncQuoteFxControls(); });
+    unitInp.addEventListener('input', syncQuoteFxControls);
+    toolInp.addEventListener('input', syncQuoteFxControls);
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); submitSupplierQuote(); });
+    return form;
+  }
+
+  function buildQuotesSection() {
+    var card = domEl('div', 'card');
+    card.id = 'quotesSection';
+    var head = domEl('div', 'fx-section-head');
+    head.appendChild(domEl('h2', null, 'Supplier quotes'));
+    head.appendChild(domEl('span', 'chip neutral', String((S.quotes || []).length) + ' recorded'));
+    card.appendChild(head);
+    card.appendChild(domEl('p', 'muted small',
+      'Foreign-currency quotes must bind to an immutable FX snapshot below. Both the original supplier amount and the exact reporting-currency conversion are preserved.'));
+    card.appendChild(buildSavedQuotesTable());
+    card.appendChild(domEl('h3', null, 'Record supplier quote'));
+    card.appendChild(buildQuoteFormNode());
+    return card;
+  }
+
+  /* ═══ view: saved-quote inbox (pure DOM / textContent) ══════════════ */
+
+  var INBOX_INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'DDP', 'DAP', 'FCA'];
+
+  function microsToDecimalInput(micros) {
+    if (typeof micros !== 'number' || !Number.isSafeInteger(micros) || micros < 0) return '';
+    var big = BigInt(micros);
+    var whole = big / 1000000n;
+    var frac = String(big % 1000000n).padStart(6, '0').replace(/0+$/, '');
+    if (frac.length < 2) frac = frac.padEnd(2, '0');
+    return String(whole) + '.' + frac;
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var res = String(reader.result || '');
+        var comma = res.indexOf(',');
+        resolve(comma >= 0 ? res.slice(comma + 1) : res);
+      };
+      reader.onerror = function () { reject(new Error('Could not read selected file.')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function submitInboxAttach() {
+    if (!S.ventureId || S.inboxSubmitting) return;
+    var fileInp = $('inboxFileInput');
+    var pasteInp = $('inboxPasteText');
+    var nameInp = $('inboxFilename');
+    var file = fileInp && fileInp.files && fileInp.files[0];
+    var pasted = String((pasteInp && pasteInp.value) || '').trim();
+    if (!file && !pasted) {
+      S.inboxFeedback = { tone: 'bad', text: 'Choose a quote file (.txt, .csv, .md, .eml, .pdf) or paste quote text first.' };
+      renderAssumptions();
+      return;
+    }
+    S.inboxSubmitting = true;
+    var btn = $('inboxAttachBtn'); if (btn) btn.disabled = true;
+    var payloadPromise = file
+      ? readFileAsBase64(file).then(function (b64) {
+          return { filename: file.name, mimeType: file.type || 'application/octet-stream', base64Bytes: b64 };
+        })
+      : Promise.resolve({
+          filename: String((nameInp && nameInp.value) || '').trim() || 'pasted-quote.txt',
+          mimeType: 'text/plain',
+          textContent: pasted
+        });
+    payloadPromise
+      .then(function (payload) {
+        return api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/quote-inbox', payload);
+      })
+      .then(function (r) {
+        var item = r && r.item;
+        S.inboxFeedback = {
+          tone: 'ok',
+          text: item
+            ? ('Extracted "' + item.filename + '" (sha256 ' + item.sha256.slice(0, 12) + ') — review fields below before promoting.')
+            : 'Attached quote document for review.'
+        };
+        return api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/quote-inbox');
+      })
+      .then(function (listRes) {
+        S.inboxSubmitting = false;
+        if (listRes && Array.isArray(listRes.items)) S.quoteInbox = listRes.items;
+        renderAssumptions();
+      })
+      .catch(function (e) {
+        S.inboxSubmitting = false;
+        S.inboxFeedback = { tone: 'bad', text: (e && e.payload && e.payload.detail) || (e && e.message) || 'Could not extract quote document.' };
+        renderAssumptions();
+      });
+  }
+
+  function buildInboxAttachForm() {
+    var form = document.createElement('form');
+    form.id = 'quoteInboxForm'; form.noValidate = true;
+    var row1 = domEl('div', 'fx-grid');
+    var fileInp = fxInputEl('inboxFileInput', 'file', '', '');
+    fileInp.accept = '.txt,.csv,.md,.eml,.pdf';
+    row1.appendChild(fxField('Attach quote file (.txt, .csv, .md, .eml, .pdf)', fileInp));
+    var nameInp = fxInputEl('inboxFilename', 'text', '', 'supplier-quote.txt');
+    row1.appendChild(fxField('Document name (optional for pasted text)', nameInp));
+    form.appendChild(row1);
+
+    var paste = document.createElement('textarea');
+    paste.id = 'inboxPasteText';
+    paste.placeholder = 'Or paste quote email / text / CSV here (e.g. Vendor: EuroMold GmbH\\nUnit Price: €12.50\\nMOQ: 500\\nLead Time: 4 weeks\\nIncoterm: FOB)';
+    form.appendChild(fxField('Paste quote text (optional)', paste));
+
+    var actions = domEl('div', 'row');
+    var attachBtn = domEl('button', null, S.inboxSubmitting ? 'Extracting\u2026' : 'Attach & extract quote');
+    attachBtn.type = 'submit'; attachBtn.id = 'inboxAttachBtn'; attachBtn.disabled = !!S.inboxSubmitting;
+    actions.appendChild(attachBtn);
+    form.appendChild(actions);
+    form.appendChild(renderFeedbackBanner(S.inboxFeedback, 'inboxFeedback'));
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); submitInboxAttach(); });
+    return form;
+  }
+
+  function syncInboxRowFx(itemId, curSel, fxWrap, fxSel, fxWarn, fxPrev, priceInp) {
+    var rep = ventureReportingCurrency();
+    var cur = fxNormalizeCurrency(curSel.value) || rep;
+    var isForeign = cur !== rep;
+    fxWrap.hidden = !isForeign;
+    if (!isForeign) { fxSel.textContent = ''; fxWarn.hidden = true; fxPrev.hidden = true; return; }
+    var matches = filterSnapshotsForPair(S.fxAssumptions, cur, rep);
+    var prevVal = fxSel.value;
+    fxSel.textContent = '';
+    matches.forEach(function (fx) {
+      var opt = document.createElement('option');
+      opt.value = fx.id;
+      opt.textContent = fx.sourceCurrency + ' \u2192 ' + fx.reportingCurrency + ' @ ' +
+        formatNanosAsRate(fx.rateNanos) + ' (' + fx.id.slice(0, 8) + ')';
+      fxSel.appendChild(opt);
+    });
+    if (matches.some(function (fx) { return fx.id === prevVal; })) fxSel.value = prevVal;
+    else if (matches.length) fxSel.value = matches[0].id;
+    if (!matches.length) {
+      fxSel.hidden = true; fxPrev.hidden = true; fxWarn.hidden = false;
+      fxWarn.textContent = 'No FX snapshot for ' + cur + ' \u2192 ' + rep + ' yet. Record one in FX Evidence below before promoting.';
+      return;
+    }
+    fxSel.hidden = false; fxWarn.hidden = true;
+    var chosen = matches.filter(function (fx) { return fx.id === fxSel.value; })[0] || matches[0];
+    var raw = String(priceInp.value || '').trim();
+    if (!raw) { fxPrev.hidden = true; return; }
+    try {
+      var m = parseDecimalToMicros(raw);
+      var conv = convertMicrosPreview(m, chosen.rateNanos);
+      fxPrev.hidden = false; fxPrev.className = 'fx-preview ok nums';
+      fxPrev.textContent = formatCurrencyMicros(m, cur) + ' ' + cur + ' @ ' + formatNanosAsRate(chosen.rateNanos) +
+        ' \u2192 ' + formatCurrencyMicros(conv, rep) + ' ' + rep;
+    } catch (_e) { fxPrev.hidden = true; }
+  }
+
+  function promoteInboxItem(itemId, fields) {
+    if (!S.ventureId || S.inboxBusyId) return;
+    var rep = ventureReportingCurrency();
+    var vendorName = String(fields.vendorInp.value || '').trim();
+    var cur = fxNormalizeCurrency(fields.curSel.value) || rep;
+    var payload;
+    try {
+      if (!vendorName) throw fxError('quote_vendor_required', 'Enter or select a vendor name before promoting.');
+      var unitPriceMicros = parseDecimalToMicros(String(fields.priceInp.value || ''));
+      var moqVal = parseInt(String(fields.moqInp.value || '1'), 10);
+      var leadRaw = String(fields.leadInp.value || '').trim();
+      var leadVal = leadRaw ? parseInt(leadRaw, 10) : null;
+      payload = {
+        vendorName: vendorName,
+        bomLineId: String(fields.bomSel.value || '').trim() || null,
+        unitPriceMicros: unitPriceMicros,
+        currency: cur,
+        moq: isFinite(moqVal) && moqVal >= 1 ? moqVal : 1,
+        leadTimeDays: (leadVal !== null && isFinite(leadVal) && leadVal >= 1) ? leadVal : null,
+        incoterm: String(fields.incoSel.value || '').trim() || null,
+        quoteRef: String(fields.refInp.value || '').trim() || null
+      };
+      if (cur !== rep) {
+        var fxId = String(fields.fxSel.value || '').trim();
+        if (!fxId) throw fxError('fx_assumption_required', 'Select a recorded ' + cur + ' \u2192 ' + rep + ' FX snapshot before promoting.');
+        payload.fxAssumptionId = fxId;
+      }
+    } catch (e) {
+      S.inboxFeedback = { tone: 'bad', text: (e && e.message) || 'Invalid review fields.' };
+      renderAssumptions();
+      return;
+    }
+    S.inboxBusyId = itemId;
+    renderAssumptions();
+    api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/quote-inbox/' + encodeURIComponent(itemId) + '/promote', payload)
+      .then(function (r) {
+        if (r && r.model) S.model = normModel(r.model);
+        var q = r && r.quote;
+        S.inboxFeedback = {
+          tone: 'ok',
+          text: q
+            ? ('Promoted quote ' + q.id.slice(0, 8) + ' (' + formatCurrencyMicros(q.unitCostMicros, q.currency) + ' ' + q.currency + ') into Supplier quotes.')
+            : 'Promoted inbox item to Supplier quotes.'
+        };
+        return Promise.all([
+          api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/quote-inbox').catch(function () { return null; }),
+          api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/quotes').catch(function () { return null; }),
+          api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/vendors').catch(function () { return null; }),
+          api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/assumptions').catch(function () { return null; })
+        ]);
+      })
+      .then(function (res) {
+        S.inboxBusyId = null;
+        if (res[0] && Array.isArray(res[0].items)) S.quoteInbox = res[0].items;
+        if (res[1] && Array.isArray(res[1].quotes)) S.quotes = res[1].quotes;
+        if (res[2] && Array.isArray(res[2].vendors)) S.vendors = res[2].vendors;
+        if (res[3] && Array.isArray(res[3].assumptions)) {
+          S.assumptions = res[3].assumptions.map(normAssumption); S.summary = res[3].summary || S.summary;
+        }
+        renderAll();
+      })
+      .catch(function (e) {
+        S.inboxBusyId = null;
+        S.inboxFeedback = { tone: 'bad', text: (e && e.payload && e.payload.detail) || (e && e.message) || 'Could not promote inbox item.' };
+        renderAssumptions();
+      });
+  }
+
+  function dismissInboxItem(itemId) {
+    if (!S.ventureId || S.inboxBusyId) return;
+    S.inboxBusyId = itemId;
+    renderAssumptions();
+    api('POST', '/ventures/' + encodeURIComponent(S.ventureId) + '/quote-inbox/' + encodeURIComponent(itemId) + '/dismiss', {})
+      .then(function () {
+        S.inboxFeedback = { tone: 'ok', text: 'Dismissed quote inbox item.' };
+        return api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/quote-inbox');
+      })
+      .then(function (listRes) {
+        S.inboxBusyId = null;
+        if (listRes && Array.isArray(listRes.items)) S.quoteInbox = listRes.items;
+        renderAssumptions();
+      })
+      .catch(function (e) {
+        S.inboxBusyId = null;
+        S.inboxFeedback = { tone: 'bad', text: (e && e.payload && e.payload.detail) || (e && e.message) || 'Could not dismiss inbox item.' };
+        renderAssumptions();
+      });
+  }
+
+  function buildPendingInboxHeader(item) {
+    var head = domEl('div', 'qi-head');
+    var titleWrap = domEl('div');
+    titleWrap.appendChild(domEl('b', null, item.filename));
+    var meta = domEl('div', 'qi-meta nums', 'sha256: ' + String(item.sha256 || '').slice(0, 12) + ' · ' + count(item.byteSize || 0) + ' B');
+    meta.title = 'SHA-256: ' + String(item.sha256 || '');
+    titleWrap.appendChild(meta);
+    head.appendChild(titleWrap);
+    head.appendChild(domEl('span', 'chip c-estimated', 'Pending review'));
+    return head;
+  }
+
+  function buildPendingInboxFields(item) {
+    var ex = item.extracted || {}, rep = ventureReportingCurrency();
+    var g1 = domEl('div', 'fx-grid');
+    var vendorInp = fxInputEl('qiVendor-' + item.id, 'text', ex.vendorName || '', 'Supplier name');
+    vendorInp.setAttribute('list', 'qiVendorDatalist');
+    g1.appendChild(fxField('Vendor', vendorInp));
+    var bomOpts = [['', '(Optional BOM line)']].concat((S.bomLines || []).map(function (l) { return [l.id, l.ref + ' — ' + l.partName]; }));
+    var bomSel = fxSelectEl('qiBom-' + item.id, bomOpts, '');
+    g1.appendChild(fxField('BOM line', bomSel));
+    var priceInp = fxInputEl('qiPrice-' + item.id, 'text', microsToDecimalInput(ex.unitPriceMicros), '10.00');
+    priceInp.setAttribute('inputmode', 'decimal');
+    g1.appendChild(fxField('Unit price', priceInp));
+    var curSel = fxSelectEl('qiCur-' + item.id, quoteCurrencyOptions(), ex.currency || rep);
+    g1.appendChild(fxField('Currency', curSel));
+
+    var g2 = domEl('div', 'fx-grid');
+    var moqInp = fxInputEl('qiMoq-' + item.id, 'number', ex.moq || 1, '500');
+    g2.appendChild(fxField('MOQ / qty break', moqInp));
+    var leadInp = fxInputEl('qiLead-' + item.id, 'number', ex.leadTimeDays || '', '28');
+    g2.appendChild(fxField('Lead time (days)', leadInp));
+    var incoSel = fxSelectEl('qiInco-' + item.id, INBOX_INCOTERMS.map(function (t) { return [t, t || '(none)']; }), ex.incoterm || '');
+    g2.appendChild(fxField('Incoterm', incoSel));
+    var refInp = fxInputEl('qiRef-' + item.id, 'text', ex.quoteRef || '', 'RFQ-2026-01');
+    g2.appendChild(fxField('Quote ref', refInp));
+
+    var fxWrap = domEl('div'); fxWrap.hidden = true;
+    var fxSel = fxSelectEl('qiFx-' + item.id, [], '');
+    fxWrap.appendChild(fxField('Immutable FX snapshot (required for foreign quote)', fxSel));
+    var fxPrev = domEl('div', 'fx-preview'); fxPrev.hidden = true; fxWrap.appendChild(fxPrev);
+    var fxWarn = domEl('div', 'banner warn'); fxWarn.hidden = true; fxWrap.appendChild(fxWarn);
+    var sync = function () { syncInboxRowFx(item.id, curSel, fxWrap, fxSel, fxWarn, fxPrev, priceInp); };
+    curSel.addEventListener('change', sync); fxSel.addEventListener('change', sync); priceInp.addEventListener('input', sync);
+    sync();
+    return { g1: g1, g2: g2, fxWrap: fxWrap, refs: {
+      vendorInp: vendorInp, bomSel: bomSel, priceInp: priceInp, curSel: curSel,
+      moqInp: moqInp, leadInp: leadInp, incoSel: incoSel, refInp: refInp, fxSel: fxSel
+    } };
+  }
+
+  function buildPendingInboxCard(item) {
+    var ex = item.extracted || {};
+    var box = domEl('div', 'qi-item');
+    box.setAttribute('data-inbox-id', item.id);
+    box.setAttribute('data-inbox-status', item.status);
+    box.appendChild(buildPendingInboxHeader(item));
+    if (Array.isArray(ex.extractionNotes) && ex.extractionNotes.length) {
+      var ul = domEl('ul', 'qi-notes');
+      ex.extractionNotes.forEach(function (note) { ul.appendChild(domEl('li', null, note)); });
+      box.appendChild(ul);
+    }
+    var fields = buildPendingInboxFields(item);
+    box.appendChild(fields.g1); box.appendChild(fields.g2); box.appendChild(fields.fxWrap);
+    var actions = domEl('div', 'row');
+    var promoteBtn = domEl('button', null, S.inboxBusyId === item.id ? 'Promoting\u2026' : 'Promote to Quotes');
+    promoteBtn.type = 'button'; promoteBtn.disabled = !!S.inboxBusyId;
+    promoteBtn.setAttribute('data-inbox-promote', item.id);
+    promoteBtn.addEventListener('click', function () { promoteInboxItem(item.id, fields.refs); });
+    var dismissBtn = domEl('button', 'subtle', 'Dismiss');
+    dismissBtn.type = 'button'; dismissBtn.disabled = !!S.inboxBusyId;
+    dismissBtn.setAttribute('data-inbox-dismiss', item.id);
+    dismissBtn.addEventListener('click', function () { dismissInboxItem(item.id); });
+    actions.appendChild(promoteBtn); actions.appendChild(dismissBtn);
+    box.appendChild(actions);
+    return box;
+  }
+
+  function buildHistoryInboxCard(item) {
+    var box = domEl('div', 'qi-item');
+    box.setAttribute('data-inbox-id', item.id);
+    box.setAttribute('data-inbox-status', item.status);
+    var head = domEl('div', 'qi-head');
+    var left = domEl('div');
+    left.appendChild(domEl('b', null, item.filename));
+    left.appendChild(domEl('div', 'qi-meta nums', 'sha256: ' + String(item.sha256 || '').slice(0, 12)));
+    head.appendChild(left);
+    var badges = domEl('div', 'fx-badges');
+    if (item.status === 'promoted') {
+      badges.appendChild(domEl('span', 'chip c-quoted', 'Promoted'));
+      if (item.promotedQuoteId) badges.appendChild(domEl('code', 'small', 'Quote ' + item.promotedQuoteId.slice(0, 8)));
+    } else {
+      badges.appendChild(domEl('span', 'chip neutral', 'Dismissed'));
+    }
+    head.appendChild(badges);
+    box.appendChild(head);
+    return box;
+  }
+
+  function buildQuoteInboxSection() {
+    var card = domEl('div', 'card');
+    card.id = 'quoteInboxSection';
+    var items = S.quoteInbox || [];
+    var pendingCount = items.filter(function (x) { return x.status === 'pending'; }).length;
+    var head = domEl('div', 'fx-section-head');
+    head.appendChild(domEl('h2', null, 'Saved-quote inbox'));
+    var badges = domEl('div', 'fx-badges');
+    badges.appendChild(domEl('span', pendingCount ? 'chip c-estimated' : 'chip neutral', String(pendingCount) + ' pending review'));
+    badges.appendChild(domEl('span', 'chip neutral', String(items.length) + ' total'));
+    head.appendChild(badges);
+    card.appendChild(head);
+    card.appendChild(domEl('p', 'muted small',
+      'Attach or paste a supplier quote (.txt, .csv, .md, .eml, .pdf). Candidate fields are parsed deterministically with zero model calls and never commit until you review and promote them.'));
+    card.appendChild(buildInboxAttachForm());
+
+    var dl = document.createElement('datalist'); dl.id = 'qiVendorDatalist';
+    (S.vendors || []).forEach(function (v) { var o = document.createElement('option'); o.value = v.name; dl.appendChild(o); });
+    card.appendChild(dl);
+
+    var list = domEl('div'); list.id = 'quoteInboxList';
+    if (!items.length) {
+      list.appendChild(domEl('p', 'muted small', 'No quote documents in the inbox yet.'));
+    } else {
+      items.forEach(function (item) {
+        list.appendChild(item.status === 'pending' ? buildPendingInboxCard(item) : buildHistoryInboxCard(item));
+      });
+    }
+    card.appendChild(list);
+    return card;
   }
 
   /* ═══ view: numbers ══════════════════════════════════════════════════ */
@@ -1766,6 +3076,298 @@
       '<th>Month</th><th class="num">In</th><th class="num">Out</th><th class="num">Net</th>' +
       '<th class="num">Cumulative</th><th class="num">Inventory units</th><th class="num">Receivables</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  }
+
+  /* ═══ view: compare (pure DOM / textContent, zero innerHTML) ════════ */
+
+  function domEl(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function confBadgeNode(conf) {
+    var c = conf || 'none';
+    var chip = domEl('span', 'chip c-' + c);
+    chip.title = CONFIDENCE_NOTE[conf] || 'this figure rests on nothing registered';
+    chip.appendChild(domEl('span', 'dot'));
+    chip.appendChild(document.createTextNode(conf || 'no source'));
+    return chip;
+  }
+
+  function fmtDelta(val, unit) {
+    if (val === null || val === undefined || !isNum(val)) return '—';
+    if (val === 0) return '0';
+    var sign = val > 0 ? '+' : '\u2212';
+    var mag = Math.abs(val);
+    if (unit === 'micros') return sign + usd(mag);
+    if (unit === 'bps') return sign + (mag / 100).toFixed(2) + ' pp';
+    if (unit === 'ratio') return sign + (mag * 100).toFixed(1) + ' pp';
+    return sign + fmtUnit(mag, unit);
+  }
+
+  function deltaTone(delta, polarity) {
+    if (!isNum(delta) || delta === 0 || polarity === 'neutral') return 'faint';
+    if (polarity === 'higher-is-better') return delta > 0 ? 'pos' : 'neg';
+    if (polarity === 'lower-is-better') return delta < 0 ? 'pos' : 'neg';
+    return 'faint';
+  }
+
+  function loadCompare() {
+    if (!S.ventureId) return Promise.resolve(null);
+    var ids = (S.compareIds || []).slice();
+    if (ids.length < 2 || ids.length > 10) {
+      S.compareData = null;
+      S.compareError = ids.length < 2
+        ? 'Select at least 2 scenarios to compare.'
+        : 'Select at most 10 scenarios to compare.';
+      S.compareLoading = false;
+      renderCompare();
+      return Promise.resolve(null);
+    }
+    var baseline = ids.indexOf(S.compareBaseline) >= 0 ? S.compareBaseline : ids[0];
+    S.compareBaseline = baseline;
+    S.compareLoading = true;
+    S.compareError = '';
+    renderCompare();
+    var q = '?ids=' + encodeURIComponent(ids.join(',')) + '&baseline=' + encodeURIComponent(baseline);
+    return api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/scenarios/compare' + q)
+      .then(function (r) {
+        S.compareLoading = false;
+        S.compareData = r || null;
+        S.compareError = '';
+        renderCompare();
+        return r;
+      })
+      .catch(function (e) {
+        S.compareLoading = false;
+        S.compareData = null;
+        S.compareError = (e && e.payload && e.payload.detail) || (e && e.message) || 'Scenario comparison failed.';
+        renderCompare();
+        return null;
+      });
+  }
+
+  function buildCompareControlsCard() {
+    var card = domEl('div', 'card');
+    card.appendChild(domEl('h2', null, 'Compare scenarios'));
+    card.appendChild(domEl('p', 'muted small',
+      'Pick 2 to 10 saved scenarios and a baseline. Every figure runs through the deterministic engine in pure code — no model call, no spend.'));
+    var picks = domEl('div', 'cmp-picks');
+    picks.id = 'cmpScenarioPicks';
+    S.scenarios.forEach(function (sc) {
+      var lbl = domEl('label', 'cmp-opt');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = sc.id;
+      cb.checked = S.compareIds.indexOf(sc.id) >= 0;
+      cb.setAttribute('data-cmp-scenario', sc.id);
+      cb.addEventListener('change', function () {
+        var next = [];
+        S.scenarios.forEach(function (item) {
+          var box = picks.querySelector('input[value="' + CSS.escape(item.id) + '"]');
+          if (box && box.checked) next.push(item.id);
+        });
+        S.compareIds = next;
+        if (next.indexOf(S.compareBaseline) < 0) S.compareBaseline = next[0] || '';
+        if (next.length >= 2 && next.length <= 10) loadCompare();
+        else { S.compareData = null; S.compareError = ''; renderCompare(); }
+      });
+      lbl.appendChild(cb);
+      lbl.appendChild(domEl('span', null, sc.name || sc.id));
+      if (sc.isBase) lbl.appendChild(domEl('span', 'chip neutral', 'Base'));
+      picks.appendChild(lbl);
+    });
+    card.appendChild(picks);
+
+    var controls = domEl('div', 'cmp-controls');
+    var bLbl = domEl('label', 'f');
+    bLbl.appendChild(domEl('span', null, 'Baseline scenario'));
+    var sel = document.createElement('select');
+    sel.id = 'cmpBaseline';
+    sel.setAttribute('aria-label', 'Baseline scenario');
+    var selectedScenarios = S.scenarios.filter(function (sc) { return S.compareIds.indexOf(sc.id) >= 0; });
+    selectedScenarios.forEach(function (sc) {
+      var opt = document.createElement('option');
+      opt.value = sc.id;
+      opt.textContent = sc.name || sc.id;
+      if (sc.id === S.compareBaseline) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.disabled = selectedScenarios.length < 2;
+    sel.addEventListener('change', function () {
+      S.compareBaseline = sel.value;
+      if (S.compareIds.length >= 2 && S.compareIds.length <= 10) loadCompare();
+    });
+    bLbl.appendChild(sel);
+    controls.appendChild(bLbl);
+
+    var runBtn = domEl('button', null, S.compareLoading ? 'Comparing\u2026' : 'Compare scenarios');
+    runBtn.type = 'button';
+    runBtn.id = 'cmpRunBtn';
+    runBtn.disabled = S.compareLoading || S.compareIds.length < 2 || S.compareIds.length > 10;
+    runBtn.addEventListener('click', function () { loadCompare(); });
+    controls.appendChild(runBtn);
+    card.appendChild(controls);
+
+    if (S.compareIds.length < 2) {
+      card.appendChild(domEl('div', 'banner info', 'Select at least 2 scenarios to run a side-by-side comparison.'));
+    } else if (S.compareIds.length > 10) {
+      card.appendChild(domEl('div', 'banner warn', 'Select at most 10 scenarios at a time.'));
+    } else if (S.compareError) {
+      card.appendChild(domEl('div', 'banner bad', S.compareError));
+    }
+    return card;
+  }
+
+  function buildCompareMatrixCard(data) {
+    var card = domEl('div', 'card');
+    card.appendChild(domEl('h2', null, 'Side-by-side figures and deltas'));
+    var wrap = domEl('div', 'tbl');
+    var tbl = document.createElement('table');
+    tbl.id = 'cmpMetricsTable';
+    var thead = document.createElement('thead');
+    var htr = document.createElement('tr');
+    htr.appendChild(domEl('th', null, 'Metric'));
+    (data.scenarios || []).forEach(function (sc) {
+      var th = domEl('th', 'num');
+      var head = domEl('div', 'cmp-head');
+      head.appendChild(domEl('span', null, sc.name || sc.scenarioId));
+      if (sc.isBaseline) head.appendChild(domEl('span', 'chip neutral', 'Baseline'));
+      th.appendChild(head);
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr);
+    tbl.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    var pubRow = document.createElement('tr');
+    pubRow.appendChild(domEl('td', null, 'Publishability & posture'));
+    (data.scenarios || []).forEach(function (sc) {
+      var td = domEl('td', 'num');
+      var prov = sc.provenance || {};
+      var box = domEl('div', 'cmp-badges');
+      box.style.justifyContent = 'flex-end';
+      box.appendChild(domEl('span', 'chip ' + (prov.canPublish ? 'c-quoted' : 'sev-block'),
+        prov.canPublish ? 'Publishable' : 'Blocked'));
+      box.appendChild(domEl('span', 'chip neutral', postureWord(prov.posture)));
+      if (prov.weakestConfidence) box.appendChild(confBadgeNode(prov.weakestConfidence));
+      td.appendChild(box);
+      var sub = (prov.estimatedOrGuessedCount || 0) + ' est/guess · ' + (prov.unsourcedFigureCount || 0) + ' unsourced';
+      td.appendChild(domEl('div', 'cmp-delta faint', sub));
+      pubRow.appendChild(td);
+    });
+    tbody.appendChild(pubRow);
+
+    (data.rows || []).forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.appendChild(domEl('td', null, row.label || row.key));
+      (data.scenarios || []).forEach(function (sc) {
+        var cell = (row.values && row.values[sc.scenarioId]) || { value: null, delta: null };
+        var td = domEl('td', 'num');
+        var valText = cell.value === null || cell.value === undefined ? '—' : fmtUnit(cell.value, row.unit);
+        var valDiv = domEl('div', (row.unit === 'micros' && isNum(cell.value) && cell.value < 0) ? 'neg' : null, valText);
+        td.appendChild(valDiv);
+        if (sc.isBaseline) {
+          td.appendChild(domEl('div', 'cmp-delta faint', 'baseline'));
+        } else {
+          td.appendChild(domEl('div', 'cmp-delta ' + deltaTone(cell.delta, row.polarity), fmtDelta(cell.delta, row.unit)));
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+    card.appendChild(wrap);
+    card.appendChild(domEl('div', 'footnote',
+      'Deltas are exact integer differences against the selected baseline (micro-currency for money, percentage points for basis-point margins).'));
+    return card;
+  }
+
+  function buildAssumptionDiffsCard(data) {
+    var card = domEl('div', 'card');
+    card.appendChild(domEl('h2', null, 'Why the numbers moved'));
+    var diffs = data.assumptionDiffs || [];
+    if (!diffs.length) {
+      card.appendChild(domEl('p', 'muted small',
+        'No differing assumptions or scenario levers across the selected scenarios — every scenario computes from identical inputs.'));
+      return card;
+    }
+    var wrap = domEl('div', 'tbl');
+    var tbl = document.createElement('table');
+    tbl.id = 'cmpDiffsTable';
+    var thead = document.createElement('thead');
+    var htr = document.createElement('tr');
+    htr.appendChild(domEl('th', null, 'Assumption / lever'));
+    (data.scenarios || []).forEach(function (sc) {
+      var th = domEl('th', 'num', sc.name || sc.scenarioId);
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr);
+    tbl.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    diffs.forEach(function (diff) {
+      var tr = document.createElement('tr');
+      var nameTd = document.createElement('td');
+      nameTd.appendChild(domEl('b', null, diff.label || diff.key));
+      var keyLine = domEl('div', 'faint small');
+      keyLine.appendChild(domEl('code', null, diff.key));
+      nameTd.appendChild(keyLine);
+      tr.appendChild(nameTd);
+      (data.scenarios || []).forEach(function (sc) {
+        var cell = (diff.byScenario && diff.byScenario[sc.scenarioId]) || { value: null, confidence: null, deltaFromBaseline: null };
+        var td = domEl('td', 'num');
+        td.appendChild(domEl('div', null, cell.value === null || cell.value === undefined ? '—' : fmtUnit(cell.value, diff.unit)));
+        if (cell.confidence) {
+          var badgeWrap = domEl('div', 'cmp-delta');
+          badgeWrap.appendChild(confBadgeNode(cell.confidence));
+          td.appendChild(badgeWrap);
+        }
+        if (!sc.isBaseline && cell.deltaFromBaseline !== null && cell.deltaFromBaseline !== undefined) {
+          td.appendChild(domEl('div', 'cmp-delta faint', fmtDelta(cell.deltaFromBaseline, diff.unit)));
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+    card.appendChild(wrap);
+    return card;
+  }
+
+  function renderCompare() {
+    if (S.view !== 'compare') return;
+    var root = $('view-compare');
+    if (!root) return;
+    root.textContent = '';
+    if (!S.scenarios || S.scenarios.length < 2) {
+      var empty = domEl('div', 'card');
+      empty.id = 'cmpEmptyCard';
+      empty.appendChild(domEl('h2', null, 'Side-by-side scenario compare'));
+      var have = S.scenarios ? S.scenarios.length : 0;
+      empty.appendChild(domEl('p', 'muted small',
+        'Save at least 2 scenarios for this venture to compare them side by side (currently ' + have +
+        (have === 1 ? ' saved scenario' : ' saved scenarios') + ').'));
+      empty.appendChild(domEl('p', 'muted small',
+        'Comparing runs the deterministic engine on each scenario with zero model calls, showing landed cost, gross margin, break-even, net income, cash trough, funding required, provenance posture, and every assumption or lever that differs.'));
+      root.appendChild(empty);
+      return;
+    }
+    root.appendChild(buildCompareControlsCard());
+    if (S.compareLoading) {
+      var loading = domEl('div', 'card');
+      loading.appendChild(domEl('div', 'spin', 'Computing side-by-side scenarios\u2026'));
+      root.appendChild(loading);
+      return;
+    }
+    if (S.compareData) {
+      root.appendChild(buildCompareMatrixCard(S.compareData));
+      root.appendChild(buildAssumptionDiffsCard(S.compareData));
+    }
   }
 
   /* ═══ view: documents ════════════════════════════════════════════════ */
@@ -2512,18 +4114,24 @@
     renderStatusLine();
     renderStages();
     $('tabAsmCnt').textContent = S.assumptions.length ? '(' + S.assumptions.length + ')' : '';
+    var cmpCnt = $('tabCmpCnt');
+    if (cmpCnt) cmpCnt.textContent = S.scenarios.length ? '(' + S.scenarios.length + ')' : '';
     $('tabDocCnt').textContent = S.documents.length ? '(' + S.documents.length + ')' : '';
-    renderPlan(); renderAssumptions(); renderNumbers(); renderDocuments();
+    renderPlan(); renderAssumptions(); renderNumbers(); renderCompare(); renderDocuments();
   }
 
   function setView(v) {
     S.view = v;
     var tabs = document.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('on', tabs[i].getAttribute('data-view') === v);
-    ['plan', 'assumptions', 'numbers', 'documents'].forEach(function (k) { $('view-' + k).hidden = k !== v; });
+    ['plan', 'assumptions', 'numbers', 'compare', 'documents'].forEach(function (k) { $('view-' + k).hidden = k !== v; });
     if (v === 'plan') renderPlan();
     else if (v === 'assumptions') renderAssumptions();
     else if (v === 'numbers') renderNumbers();
+    else if (v === 'compare') {
+      renderCompare();
+      if (S.scenarios.length >= 2 && !S.compareData && !S.compareLoading && S.compareIds.length >= 2) loadCompare();
+    }
     else renderDocuments();
   }
 

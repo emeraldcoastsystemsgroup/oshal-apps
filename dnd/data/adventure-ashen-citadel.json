@@ -1,0 +1,209 @@
+{
+  "_license": "Original five-chapter campaign arc by Emerald Coast Systems Group. Uses SRD 5.1 creatures and progression (CC-BY-4.0). See LICENSE-SRD.md.",
+  "id": "ashen-citadel",
+  "title": "The Ashen Citadel",
+  "summary": "A five-chapter Levels 1-5 campaign arc: trace stolen hearthstones from Watchtower Road across Ember Bridge, uncover the citadel's broken oath in the Sunken Scriptorium, breach the Obsidian Vault, and confront the Ashen Warden.",
+  "theme": {
+    "id": "ashen-citadel",
+    "label": "Level 1-5 Campaign Arc",
+    "narration": "Tell an escalating heroic campaign from humble roadside ambush to high-stakes sanctum climax. Celebrate the party growing from Level 1 novices to Level 5 veterans mastering 3rd-level spells and martial prowess."
+  },
+  "scenes": [
+    {
+      "id": "watchtower-road",
+      "mapId": "coast-road",
+      "kind": "combat",
+      "act": "beginning",
+      "title": "Chapter 1: Watchtower Road",
+      "objective": "Break the raider roadblock on Watchtower Road and recover the stolen hearthstone manifest.",
+      "storyAnchor": "Raiders wearing soot-marked iron have cut off the valley watchtowers and seized the hearthstones that keep winter frost at bay. The trail leads east toward Ember Bridge.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Cold ash drifts down onto Watchtower Road like grey snow. Ahead, a charred wagon blocks the milepost where the valley couriers trade hearthstones. Two orc raiders haul iron lockboxes off the cart while a scarred wolf prowls the ditch and a goblin spotter signals from the pines. A wounded courier, Harlan, crouches behind a stone culvert waving you forward. Steel clears leather—roll for initiative!",
+      "openingChoices": ["Advance to shield Harlan at the culvert", "Target the goblin spotter before reinforcements arrive", "Challenge the orc raiders on the road"],
+      "terrain": {
+        "blocking": [
+          { "x": 0, "y": 0, "kind": "tree" }, { "x": 3, "y": 0, "kind": "tree" }, { "x": 7, "y": 1, "kind": "tree" },
+          { "x": 11, "y": 0, "kind": "tree" }, { "x": 8, "y": 4, "kind": "cart" }, { "x": 9, "y": 4, "kind": "cart" },
+          { "x": 8, "y": 5, "kind": "cart" }, { "x": 15, "y": 2, "kind": "tree" }, { "x": 15, "y": 9, "kind": "tree" },
+          { "x": 2, "y": 10, "kind": "tree" }, { "x": 12, "y": 10, "kind": "rock" }
+        ],
+        "difficult": [
+          { "x": 6, "y": 3, "kind": "brush" }, { "x": 12, "y": 5, "kind": "brush" },
+          { "x": 13, "y": 6, "kind": "brush" }, { "x": 10, "y": 8, "kind": "brush" }
+        ]
+      },
+      "partyStart": [ { "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 } ],
+      "props": [
+        { "id": "harlan-courier", "name": "Harlan Ashbell", "role": "Wounded Watchtower Courier", "personality": "Stubborn, brisk, and more worried about the manifest than his bruised ribs.", "storyHook": "Harlan saw the raiders marching their main convoy toward Ember Bridge.", "x": 5, "y": 4, "glyph": "🧍", "color": "#93c5fd" }
+      ],
+      "monsters": [
+        { "ref": "orc-raider", "instanceId": "orc-1", "name": "Krag Ironjaw", "role": "Roadblock Raider", "personality": "Loud, territorial, and eager to test steel against armored foes.", "storyHook": "Krag carries a stamped iron tally from the Ember Bridge tollmaster.", "x": 13, "y": 3, "hidden": false },
+        { "ref": "orc-raider", "instanceId": "orc-2", "name": "Morga Cinder", "role": "Convoy Striker", "personality": "Calm, methodical, and focused on securing the lockboxes over glory.", "storyHook": "Morga knows the cult fanatics are already fortifying Ember Bridge.", "x": 14, "y": 7, "hidden": false },
+        { "ref": "wolf", "instanceId": "wolf-1", "name": "Sootfang", "role": "Raider Hound", "personality": "Lean, silent, and quick to flank isolated spellcasters.", "storyHook": "Sootfang wears a brass collar forged inside the Ashen Citadel.", "x": 11, "y": 5, "hidden": false },
+        { "ref": "goblin", "instanceId": "gob-1", "name": "Pikk Tinwhistle", "role": "Treeline Spotter", "personality": "Twitchy, clever, and proud of his stolen brass signal horn.", "storyHook": "Pikk knows the secret watchword spoken at the Ember Bridge gate.", "x": 15, "y": 5, "hidden": false }
+      ],
+      "xpReward": 400,
+      "storyAward": 1000,
+      "afterword": "With the roadblock shattered, Harlan presses a charred manifest into your hands: six hearthstones were taken east to Ember Bridge, where a cult vanguard holds the gorge. You bind your wounds and step onto the eastern road stronger than when dawn broke (Level 2 unlocked).",
+      "next": "ember-bridge"
+    },
+    {
+      "id": "ember-bridge",
+      "mapId": "lantern-greyglass",
+      "kind": "combat",
+      "act": "rising-action",
+      "title": "Chapter 2: Ember Bridge",
+      "objective": "Force a crossing over Ember Bridge against the cult vanguard and their ogre bridge-breaker.",
+      "storyAnchor": "Ember Bridge is the only span across the gorge to the Sunken Scriptorium. Breaking the vanguard opens the path to uncover who commands the hearthstone thefts.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Heat shimmers above Ember Bridge, a narrow stone span slung across a smoking chasm. Two orc raiders lower heavy axes behind a hulking ogre brute who slams his iron-banded greatclub onto the flagstones. Behind them, a robed cult fanatic lifts a smoking censer, murmuring words meant to freeze intruders in their tracks. Beside the western abutment kneels Mira, the bridge-warden, bound with soot-black rope. Roll for initiative!",
+      "openingChoices": ["Break the ogre holding the center span", "Disrupt the cult fanatic before a spell lands", "Cut Mira free while holding the approach"],
+      "terrain": {
+        "blocking": [
+          { "x": 7, "y": 0, "kind": "rock" }, { "x": 7, "y": 1, "kind": "rock" }, { "x": 7, "y": 2, "kind": "rock" },
+          { "x": 7, "y": 9, "kind": "rock" }, { "x": 7, "y": 10, "kind": "rock" }, { "x": 7, "y": 11, "kind": "rock" },
+          { "x": 10, "y": 0, "kind": "rock" }, { "x": 10, "y": 1, "kind": "rock" }, { "x": 10, "y": 2, "kind": "rock" },
+          { "x": 10, "y": 9, "kind": "rock" }, { "x": 10, "y": 10, "kind": "rock" }, { "x": 10, "y": 11, "kind": "rock" }
+        ],
+        "difficult": [
+          { "x": 8, "y": 3, "kind": "scree" }, { "x": 9, "y": 3, "kind": "scree" },
+          { "x": 8, "y": 8, "kind": "scree" }, { "x": 9, "y": 8, "kind": "scree" }
+        ]
+      },
+      "partyStart": [ { "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 } ],
+      "props": [
+        { "id": "mira-warden", "name": "Mira Stonebridge", "role": "Captured Bridge-Warden", "personality": "Dry-humored, observant, and furious that an ogre cracked her favorite parapet.", "storyHook": "Mira overheard the fanatic mention the Sunken Scriptorium's vault cipher.", "x": 5, "y": 7, "glyph": "🛡", "color": "#fbbf24" }
+      ],
+      "monsters": [
+        { "ref": "ogre-brute", "instanceId": "ogre-1", "name": "Brug Bridgebreaker", "role": "Span Enforcer", "personality": "Simple, boisterous, and delighted by the thunder his club makes on stone.", "storyHook": "Brug was promised a barrel of smoked mutton for holding the bridge until nightfall.", "x": 11, "y": 5, "hidden": false },
+        { "ref": "orc-raider", "instanceId": "orc-3", "name": "Durn Ashblade", "role": "North Parapet Raider", "personality": "Grim, disciplined, and quick to flank anyone circling the ogre.", "storyHook": "Durn carries a bronze token stamped with the Ashen Citadel's twin braziers.", "x": 12, "y": 4, "hidden": false },
+        { "ref": "orc-raider", "instanceId": "orc-4", "name": "Skael Coalhand", "role": "South Parapet Raider", "personality": "Hot-tempered, reckless, and proud of never yielding a bridge.", "storyHook": "Skael helped haul the hearthstone chest down the eastern stairs.", "x": 12, "y": 7, "hidden": false },
+        { "ref": "cult-fanatic", "instanceId": "fanatic-1", "name": "Brother Vaelen", "role": "Cinder Zealot", "personality": "Soft-spoken, fanatical, and convinced the old valley oath must be burned clean.", "storyHook": "Vaelen's prayer book lists the three seals guarding the Obsidian Vault.", "x": 15, "y": 6, "hidden": false }
+      ],
+      "xpReward": 1100,
+      "storyAward": 1500,
+      "afterword": "Brug crashes to the stones and Vaelen's censer tumbles into the chasm. Mira points down the mist-wrapped steps to the Sunken Scriptorium, where the citadel's oldest records survive. Your battle-tested mastery unlocks new archetypes and 2nd-level spells (Level 3 unlocked).",
+      "next": "sunken-scriptorium"
+    },
+    {
+      "id": "sunken-scriptorium",
+      "mapId": "starless-reflection",
+      "kind": "exploration",
+      "act": "middle",
+      "title": "Chapter 3: The Sunken Scriptorium",
+      "objective": "Uncover the Obsidian Vault cipher and the truth behind the Ashen Warden's broken oath.",
+      "storyAnchor": "Beneath the flooded arches of the Sunken Scriptorium lie the charters of the valley's founding oath. Only by piecing together the cipher and motive can the party breach the Obsidian Vault.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Black water mirrors vaulted ceilings inside the Sunken Scriptorium. Brass braziers hiss faintly along dry walkways while scrolls hang in copper cages above the tide. Archivist Maren Inkwell sorts damp ledgers beside a dry pillar, and retired quartermaster Tomas Bramble guards a crate of salvaged keys near the southern steps. Somewhere in these records lies the cipher to the Obsidian Vault—and the reason the Ashen Warden turned against the valley.",
+      "openingChoices": ["Consult Archivist Maren Inkwell", "Inspect the charred citadel charters", "Question Tomas Bramble about the vault keys"],
+      "exploration": {
+        "required": 4,
+        "guidance": "Piece together the citadel's history, the Obsidian Vault cipher, and the Ashen Warden's true aim before descending.",
+        "leads": [
+          { "id": "maren", "prop": "archivist-maren", "name": "Archivist Maren Inkwell", "type": "person", "prompt": "Ask Maren what the raiders stole from the inner alcoves.", "reveal": "Maren reveals the raiders took the Hearthstone Concord—the pact binding the Citadel to keep the valley's watchfires lit in exchange for tribute that stopped five winters ago." },
+          { "id": "tomas", "prop": "quartermaster-tomas", "name": "Tomas Bramble", "type": "person", "prompt": "Ask Tomas how the Obsidian Vault doors open.", "reveal": "Tomas produces a rubbed brass rubbing: the vault locks yield only to the triad of hearth, iron, and ash, and warns an owlbear broke loose inside the outer gallery." },
+          { "id": "charter", "name": "Charred Citadel Charter", "type": "object", "prompt": "Examine the half-burned founding treaty pinned to the lectern.", "reveal": "The treaty names Commander Veyra—now called the Ashen Warden—as keeper of the Eternal Hearth. The council sealed her garrison inside during the plague winter and never returned." },
+          { "id": "cistern", "name": "Ash-Choked Cistern", "type": "place", "prompt": "Search the flooded basin where the raiders dumped broken lanterns.", "reveal": "Fresh hobgoblin boot prints and grave-cold frost rim the cistern steps: a Wight Commander now drills legionnaires inside the Obsidian Vault below." },
+          { "id": "vault-seal", "name": "Obsidian Vault Cipher", "type": "object", "requires": ["maren"], "prompt": "Cross-reference Maren's index with the vault door runes.", "reveal": "The cipher aligns cleanly: speaking the three watchtower names disarms the fire wards at the Obsidian Vault entrance and grants safe passage into the chamber." },
+          { "id": "warden-oath", "name": "Veyra's Broken Oath", "type": "object", "requires": ["charter"], "prompt": "Decode the marginal notes written in soot along Veyra's charter.", "reveal": "Veyra means to fuse all six stolen hearthstones inside the Citadel Sanctum, turning the valley's winter warmth into a single raging inferno unless stopped tonight." }
+        ]
+      },
+      "terrain": {
+        "blocking": [
+          { "x": 6, "y": 2, "kind": "rock" }, { "x": 7, "y": 2, "kind": "rock" },
+          { "x": 11, "y": 2, "kind": "rock" }, { "x": 12, "y": 2, "kind": "rock" },
+          { "x": 6, "y": 9, "kind": "rock" }, { "x": 7, "y": 9, "kind": "rock" },
+          { "x": 11, "y": 9, "kind": "rock" }, { "x": 12, "y": 9, "kind": "rock" }
+        ],
+        "difficult": [
+          { "x": 8, "y": 5, "kind": "scree" }, { "x": 9, "y": 5, "kind": "scree" },
+          { "x": 8, "y": 6, "kind": "scree" }, { "x": 9, "y": 6, "kind": "scree" }
+        ]
+      },
+      "partyStart": [ { "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 } ],
+      "props": [
+        { "id": "archivist-maren", "name": "Maren Inkwell", "role": "Keeper of the Sunken Scriptorium", "personality": "Sharp-eyed, brisk, and fiercely protective of surviving treaties.", "storyHook": "Maren holds the index that unlocks the Obsidian Vault cipher.", "x": 10, "y": 4, "glyph": "📜", "color": "#93c5fd" },
+        { "id": "quartermaster-tomas", "name": "Tomas Bramble", "role": "Retired Citadel Quartermaster", "personality": "Gruff, practical, and carrying twenty-seven keys he refuses to label.", "storyHook": "Tomas knows the beast prowling the Obsidian Vault.", "x": 4, "y": 9, "glyph": "🔑", "color": "#fbbf24" }
+      ],
+      "monsters": [],
+      "xpReward": 0,
+      "storyAward": 7200,
+      "afterword": "The vault cipher clicks into place and the hidden stair yawns open beneath the scriptorium floor. Armed with the truth of Veyra's oath and sharpened by hard-won insight, your party descends toward the Obsidian Vault (Level 4 Ability Score Improvement unlocked).",
+      "next": "obsidian-vault"
+    },
+    {
+      "id": "obsidian-vault",
+      "mapId": "blackwater-drowned-chapel",
+      "kind": "combat",
+      "act": "escalation",
+      "title": "Chapter 4: The Obsidian Vault",
+      "objective": "Defeat the Wight Commander's garrison and reclaim the vault's Sunstone Reliquary.",
+      "storyAnchor": "The Obsidian Vault bars the final stair to the Citadel Sanctum. Breaking the Wight Commander, the disciplined Hobgoblin Captain, and the loose vault Owlbear clears the road to the Ashen Warden.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "Frost crackles across black basalt as the Obsidian Vault doors grind apart. Ahead stands Commander Haldrin, a wight still wearing the tattered cloak of the abandoned garrison, his grave-cold longsword raised beside a disciplined hobgoblin captain. From the broken gallery cage bursts a furious owlbear, feathers dusted in ash, while a cult fanatic chants beside the glowing Sunstone Reliquary. Hold the line—roll for initiative!",
+      "openingChoices": ["Focus fire on the charging owlbear", "Break the fanatic's concentration at the reliquary", "Challenge Commander Haldrin at the central pillars"],
+      "terrain": {
+        "blocking": [
+          { "x": 6, "y": 3, "kind": "rock" }, { "x": 6, "y": 8, "kind": "rock" },
+          { "x": 11, "y": 3, "kind": "rock" }, { "x": 11, "y": 8, "kind": "rock" },
+          { "x": 9, "y": 1, "kind": "fire" }, { "x": 9, "y": 10, "kind": "fire" }
+        ],
+        "difficult": [
+          { "x": 7, "y": 5, "kind": "scree" }, { "x": 8, "y": 5, "kind": "scree" },
+          { "x": 7, "y": 6, "kind": "scree" }, { "x": 8, "y": 6, "kind": "scree" }
+        ]
+      },
+      "partyStart": [ { "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 } ],
+      "props": [
+        { "id": "vault-reliquary", "name": "Sunstone Reliquary", "role": "Hearthstone Containment Pedestal", "personality": "Warm brass humming against the vault's grave chill.", "storyHook": "The reliquary holds the spare hearthstone seal needed in the Sanctum.", "x": 15, "y": 2, "glyph": "✦", "color": "#fde047" }
+      ],
+      "monsters": [
+        { "ref": "wight-commander", "instanceId": "wight-1", "name": "Commander Haldrin", "role": "Undead Vault Marshal", "personality": "Solemn, relentless, and bound to a promise the living broke long ago.", "storyHook": "Haldrin lowers his guard only when the founding charter is spoken aloud.", "x": 12, "y": 5, "hidden": false },
+        { "ref": "owlbear", "instanceId": "owlbear-1", "name": "Cinderbeak", "role": "Unchained Vault Beast", "personality": "Territorial, ferocious, and enraged by the vault's clanging braziers.", "storyHook": "Cinderbeak's broken chain bears the marks of Tomas Bramble's old armory.", "x": 10, "y": 7, "hidden": false },
+        { "ref": "hobgoblin-captain", "instanceId": "hobgob-1", "name": "Captain Varuk", "role": "Iron Legion Tactician", "personality": "Crisp, calculating, and merciless toward sloppy formations.", "storyHook": "Varuk holds the iron seal to the Citadel Sanctum lift.", "x": 13, "y": 4, "hidden": false },
+        { "ref": "cult-fanatic", "instanceId": "fanatic-2", "name": "Sister Orla", "role": "Reliquary Ritualist", "personality": "Zealous, composed, and willing to burn her own spell slots to guard the pedestal.", "storyHook": "Orla has already signaled the Ashen Warden that intruders breached the vault.", "x": 15, "y": 6, "hidden": false }
+      ],
+      "xpReward": 2550,
+      "storyAward": 12650,
+      "afterword": "Haldrin's frost-rimmed blade shatters and quiet settles over the Obsidian Vault. You claim the Sunstone Reliquary and ascend toward the roaring furnace of the Citadel Sanctum—now true Tier 2 heroes commanding Extra Attack, 3rd-level spells, and deadly mastery (Level 5 unlocked).",
+      "next": "citadel-sanctum"
+    },
+    {
+      "id": "citadel-sanctum",
+      "mapId": "lantern-dawnwatch",
+      "kind": "combat",
+      "act": "climax",
+      "title": "Chapter 5: Sanctum of the Ashen Warden",
+      "objective": "Defeat the Ashen Warden and her inner guard before the fused hearthstones ignite the valley.",
+      "storyAnchor": "All six stolen hearthstones burn inside the Citadel Sanctum's great brazier. Defeating Veyra, the Ashen Warden, saves the valley from ash and restores the watchfires.",
+      "grid": { "w": 18, "h": 12, "unitFeet": 5 },
+      "opening": "The Sanctum doors thunder open onto a terrace crowned in swirling sparks. At the far hearth stands Veyra, the Ashen Warden, armored in emberplate with a white-hot greatsword resting across her gauntlets. Six stolen hearthstones orbit the Cinder Brazier behind her, roaring like a caged storm. Beside her stand her final guard: an iron hobgoblin captain, a silent wight veteran, and a chanting fanatic. Everything you learned across four chapters comes down to this fight—roll for initiative!",
+      "openingChoices": ["Unleash your highest-level spells on the sanctum line", "Charge Veyra before Cinder Burst scatters the party", "Flank the inner guard to reach the Cinder Brazier"],
+      "terrain": {
+        "blocking": [
+          { "x": 8, "y": 2, "kind": "fire" }, { "x": 9, "y": 2, "kind": "fire" },
+          { "x": 8, "y": 9, "kind": "fire" }, { "x": 9, "y": 9, "kind": "fire" },
+          { "x": 13, "y": 3, "kind": "rock" }, { "x": 13, "y": 8, "kind": "rock" }
+        ],
+        "difficult": [
+          { "x": 6, "y": 4, "kind": "scree" }, { "x": 6, "y": 7, "kind": "scree" },
+          { "x": 11, "y": 5, "kind": "scree" }, { "x": 11, "y": 6, "kind": "scree" }
+        ]
+      },
+      "partyStart": [ { "x": 2, "y": 5 }, { "x": 2, "y": 6 }, { "x": 3, "y": 5 }, { "x": 3, "y": 6 } ],
+      "props": [
+        { "id": "ashen-hearth", "name": "Cinder Brazier", "role": "Eternal Hearthstone Core", "personality": "Roaring blue-gold fire pulsing with six bound hearthstones.", "storyHook": "Restoring the Sunstone Reliquary cools the brazier and saves the valley.", "x": 16, "y": 6, "glyph": "🔥", "color": "#f97316" }
+      ],
+      "monsters": [
+        { "ref": "ashen-warden", "instanceId": "warden-boss", "name": "Veyra the Ashen Warden", "role": "Master of the Citadel", "personality": "Regal, bitter, and forged by a winter betrayal she refuses to forgive.", "storyHook": "Veyra yields the final hearthstone only when defeated in steel and spell.", "x": 14, "y": 5, "hidden": false },
+        { "ref": "hobgoblin-captain", "instanceId": "hobgob-2", "name": "Captain Korren", "role": "Sanctum Shield-Captain", "personality": "Unflinching, honorable in battle, and fiercely loyal to Veyra.", "storyHook": "Korren steps between Veyra and any hero threatening the brazier.", "x": 12, "y": 4, "hidden": false },
+        { "ref": "wight-commander", "instanceId": "wight-2", "name": "Sergeant Aldric", "role": "Oathbound Standard-Bearer", "personality": "Quiet, grim, and carrying the burned banner of the first watch.", "storyHook": "Aldric remembers the winter the valley sealed the gates.", "x": 12, "y": 7, "hidden": false },
+        { "ref": "cult-fanatic", "instanceId": "fanatic-3", "name": "Preacher Malrik", "role": "Flame Binder", "personality": "Intense, shrill, and obsessed with stoking the hearthstones past breaking.", "storyHook": "Malrik channels the final wards feeding the Cinder Brazier.", "x": 15, "y": 7, "hidden": false }
+      ],
+      "xpReward": 3650,
+      "storyAward": 2350,
+      "afterword": "The white-hot steel falls from Veyra's gauntlets as the Sunstone Reliquary settles into the Cinder Brazier. One by one, the six hearthstones cool to steady golden light, answering the distant watchtowers across the valley. From Watchtower Road to the Sanctum crest, your party forged a legend worthy of Level 5 heroes.",
+      "next": null
+    }
+  ]
+}

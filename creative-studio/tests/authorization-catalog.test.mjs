@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Actual catalog and source-authorizer closure; explicit named-authority port seam, no provider/SQL substitutes claimed as native acceptance.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify HTTP permission bindings for Creative Studio 1.5.0 storyboard builds, comments, schedules, and RP module routes.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify 1.5.2 route-backed story library, job list, next-story, and custom/library story production tools and bindings.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -49,7 +50,7 @@ test('source tools and bot use source permissions while every spending tool stay
  assert.equal(catalog.bindings.tools.length,manifest.tools.length);
  for(const tool of manifest.tools){const binding=catalog.bindings.tools.find(b=>b.id===tool.name);assert.ok(binding,tool.name);
   if(tool.name.includes('-source-')){assert.ok(binding.allOf.every(p=>holds('source-editor',p)));assert.ok(!binding.allOf.includes('legacy.execute'));}
-  else if(!['creative_list','vids-jobs'].includes(tool.name)){assert.ok(binding.allOf.includes('legacy.execute'));assert.ok(binding.allOf.some(p=>!holds('source-editor',p)));}
+  else if(!['creative_list','creative-studio-library','vids-jobs'].includes(tool.name)){assert.ok(binding.allOf.includes('legacy.execute'));assert.ok(binding.allOf.some(p=>!holds('source-editor',p)));}
  }
  assert.deepEqual(manifest.bots.map(bot=>bot.name).sort(),['creative-producer','story-editor']);
  for(const bot of manifest.bots){const binding=catalog.bindings.bots.find(b=>b.id===bot.agentId||b.id===bot.name);assert.deepEqual(binding?.allOf,bot.name==='story-editor'?['app.open','source.read']:['app.open','legacy.execute']);}
@@ -75,9 +76,9 @@ test('production workflow owns a distinct coordinator and never imports an optio
  for(const role of ['reader','source-editor'])assert.ok(binding.allOf.some(permission=>!holds(role,permission)));
  assert.ok(binding.allOf.every(permission=>holds('admin',permission)));
  const persona=read('../'+producer.persona);assert.equal(persona.name,producer.name);assert.equal(persona.agent_id,producer.agentId);
- assert.deepEqual(persona.authorizations,{creative_produce_next:'auto',creative_produce:'approval',creative_list:'auto'});
- const modes=Object.fromEntries(manifest.tools.filter(tool=>['creative_produce_next','creative_produce','creative_list'].includes(tool.name)).map(tool=>[tool.name,tool.defaultAuthMode]));
- assert.deepEqual(modes,{creative_produce_next:'auto',creative_produce:'ask',creative_list:'auto'});
+ assert.deepEqual(persona.authorizations,{'creative-studio-library':'auto',creative_produce_next:'approval',creative_produce:'approval',creative_list:'auto'});
+ const modes=Object.fromEntries(manifest.tools.filter(tool=>['creative-studio-library','creative_produce_next','creative_produce','creative_list'].includes(tool.name)).map(tool=>[tool.name,tool.defaultAuthMode]));
+ assert.deepEqual(modes,{'creative-studio-library':'auto',creative_produce_next:'ask',creative_produce:'ask',creative_list:'auto'});
 });
 test('real mounted surfaces/contracts/HTTP edits have one exact binding and matching API tools',()=>{
  const mount='/api/'+APP;
@@ -87,6 +88,12 @@ test('real mounted surfaces/contracts/HTTP edits have one exact binding and matc
  assert.deepEqual(bound('GET',mount+'/_smoke'),['app.open']);
  assert.deepEqual(bound('POST',mount+'/source-projects'),['app.open','source.read','source.create']);
  assert.deepEqual(bound('GET',mount+'/creative-studio-rp.mjs'),['app.open']);
+ assert.deepEqual(bound('GET',mount+'/creative-studio-stories.mjs'),['app.open']);
+ assert.deepEqual(bound('GET',mount+'/stories/library'),['app.open','legacy.read']);
+ assert.deepEqual(bound('GET',mount+'/stories/jobs'),['app.open','legacy.read']);
+ assert.deepEqual(bound('POST',mount+'/stories/next'),['app.open','legacy.execute']);
+ assert.deepEqual(bound('POST',mount+'/stories/produce'),['app.open','legacy.execute']);
+ assert.deepEqual(bound('DELETE',mount+'/stories/jobs/job-id'),['app.open','legacy.execute']);
  assert.deepEqual(bound('GET',mount+'/source-projects/templates'),['app.open','source.read']);
  assert.deepEqual(bound('GET',mount+'/source-projects/owned-id/comments'),['app.open','source.read']);
  assert.deepEqual(bound('POST',mount+'/source-projects/owned-id/comments'),['app.open','source.read','source.change']);
@@ -98,7 +105,9 @@ test('real mounted surfaces/contracts/HTTP edits have one exact binding and matc
  assert.deepEqual(bound('POST',mount+'/schedules'),['app.open','source.read','source.change']);
  assert.deepEqual(bound('POST',mount+'/schedules/sched-id/cancel'),['app.open','source.read','source.change']);
  for(const tool of manifest.tools.filter(t=>t.executor?.executorType==='api')){
-  const [method,path]=tool.executor.apiEndpoint.split(' ');assert.deepEqual(catalog.bindings.tools.find(b=>b.id===tool.name).allOf,bound(method,path.replaceAll('{input.id}','owned-id')));
+  const [method,rawPath]=tool.executor.apiEndpoint.split(' ');
+  const path=rawPath.split('?')[0].replaceAll('{input.id}','owned-id');
+  assert.deepEqual(catalog.bindings.tools.find(b=>b.id===tool.name).allOf,bound(method,path));
  }
  if(APP==='vids')for(const p of ['/jobs','/brand','/story','/jobs/owned-id/artifact/publish'])assert.ok(bound('POST',mount+p).includes('legacy.execute'));
 });

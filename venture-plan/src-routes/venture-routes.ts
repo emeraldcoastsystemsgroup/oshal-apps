@@ -32,6 +32,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id, GET /ventures/:id/runs and GET /runs/:runId answer a native run whose request was abandoned as interrupted (presentRun, no write on a read), so a page closed mid-run is not shown "running" for ever.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/inversion also answers plannedRunUnits (the model's run quantity), so the console can compare the smallest break-even run with the planned run; the stored snapshot carries no run figure.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/assumptions and the history answer each row's `grade`, the engine's confidence ladder (quoted .. guessed) for that row (engineConfidence, the same mapping the model computes with). The console tallied the ledger in that ladder while rows carried the store's low/medium/high, so its banner read "0 of 36 registered assumptions are an estimate or an outright placeholder" with 34 model guesses.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped LLM-free GET /ventures/:id/scenarios/compare route delegating to pure venture-compare.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Mount owner-scoped LLM-free Saved-quote inbox routes via registerQuoteInboxRoutes (1.5.7).
  *
  * @module venture-routes
  */
@@ -43,6 +45,9 @@ import type { Pool } from 'pg';
 import type { AppContext } from '@/app/composition/app-context';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { createChildLogger } from '@/shared/logger';
+import {
+  compareScenarios, ScenarioCompareError, selectScenariosForCompare,
+} from './venture-compare';
 import { sensitivitySweep, computeInversions, type Objective } from './venture-sensitivity';
 import { withLedger, buildVentureModel } from './venture-model';
 import { composeModelInput, engineConfidence } from './venture-store-compose';
@@ -51,6 +56,7 @@ import { parseScopeOutput } from './venture-bot-contracts';
 import { ensureVentureSchema } from './venture-schema';
 import { guarded, requireSub } from './venture-http';
 import { registerDocumentRoutes } from './venture-routes-docs';
+import { registerQuoteInboxRoutes } from './venture-routes-quote-inbox';
 import { presentRun, recomputeVenture, startRun } from './venture-run';
 import {
   assumptionHistory, coverageOf, deleteVenture, getRun, getVenture, insertScenario,
@@ -103,6 +109,20 @@ function replyRebaselineError(res: Response, err: unknown): boolean {
   if (!(err instanceof RebaselineError)) return false;
   res.status(400).json({ error: err.code, detail: err.message });
   return true;
+}
+
+/** Answer a scenario-compare validation or ownership refusal without leaking 500s. */
+function replyCompareError(res: Response, err: unknown): boolean {
+  if (!(err instanceof ScenarioCompareError)) return false;
+  const status = err.code === 'compare_scenario_not_found' ? 404 : 400;
+  res.status(status).json({ error: err.code, detail: err.message });
+  return true;
+}
+
+/** Parse comma-separated scenario ids from a query parameter. */
+function parseCompareIds(raw: unknown): string[] {
+  const parts = Array.isArray(raw) ? raw.map(String) : (typeof raw === 'string' ? [raw] : []);
+  return parts.flatMap((chunk) => chunk.split(',')).map((s) => s.trim()).filter(Boolean);
 }
 
 /**
@@ -557,6 +577,34 @@ function handleScenarios(pool: Pool): Record<string, RequestHandler> {
       if (!s) { res.status(404).json({ error: 'not found' }); return; }
       res.json({ scenario: s });
     }),
+    scenarioCompare: guarded('GET /ventures/:id/scenarios/compare', async (req, res) => {
+      const sub = requireSub(req, res);
+      if (!sub) return;
+      const id = String(req.params.id);
+      const venture = await getVenture(pool, sub, id);
+      if (!venture) { res.status(404).json({ error: 'not found' }); return; }
+      const onDate = onDateOf(req);
+      const [allScenarios, assumptions, bomLines, vendors, headcount] = await Promise.all([
+        listScenarios(pool, sub, id), liveAssumptions(pool, sub, id), listBom(pool, sub, id),
+        listVendors(pool, sub, id), listHeadcount(pool, sub, id),
+      ]);
+      const requestedIds = parseCompareIds(req.query.ids);
+      const baselineParam = typeof req.query.baseline === 'string' && req.query.baseline.trim()
+        ? req.query.baseline.trim() : null;
+      try {
+        const { selected, baselineId } = selectScenariosForCompare(allScenarios, requestedIds, baselineParam);
+        const entries = selected.map((scenario) => ({
+          scenarioId: scenario.id,
+          name: scenario.name,
+          isBase: scenario.isBase,
+          input: composeModelInput({ venture, assumptions, bomLines, vendors, headcount, scenario, onDate }).input,
+        }));
+        const comparison = compareScenarios(entries, baselineId);
+        res.json({ ventureId: venture.id, currency: venture.currency, onDate, ...comparison });
+      } catch (err) {
+        if (!replyCompareError(res, err)) throw err;
+      }
+    }),
   };
 }
 
@@ -894,6 +942,7 @@ export function createVentureRoutes(ctx: AppContext): Router {
   router.post('/ventures/:id/quotes', quotes.quoteCreate);
 
   router.get('/ventures/:id/scenarios', scenarios.scenarioList);
+  router.get('/ventures/:id/scenarios/compare', scenarios.scenarioCompare);
   router.post('/ventures/:id/scenarios', scenarios.scenarioCreate);
   router.patch('/ventures/:id/scenarios/:scenarioId', scenarios.scenarioPatch);
   router.post('/ventures/:id/model', compute.compute);
@@ -905,6 +954,7 @@ export function createVentureRoutes(ctx: AppContext): Router {
   router.post('/chat', handleChat(ctx, pool));
 
   registerDocumentRoutes(router, ctx, pool);
+  registerQuoteInboxRoutes(router, pool);
 
   log.info({ surfaceDir: dir, documents: DOC_CATALOG.length }, 'venture-plan routes mounted');
   return router;

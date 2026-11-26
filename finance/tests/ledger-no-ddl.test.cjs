@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The shape rules the ledger depends on, read from the shipped files (no database). No ledger module creates, alters or drops a table: the tables come from migration 002 alone, which the manifest declares after 001. Migration 002 is plain: every table has one text primary key and an owner column, and there is no other unique rule, no foreign key, no row security and no procedure (a table under row security loses the native kernel's point insert, update and delete). Every statement the store issues names the owner, puts the selective text column first in its WHERE (the kernel starts from the first text equality it finds) and uses no ON CONFLICT, ORDER BY, GROUP BY, DISTINCT, join, subquery or transaction; the only other statements in the ledger modules are the four that read and save the one-row snapshot and the bank links. The ledger moves no money: no ledger module names the pay route, a transfer, the payment rail or Trading's order files, and only the routes file loads the bank module. Only the last four digits of an account number survive the store's own reader. Run: node --test tests/ledger-no-ddl.test.cjs
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Finance 1.7.0: the ledger's tables come from migration 003 (renumbered after 1.6.5's 002-finance-analysis), and 004 holds the money day's; the statements outside the store are compared as a set, since the snapshot rebuild now reads the bank links too (a linked bank's snapshot is never rewritten).
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.8.0: migrations 005 (the person's mail check and the bills found in their mail) and 006 (the answers to repeating payments) are declared after 004.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.8.5: migration 007-finance-projects.sql (owner-scoped finance projects, budget lines, and multi-source actuals with FORCE RLS) is declared after 006.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -29,7 +30,7 @@ test('no ledger module creates, alters or drops a table; the manifest declares t
       assert.doesNotMatch(text, /runRuntimeSchemaBootstrap|ensureFinanceSchema|buildOwnerRlsPolicyStatements/, `${file.join('/')} does not bootstrap a schema at run time`);
     }
   }
-  assert.deepEqual(declaredMigrations(), ['migrations/001-finance-stores.sql', 'migrations/002-finance-analysis.sql', 'migrations/003-ledger.sql', 'migrations/004-day.sql', 'migrations/005-mail.sql', 'migrations/006-recurring.sql']);
+  assert.deepEqual(declaredMigrations(), ['migrations/001-finance-stores.sql', 'migrations/002-finance-analysis.sql', 'migrations/003-ledger.sql', 'migrations/004-day.sql', 'migrations/005-mail.sql', 'migrations/006-recurring.sql', 'migrations/007-finance-projects.sql']);
 });
 
 test('migration 003 is plain: one text key and an owner on every table, nothing the kernel would have to load a table for', () => {

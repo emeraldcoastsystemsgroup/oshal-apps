@@ -35,6 +35,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: save titled story briefs and scene edits automatically with a Saved caption in the app row instead of a Save source button (UX audit creative-studio--creative-studio).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: starter story brief templates (RP-CRS-01), aspect-ratio resize across 16:9/9:16/1:1/4:5 (RP-CRS-02), brand kit styling from Create or custom colors/fonts (RP-CRS-03), package-stored H.264 storyboard MP4 builds and direct download (RP-CRS-04), approval-gated social publication schedules (RP-CRS-05), brief/scene comments with replies and resolve (RP-CRS-06), and scene trim/split with Video Studio handoff (RP-CRS-07).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: tool parity (CREATE-TOOL-CREATIVE-STUDIO-01..05): replace CLI story tools with real /api/creative-studio/stories/* route tools (creative_produce_next, creative_produce, creative_list, creative-studio-library), add Make the next story button, Story library browser with Made badges, Custom story title/script/sceneCount/shape form, and align all package personas to real API tools.
 name: creative-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 chatBot: story-editor # Source editing is owned here; generation still uses the declared Vids worker.
@@ -54,7 +55,7 @@ description: "Edit and save story briefs and selectable storyboard scenes, with 
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.5.1
+version: 1.5.2
 lastingStorage: true
 authorization:
   version: 1
@@ -203,80 +204,154 @@ tools:
       additionalProperties: false
     usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
     routingTags: [creative, editing, storyboard, source]
-  # Produce the NEXT unproduced story from the rotating library (the cycler entry).
-  - name: creative_produce_next
-    displayName: Produce the next story video
-    type: cli
-    category: media
-    description: >-
-      Make the next unproduced kid-safe story video: rotate the library (fables /
-      fairytales / famous sayings), animate the ~100-word story across ~10
-      continuous Google Vids EXTEND scenes on the remote node, download the MP4,
-      and save it to the content folder + Google Drive. Returns which story was
-      made, scene count, local path, and Drive status. Never fabricates a result.
+  # Browse the curated kid-safe story library with owner-scoped Made status.
+  - name: creative-studio-library
+    displayName: Browse story library
+    type: api
+    category: creative
+    description: Browse the Creative Studio story library and see each story's slug, title, summary, default scene count, shape, and whether it has already been made for this account. Read-only.
     executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-vids.js story-next {input}
+      executorType: api
+      apiEndpoint: GET /api/creative-studio/stories/library
     defaultAuthMode: auto
-    timeoutMs: 2400000
+    requiresApproval: false
     inputSchema:
       type: object
-      properties:
-        beats: { type: number, description: "Scenes per story (default 10)" }
-        node: { type: string, description: "Override the Vids worker (clientId or name); default auto-picks it" }
-    usageInstructions: >-
-      Call with no arguments ({}) to produce the next story in the rotation. The
-      library rotates across fables, fairytales, and famous sayings so the feed
-      stays varied; already-produced stories are skipped.
-    routingTags: [creative, story, video, kids, vids]
-    skills: [veo-prompt-craft, browser-operate]
-    tags: [creative-studio]
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Call with {} to list the curated story library and see which stories have already been made before picking one to produce.
+    routingTags: [creative, story, library]
+    tags: [creative-studio, route-backed]
 
-  # Produce a SPECIFIC story (by library id) or an ad-hoc idea.
-  - name: creative_produce
-    displayName: Produce a specific story video
-    type: cli
-    category: media
+  # Produce the NEXT unmade story from the rotating library (route-backed).
+  - name: creative_produce_next
+    displayName: Make the next story
+    cardText: Starts the next unmade story from your Creative Studio library.
+    type: api
+    category: creative
     description: >-
-      Animate a specific story across ~10 continuous Extend scenes in Google Vids
-      and save it. Pass a library storyId (e.g. tortoise-and-hare,
-      raining-cats-and-dogs) or an ad-hoc {title, script}. Returns the local path
-      + Drive status.
+      Start or queue the next unmade story from the owner's Creative Studio story
+      library. Held for the person's approval. Reports 503 worker_unavailable
+      honestly when no Vids worker is online unless recordOnly is true.
     executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-vids.js story {input}
+      executorType: api
+      apiEndpoint: POST /api/creative-studio/stories/next
     defaultAuthMode: ask
     requiresApproval: true
-    timeoutMs: 2400000
     inputSchema:
       type: object
       properties:
-        storyId: { type: string, description: "A library story id" }
-        title: { type: string, description: "Ad-hoc story title (with script)" }
-        script: { type: string, description: "Ad-hoc ~100-word narration to animate" }
-        beats: { type: number, description: "Scenes (default 10)" }
-        orientation: { type: string, description: "Landscape | Portrait | Square" }
+        sceneCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: "Optional number of scenes (1 to 12)."
+        shape:
+          type: string
+          enum: ["16:9", "9:16", "1:1"]
+          description: "Optional video aspect shape: 16:9, 9:16, or 1:1."
+        recordOnly:
+          type: boolean
+          description: "Optional: when true, records the next story as a storyboard draft even if no Vids worker is online."
+      required: []
+      additionalProperties: false
+    usageInstructions: >-
+      Call with {} (or optional sceneCount 1..12 and shape 16:9|9:16|1:1) to propose
+      making the next unmade library story. The approval card is the person's
+      confirmation. If the route returns 503 worker_unavailable, explain plainly that
+      no Vids worker is online and never claim a video rendered.
     routingTags: [creative, story, video]
-    skills: [veo-prompt-craft, browser-operate]
-    tags: [creative-studio]
+    tags: [creative-studio, route-backed, approval-required]
 
-  # List what's already been produced (from the content-folder manifests).
-  - name: creative_list
-    displayName: List produced story videos
-    type: cli
-    category: media
-    description: Read back the dispatched story/clip jobs and their status (from the vids_jobs ledger). The node's own `oshal-vids story --list` reads the content-folder manifests directly.
+  # Produce a SPECIFIC library story (by slug or title) or a custom script.
+  - name: creative_produce
+    displayName: Produce a story
+    cardText: Produces a chosen library story or your custom story script with the selected scene count and shape.
+    type: api
+    category: creative
+    description: >-
+      Produce a specific Creative Studio library story by slug or title, or a custom
+      story with your own title, script, sceneCount (1 to 12), and shape (16:9, 9:16,
+      or 1:1). Persists the story record and editable storyboard project, queuing on
+      a Vids worker when online or recording awaiting_worker honestly when none is
+      online. Held for the person's approval.
     executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-vids.js jobs {input}
-    defaultAuthMode: auto
-    timeoutMs: 60000
+      executorType: api
+      apiEndpoint: POST /api/creative-studio/stories/produce
+    defaultAuthMode: ask
+    requiresApproval: true
     inputSchema:
       type: object
       properties:
-        limit: { type: number, description: "Max entries (default 50)" }
-    routingTags: [creative, list]
-    tags: [creative-studio]
+        story:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: "Library story slug or title (e.g. tortoise-and-hare or The Tortoise and the Hare)."
+        storyId:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: "Alias for library story slug."
+        storyName:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: "Alias for library story title."
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: "Custom story title (pair with script)."
+        script:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: "Custom story narration script (pair with title)."
+        sceneCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: "Number of scenes (1 to 12, default 4)."
+        shape:
+          type: string
+          enum: ["16:9", "9:16", "1:1"]
+          description: "Video aspect shape: 16:9, 9:16, or 1:1."
+      required: []
+      additionalProperties: false
+    usageInstructions: >-
+      Call creative-studio-library first when choosing from the library, then call
+      creative_produce with story (slug or title) or with custom title, script,
+      sceneCount (1..12), and shape (16:9, 9:16, or 1:1). Never claim a finished video
+      rendered when status is awaiting_worker.
+    routingTags: [creative, story, video]
+    tags: [creative-studio, route-backed, approval-required]
+
+  # List the signed-in owner's recorded story jobs newest first (route-backed).
+  - name: creative_list
+    displayName: List story jobs
+    type: api
+    category: creative
+    description: Read the signed-in owner's recorded Creative Studio story and clip jobs newest first, along with worker availability status. Read-only.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/creative-studio/stories/jobs?limit={input.limit}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: "Optional maximum entries to return (1 to 100, default 50)."
+      required: []
+      additionalProperties: false
+    usageInstructions: 'Call with {} or {"limit": 20} to inspect recorded story jobs and whether a Vids worker is online. Name only jobs this returns.'
+    routingTags: [creative, list, story]
+    tags: [creative-studio, route-backed]
 
 # Cockpit tile — reuse the Vids job-queue surface (story jobs land in vids_jobs too).
 ui:
@@ -393,6 +468,8 @@ migrations:
   - migrations/native/006-editor-source-projects.sql
   - migrations/007-creative-studio-rp-enhancements.sql
   - migrations/native/007-creative-studio-rp-enhancements.sql
+  - migrations/008-creative-studio-story-runs.sql
+  - migrations/native/008-creative-studio-story-runs.sql
 nativeMigrations:
   - id: migrations/006-editor-source-projects.sql
     native: skip
@@ -400,6 +477,9 @@ nativeMigrations:
   - id: migrations/007-creative-studio-rp-enhancements.sql
     native: skip
     reason: Native final schema provisions comments, storyboard builds and publication schedules; PostgreSQL additionally forces owner RLS.
+  - id: migrations/008-creative-studio-story-runs.sql
+    native: skip
+    reason: Native final schema provisions owner-scoped story production jobs; PostgreSQL additionally forces owner RLS.
 
 bots:
   - agentId: f0e5b11c-3d1a-42be-899c-90afcb22b536

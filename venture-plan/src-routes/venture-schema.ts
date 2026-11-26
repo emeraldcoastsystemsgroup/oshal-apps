@@ -35,6 +35,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add the owner-bound immutable FX table, foreign-quote integrity triggers, and constrained scenario micro-price migration to runtime bootstrap.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add owner-bound default-deny rebaseline policies, immutable scheduled authorization, slot idempotency, and monotonic integer micro-USD run-cost evidence.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Run the bootstrap under a package-owned advisory lock (VENTURE_SCHEMA_LOCK_KEY). Every api boot starts it twice in one tick (createVentureRoutes and createVentureRebaselineRoutes), and the two runs went side by side. Each SCHEMA_SQL block is one implicit transaction, so on an installed database the pair deadlocked (40P01): one run holds the SHARE lock that CREATE INDEX IF NOT EXISTS takes on venture_fx_assumptions and waits for the pg_proc row of venture_validate_fx_owner, which the other run has just replaced and which then needs ACCESS EXCLUSIVE on that table for DROP TRIGGER. That is the boot ERROR "venture rebaseline schema bootstrap failed ... deadlock detected" seen from 2026-09-28 to 2026-10-02. On a first install the same pair raced CREATE TABLE IF NOT EXISTS (23505 on pg_type). With lockKey the kernel applies the statements in one transaction behind pg_advisory_xact_lock, so the runs (and any other process bootstrapping the same database) go one at a time. tests/venture-schema-postgres.test.mjs reproduces both on 1.5.0 against a disposable PostgreSQL.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped venture_quote_inbox table (mirrors migrations/006-venture-quote-inbox.sql) to VENTURE_TABLES and SCHEMA_SQL with forced RLS.
  *
  * @module venture-schema
  */
@@ -63,6 +64,7 @@ export const VENTURE_TABLES = Object.freeze([
   'venture_bom_lines',
   'venture_vendors',
   'venture_quotes',
+  'venture_quote_inbox',
   'venture_schedule_tasks',
   'venture_headcount',
   'venture_models',
@@ -655,10 +657,41 @@ CREATE UNIQUE INDEX IF NOT EXISTS venture_documents_ver_idx
   ON venture_documents(venture_id, doc_key, version);
 `;
 
+/** Saved-quote inbox awaiting operator review and promotion. Mirrors migration 006. */
+const SCHEMA_QUOTE_INBOX = `
+CREATE TABLE IF NOT EXISTS venture_quote_inbox (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_sub VARCHAR(255) NOT NULL,
+  venture_id UUID NOT NULL REFERENCES venture_ventures(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  mime_type VARCHAR(120) NOT NULL DEFAULT 'text/plain',
+  byte_size INTEGER NOT NULL DEFAULT 0,
+  sha256 CHAR(64) NOT NULL,
+  raw_excerpt TEXT NOT NULL DEFAULT '',
+  extracted_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  promoted_quote_id UUID REFERENCES venture_quotes(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT venture_quote_inbox_status_ck
+    CHECK (status IN ('pending', 'promoted', 'dismissed')),
+  CONSTRAINT venture_quote_inbox_byte_size_ck
+    CHECK (byte_size >= 0 AND byte_size <= 2097152),
+  CONSTRAINT venture_quote_inbox_sha256_ck
+    CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT venture_quote_inbox_promoted_ck
+    CHECK (
+      (status = 'promoted' AND promoted_quote_id IS NOT NULL)
+      OR (status <> 'promoted' AND promoted_quote_id IS NULL)
+    ));
+CREATE INDEX IF NOT EXISTS venture_quote_inbox_venture_idx
+  ON venture_quote_inbox(venture_id, created_at DESC);
+`;
+
 /**
  * The whole schema, in application order.
  *
- * Split into five constants purely so the file reads, and so each block matches
+ * Split into six constants purely so the file reads, and so each block matches
  * one migration file byte-for-byte in intent. `runRuntimeSchemaBootstrap` applies
  * them in order, and every statement is idempotent.
  */
@@ -668,6 +701,7 @@ export const SCHEMA_SQL: readonly string[] = Object.freeze([
   SCHEMA_FX,
   SCHEMA_REBASELINE,
   SCHEMA_OUTPUTS,
+  SCHEMA_QUOTE_INBOX,
 ]);
 
 /**

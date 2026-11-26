@@ -21,6 +21,8 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work): register one-chat-window, Video's editor inside the shipped Today page where every concierge entry a person sees opens the one chat window as video's concierge and, on a phone, the window's own Close closes the Concierge sheet so the editor takes the next tap.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: extend one-chat-window to Create's Video screen (/cockpit/?app=create&screen=create-video) and cold-load early Concierge presses while Video's editor modules are still loading.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): register editor-aspect-ratio (tests/editor-aspect-ratio.test.mjs) proving 9:16, 1:1 and 16:9 projects on screen, through concierge routes, in real FFmpeg/ffprobe MP4 exports and in Chromium at 1440x900 and 412x915.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-04, -09, -12): register video-tool-parity (tests/video-tool-parity.test.mjs) proving owned media listing, non-destructive revision history restore, and duplicateClip / renameTrack / deleteTrack on screen and through concierge routes.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Reconcile editor-live-acceptance install pin from video 1.9.0 to current 1.14.6.
 version: 1
 cases:
   - id: package-readiness
@@ -402,7 +404,7 @@ cases:
   - id: editor-live-acceptance
     name: The manual editor on the installed box
     purpose: >-
-      After Video 1.9.0 is installed and its catalog migrated, drive the real editor routes as the operator automation identity
+      After Video 1.14.6 is installed and its catalog migrated, drive the real editor routes as the operator automation identity
       (OSHAL_VERIFY_OPERATOR_PAT, read by name, never printed). Upload the committed clip, create one uniquely tagged project, save and
       have a stale save refused, export with the box's own FFmpeg, then delete exactly what was created. Run with
       OSHAL_VERIFY_BASE_URL=http://localhost:35457 OSHAL_VERIFY_ENV_FILE=<box .env> node video/tests/editor-live-acceptance.mjs.
@@ -418,7 +420,7 @@ cases:
     prerequisites:
       - runner:node
       - credential:operator-pat
-      - install:video-1.9.0
+      - install:video-1.14.6
     sideEffects: external-write
     isolation:
       mode: live
@@ -735,6 +737,39 @@ cases:
         - tests/video-editor-browser.fixture.mjs
         - tests/video-editor-postgres.fixture.mjs
       cleanup: Close browsers, loopback servers and temporary media directories; remove only the run's uniquely owned fixture PostgreSQL database and role.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: video-tool-parity
+    name: Owned uploaded media, version history restore, duplicate clip, rename track and delete track parity
+    purpose: >-
+      Prove CREATE-TOOL-VIDEO-04, CREATE-TOOL-VIDEO-09 and CREATE-TOOL-VIDEO-12 across pure models, forced-RLS PostgreSQL HTTP routes, concierge tools and Chromium UI at 1440x900 and 412x915.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/video-tool-parity.test.mjs
+    expected:
+      - "GET /editor/media and video-list-media return owned uploads with ready sourceMetadata for video-apply-edits addSource and addClip while denying other owners."
+      - "POST /editor/projects/:id/revisions/restore and video-restore-revision restore either a chosen prior revision or the immediately previous revision as a new immutable revision without overwriting history."
+      - "duplicateClip clones all clip settings to a fresh clip; renameTrack renames an unlocked track; deleteTrack removes an unlocked track and refuses to delete the last remaining track."
+      - "Chromium UI at 1440x900 and 412x915 proves Uploaded library placement, Duplicate clip, inline Rename track, Delete track and Project Version history Restore with zero page errors and zero overflow."
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+      - browser:chromium
+      - harness:oshal-core-root
+      - service:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor.fixture.mjs
+        - tests/video-editor-browser.fixture.mjs
+        - tests/video-editor-postgres.fixture.mjs
+      cleanup: "Close browsers, loopback servers and temporary media directories; remove only the run's uniquely owned fixture PostgreSQL database and role."
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1024

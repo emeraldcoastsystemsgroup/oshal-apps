@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register the audience-view case: the page's family view for the Jarvis Home shell (ADR-164 D6), its static kit contract and its behaviour over the package's real rig route and real rehearsal reports, plus the gate that keeps the full page's start from running under the view. Dependency-free node:test, no browser, no network, no framework checkout.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register surface-views (Perform and Rig setup, phone sheets, one primary per view, 44px pose actions, in-page Delete rig confirm).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Quote the case animatronics-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -302,7 +303,7 @@ cases:
     installation: never
   - id: animatronics-bot-tools-contract
     name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
-    purpose: Verify animatronics-director declares explicit inline posture, chatBot binding, object inputSchemas on all twelve tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    purpose: 'Verify animatronics-director declares explicit inline posture, chatBot binding, object inputSchemas on all twelve tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.'
     level: unit
     runner:
       kind: node-test

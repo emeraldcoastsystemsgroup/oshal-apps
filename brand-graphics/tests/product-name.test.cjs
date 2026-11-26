@@ -8,6 +8,7 @@
  *   product Open Swarm and retires the Oh-shal voiceover pronunciation rule (Roger, 2026-11-13: the UI says
  *   "Open Swarm"; technical identifiers keep their forms). Dependency-free plain-Node CommonJS guard over the
  *   manifest, persona, routes, TypeScript route sources and tools outside comments.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: allow the technical brandStyle enum value "oshal" in schemas, route validators, and option value attributes while keeping all person-facing labels and copy naming Open Swarm.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -26,6 +27,15 @@ const ALLOWED_IDENTIFIERS = [
   /\b__oshal[A-Za-z0-9_]+\b/g,
   /\boshal-(?:app\.yaml|brand\.js)\b/g,
   /\boshal_[a-z0-9_]+\b/g,
+  /\boshal\.current_[a-z_]+\b/g,
+  /value="oshal"/g,
+  /brandStyle[^;\n]*['"`]oshal['"`]/g,
+  /['"`]my-brand['"`]\s*\|\s*['"`]oshal['"`]/g,
+  /enum:\s*\[my-brand,\s*oshal\]/g,
+  /brandStyle:\s*\{[^}\n]*\boshal\b[^}\n]*\}/g,
+  /value\s*===\s*['"`]oshal['"`]/g,
+  /return\s*['"`]oshal['"`]/g,
+  /brandStyle must be my-brand or oshal/g,
 ];
 
 function stripAllowed(value) {

@@ -1,4 +1,12 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  =============================================================================
+  SEQ | AUTHOR                                  | DESCRIPTION
+  =============================================================================
+  1   | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): render .controls and week .nav as a single-row horizontal scrollable strip on phone viewports (<=760px) with 44px nowrap touch targets and zero document overflow.
+  =============================================================================
+-->
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
@@ -238,6 +246,20 @@
     .grid { grid-template-columns:1fr; gap:10px; }
     .col { min-height:auto; }
     .dayempty { display:none; }
+  }
+  @media (max-width:760px) {
+    .controls {
+      width:100%; max-width:100%; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+      gap:8px; padding-bottom:2px;
+    }
+    .controls::-webkit-scrollbar { display:none; }
+    .controls > * { flex:0 0 auto; white-space:nowrap; }
+    .nav { flex-wrap:nowrap; padding:0; border:0; box-shadow:inset 0 0 0 1px var(--line); }
+    .nav button { min-height:44px; min-width:44px; white-space:nowrap; }
+    select.wsfilter { height:44px; }
+    .btn { width:44px; height:44px; }
+    .newbtn { height:44px; }
   }
   @media (max-width:620px) {
     .wrap { padding:20px 15px 50px; }

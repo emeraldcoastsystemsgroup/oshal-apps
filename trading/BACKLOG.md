@@ -1,6 +1,8 @@
 # Intelligent Trades — backlog and roadmap
 
-Current status for Trading 1.37.0 on the native kernel, reviewed 2026-10-25.
+Current status for Trading 1.62.4 on the native kernel, reviewed 2026-11-25.
+
+Release history from `1.37.0` through `1.62.4` is recorded in `trading/oshal-app.yaml`; the entries below retain the open backlog, acceptance milestones, and unchanged brokerage-execution boundaries.
 
 Delivered evidence refinements: stored Congress filing IDs and collector timestamps with explicit timing coverage; separate accrued-interest/margin-equity facts; native open-position P&L scope labels. Historical point-in-time Congress performance and native brokerage execution remain unvalidated/unavailable respectively.
 Implementation, automated verification and signed-in acceptance are separate milestones.

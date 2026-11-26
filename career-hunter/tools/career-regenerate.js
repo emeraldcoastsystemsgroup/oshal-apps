@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): the panel's every-five-seconds advance is batch work (careerBatch) and is not sent while a change the person made is waiting to save (tools/career-pending-writes.js): the panel reads the queue instead, so the change goes before the next job starts. His presses (Pause, Go on, Stop, Clear, Generate again) are his own changes and wait to save like any other. Guard: tests/career-concurrent-writes.test.mjs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday; his open jobs were generated before this week's fixes and each needs Generate résumé & cover letter again, 251 presses one at a time): Generate again on My jobs (Saved, Getting ready and New matches). A panel above the jobs says how many of his open jobs have documents from an earlier Career, with Select all with older documents, then Generate again (N); the bar under jobs he selected in the List or the Table offers Generate again (N) too. Both ask once, in words ("Career makes new documents for N jobs, one after another, in the background. Each takes about a minute. Your notes and choices for each job are kept."), put the jobs in his own queue (POST /regenerate, at most 300 in one run) and turn on his career-regenerate background job, so it goes on with no Career page open. While it runs the panel shows done, left and failed with each reason, the job Career is writing, and Pause, Go on and Stop; it moves the queue on every few seconds while the page is open (POST /regenerate/advance). A press Career cannot take while it writes a job waits for that job and is sent again.
  */
 (()=>{'use strict';
@@ -12,8 +13,8 @@
   * @description One call to Career; a refusal throws with its status, code and whether Career is writing a job now.
   * @param {string} path @param {object} [body] POST body; a GET without one. @returns {Promise<object>}
   */
- async function request(path,body){
-  const response=await fetch(API+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
+ async function request(path,body,batch=false){
+  const response=await fetch(API+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),...(batch?{careerBatch:true}:{})}:{cache:'no-store'});
   const data=await response.json().catch(()=>({}));
   if(response.ok)return data;
   const error=Error(data.error==='career_run_in_progress'?'Career is writing a job’s documents now.':String(data.error||'HTTP '+response.status));
@@ -150,7 +151,9 @@
    clearTimeout(timer);if(busy)return;busy=true;
    // A read that fails is tried again on the next tick and never written over the page's own status line.
    try{
-    if(moving()){try{queue=(await request('/regenerate/advance',{})).queue;writing=false;}
+    // A change of his waiting to save goes before the next job: read the queue, move it on at the next tick.
+    if(moving()&&window.CareerPendingWrites?.waiting()>0)queue=(await request('/regenerate')).queue;
+    else if(moving()){try{queue=(await request('/regenerate/advance',{},true)).queue;writing=false;}
      catch(error){if(!error.careerRunInProgress)throw error;writing=true;queue=(await request('/regenerate')).queue;}
      if(!going())older=await request('/regenerate/older');}
     else await readAll();

@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Personal brand kit read/save/delete and logo upload behind named brand permissions, validated by the same module the browser runs.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: expose applyBrandToProject on the loaded shared brand module interface for POST /projects/:id/apply-brand.
  */
 import { json, type Router, type Request, type Response, type RequestHandler } from 'express';
 import multer from 'multer';
@@ -18,10 +19,11 @@ import type { CreateProjectStore } from './create-project-store';
 import { CreateBrandKitStore, BRAND_REVISION_LIMIT, type BrandKitDocument, type BrandKitRecord } from './create-brand-kit-store';
 
 export type BrandAction = 'read' | 'change';
-interface BrandModule {
+export interface BrandModule {
   validateBrandKit(value: unknown): BrandKitDocument;
   logoAssetId(kit: BrandKitDocument): string | null;
   describeBrandKit(kit: BrandKitDocument): { phrase: string; colors: Record<string, string> };
+  applyBrandToProject(project: unknown, kit: BrandKitDocument): { project: Record<string, unknown>; changes: Array<Record<string, unknown>> };
 }
 /** Shared request guards owned by the project router, reused so both surfaces refuse identically. */
 export interface BrandRouteGuards { personalOnly(req: Request): void; sendError(res: Response, error: unknown): void }

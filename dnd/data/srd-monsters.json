@@ -303,6 +303,163 @@
       ],
       "tactics": "uses cover, targets witnesses, and retreats toward prepared exits",
       "epithet": "The court smiles while the knife is drawn."
+    },
+    "orc-raider": {
+      "id": "orc-raider",
+      "name": "Orc Raider",
+      "size": "Medium",
+      "type": "humanoid (orc)",
+      "ac": 13,
+      "maxHp": 15,
+      "hpDice": "2d8+6",
+      "speed": 30,
+      "abilities": { "str": 16, "dex": 12, "con": 16, "int": 7, "wis": 11, "cha": 10 },
+      "mods": { "str": 3, "dex": 1, "con": 3, "int": -2, "wis": 0, "cha": 0 },
+      "initiative": 1,
+      "cr": "1/2",
+      "xp": 100,
+      "traits": ["Aggressive: charges straight into melee to break ranged formations.", "Darkvision 60 ft."],
+      "actions": [
+        { "id": "greataxe", "name": "Greataxe", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 5, "damage": { "dice": "1d12", "bonus": 3, "type": "slashing" }, "text": "A brutal two-handed iron cleaver." },
+        { "id": "javelin", "name": "Javelin", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 30, "toHit": 5, "damage": { "dice": "1d6", "bonus": 3, "type": "piercing" }, "text": "Hurled while closing the gap." }
+      ],
+      "tactics": "rushes the nearest frontline fighter and pressures casters if left unchecked",
+      "epithet": "Iron first, questions never."
+    },
+    "ogre-brute": {
+      "id": "ogre-brute",
+      "name": "Ogre Brute",
+      "size": "Large",
+      "type": "giant",
+      "ac": 11,
+      "maxHp": 59,
+      "hpDice": "7d10+21",
+      "speed": 40,
+      "abilities": { "str": 19, "dex": 8, "con": 16, "int": 5, "wis": 7, "cha": 7 },
+      "mods": { "str": 4, "dex": -1, "con": 3, "int": -3, "wis": -2, "cha": -2 },
+      "initiative": -1,
+      "cr": "2",
+      "xp": 450,
+      "traits": ["Darkvision 60 ft.", "Siege Bulk: anchors choke points and shrugs off glancing blows."],
+      "actions": [
+        { "id": "greatclub", "name": "Greatclub", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 6, "damage": { "dice": "2d8", "bonus": 4, "type": "bludgeoning" }, "text": "An iron-banded timber swung like a falling beam." },
+        { "id": "heavy-javelin", "name": "Heavy Javelin", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 30, "toHit": 6, "damage": { "dice": "2d6", "bonus": 4, "type": "piercing" }, "text": "A spear the size of a fence post." }
+      ],
+      "tactics": "blocks bridges and doors, swinging at whoever dares step in reach",
+      "epithet": "The bridge groans under every step."
+    },
+    "cult-fanatic": {
+      "id": "cult-fanatic",
+      "name": "Cult Fanatic",
+      "size": "Medium",
+      "type": "humanoid",
+      "ac": 13,
+      "maxHp": 33,
+      "hpDice": "6d8+6",
+      "speed": 30,
+      "abilities": { "str": 11, "dex": 14, "con": 12, "int": 10, "wis": 13, "cha": 14 },
+      "mods": { "str": 0, "dex": 2, "con": 1, "int": 0, "wis": 1, "cha": 2 },
+      "initiative": 2,
+      "cr": "2",
+      "xp": 450,
+      "traits": ["Dark Devotion: steely resolve against fear and charm.", "Spellcasting: channels 1st- and 2nd-level dark prayers."],
+      "actions": [
+        { "id": "inflict-wounds", "name": "Inflict Wounds", "type": "spell", "level": 1, "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "3d10", "bonus": 0, "type": "necrotic" }, "text": "A blackened palm delivers searing necrotic chill." },
+        { "id": "hold-person", "name": "Hold Person", "type": "spell", "level": 2, "mode": "save", "delivery": "ranged", "range": 60, "concentration": true, "save": { "ability": "WIS", "dc": 11, "half": false }, "applyCondition": { "id": "incapacitated", "concentration": true }, "text": "Concentration. Locks a foe in place on a failed WIS save." },
+        { "id": "ceremonial-dagger", "name": "Ceremonial Dagger", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "1d4", "bonus": 2, "type": "piercing" }, "multiattack": 2, "text": "Two swift ritual slashes (Multiattack)." }
+      ],
+      "tactics": "stands behind bruisers, pins heroes with Hold Person, and punishes melee rushers with Inflict Wounds",
+      "epithet": "Cinder prayers whispered through clenched teeth."
+    },
+    "hobgoblin-captain": {
+      "id": "hobgoblin-captain",
+      "name": "Hobgoblin Captain",
+      "size": "Medium",
+      "type": "humanoid (goblinoid)",
+      "ac": 17,
+      "maxHp": 39,
+      "hpDice": "6d8+12",
+      "speed": 30,
+      "abilities": { "str": 15, "dex": 14, "con": 14, "int": 12, "wis": 10, "cha": 13 },
+      "mods": { "str": 2, "dex": 2, "con": 2, "int": 1, "wis": 0, "cha": 1 },
+      "initiative": 2,
+      "cr": "3",
+      "xp": 700,
+      "traits": ["Martial Advantage: lethal coordination beside allies.", "Leadership: steadies nearby soldiers.", "Multiattack: two greatsword strikes."],
+      "actions": [
+        { "id": "greatsword", "name": "Greatsword", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "2d6", "bonus": 2, "type": "slashing" }, "multiattack": 2, "text": "Two disciplined heavy-blade strikes (Multiattack)." },
+        { "id": "captain-javelin", "name": "Javelin", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 30, "toHit": 4, "damage": { "dice": "1d6", "bonus": 2, "type": "piercing" }, "text": "Thrown with legion precision." }
+      ],
+      "tactics": "holds formation beside allies and focuses fire on high-value targets",
+      "epithet": "Steel drilled until mercy falls away."
+    },
+    "owlbear": {
+      "id": "owlbear",
+      "name": "Owlbear",
+      "size": "Large",
+      "type": "monstrosity",
+      "ac": 13,
+      "maxHp": 59,
+      "hpDice": "7d10+21",
+      "speed": 40,
+      "abilities": { "str": 20, "dex": 12, "con": 17, "int": 3, "wis": 12, "cha": 7 },
+      "mods": { "str": 5, "dex": 1, "con": 3, "int": -4, "wis": 1, "cha": -2 },
+      "initiative": 1,
+      "cr": "3",
+      "xp": 700,
+      "traits": ["Keen Sight and Smell.", "Multiattack: tears in with beak and claws."],
+      "actions": [
+        { "id": "owlbear-claws", "name": "Claws", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 7, "damage": { "dice": "2d8", "bonus": 5, "type": "slashing" }, "multiattack": 2, "text": "Twin raking swipes (Multiattack)." },
+        { "id": "beak", "name": "Beak", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 7, "damage": { "dice": "1d10", "bonus": 5, "type": "piercing" }, "text": "A snapping hooked beak." }
+      ],
+      "tactics": "charges the loudest intruder and mauls relentlessly until driven back or felled",
+      "epithet": "Feathers matted with vault dust and fury."
+    },
+    "wight-commander": {
+      "id": "wight-commander",
+      "name": "Wight Commander",
+      "size": "Medium",
+      "type": "undead",
+      "ac": 14,
+      "maxHp": 45,
+      "hpDice": "6d8+18",
+      "speed": 30,
+      "abilities": { "str": 15, "dex": 14, "con": 16, "int": 10, "wis": 13, "cha": 15 },
+      "mods": { "str": 2, "dex": 2, "con": 3, "int": 0, "wis": 1, "cha": 2 },
+      "initiative": 2,
+      "cr": "3",
+      "xp": 700,
+      "traits": ["Darkvision 60 ft.", "Sunlight Sensitivity.", "Multiattack: makes two weapon strikes or a life drain."],
+      "actions": [
+        { "id": "wight-longsword", "name": "Grave Longsword", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "1d8", "bonus": 2, "type": "slashing" }, "multiattack": 2, "text": "Two frost-rimmed cuts (Multiattack)." },
+        { "id": "life-drain", "name": "Life Drain", "type": "spell", "level": 0, "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 4, "damage": { "dice": "1d6", "bonus": 2, "type": "necrotic" }, "text": "Cold necrotic grasp drains living vitality." },
+        { "id": "wight-longbow", "name": "Grave Longbow", "type": "weapon", "mode": "attack", "delivery": "ranged", "range": 150, "toHit": 4, "damage": { "dice": "1d8", "bonus": 2, "type": "piercing" }, "text": "Fires tarnished arrows down the corridor." }
+      ],
+      "tactics": "holds ancient defensive lines, fires from cover, and duels anyone crossing the threshold",
+      "epithet": "An oath that outlived the flesh that swore it."
+    },
+    "ashen-warden": {
+      "id": "ashen-warden",
+      "name": "Ashen Warden",
+      "size": "Medium",
+      "type": "humanoid (emberbound)",
+      "ac": 16,
+      "maxHp": 85,
+      "hpDice": "10d8+40",
+      "speed": 30,
+      "abilities": { "str": 18, "dex": 14, "con": 18, "int": 14, "wis": 13, "cha": 16 },
+      "mods": { "str": 4, "dex": 2, "con": 4, "int": 2, "wis": 1, "cha": 3 },
+      "initiative": 2,
+      "cr": "5",
+      "xp": 1800,
+      "traits": ["Emberplate Armor (AC 16).", "Multiattack: two cinder greatsword swings.", "Sanctum Flame: commands fiery sphere bursts."],
+      "actions": [
+        { "id": "cinder-greatsword", "name": "Cinder Greatsword", "type": "weapon", "mode": "attack", "delivery": "melee", "reach": 5, "toHit": 7, "damage": { "dice": "2d6", "bonus": 4, "type": "slashing" }, "multiattack": 2, "text": "Two white-hot sweeps of forged citadel steel (Multiattack)." },
+        { "id": "cinder-burst", "name": "Cinder Burst", "type": "spell", "level": 3, "mode": "save", "delivery": "ranged", "range": 60, "aoeShape": "sphere", "aoeSize": 15, "friendlyFire": false, "save": { "ability": "DEX", "dc": 14, "half": true }, "damage": { "dice": "4d6", "bonus": 0, "type": "fire" }, "text": "15-ft sphere of citadel fire; 4d6 fire damage, DEX save for half." },
+        { "id": "warden-fire-bolt", "name": "Ember Lance", "type": "spell", "level": 0, "mode": "attack", "delivery": "ranged", "range": 120, "toHit": 6, "damage": { "dice": "2d10", "bonus": 0, "type": "fire" }, "text": "A spear of molten cinder hurled across the sanctum." }
+      ],
+      "tactics": "commands the sanctum from the hearth, punishes clustered heroes with Cinder Burst, and meets challengers blade-to-blade",
+      "epithet": "If the valley will not remember its oath, the ash will."
     }
   }
 }

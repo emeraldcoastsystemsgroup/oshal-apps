@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                  | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24 (Roger, 2026-11-19: "i have to be able to generate accurate resumes ... i cant have random numbers 2 years vs 11 years vs 20 years getting out of place"). Résumé generation has read a person's own years (`years_by_skill`, `career_years`) since 1.68.22, and no screen wrote them. This is the engine half of Work history's Years by skill section: the read (field `years` of GET /resume/master-section) lists every skill with the years counted from the roles, the person's own figure and what a résumé states, taken from the same table generation reads (skill_tenure.compute_tenure with years_truth.overlay), so the screen cannot show a figure generation would not use; the save (an edit of field `years` of POST /resume/master-edit, master_edit.apply_edits) checks the whole form first, refuses it whole in words that name the row, passes every row through the generation reader so nothing is saved that generation would ignore, and writes exactly those two keys through the same backup, audit and atomic publish as every main-résumé edit, so Undo puts the earlier version back.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: the screen states what a résumé now states. Once the person has stated any figure, a skill they gave no figure reads "No year count (you gave none)" and, with no total of their own, the total reads "No total (you gave none)"; a person with no figures keeps the counted spans and the roles' floor.
 """The person's own years by skill (`years_by_skill`) and in total (`career_years`), read and replaced whole, model-free."""
 from __future__ import annotations
 
@@ -54,9 +55,10 @@ def _tables(raw: dict) -> tuple:
     return roles_only, counted, years_truth.overlay(counted, raw)
 
 
-def _row(key: str, record: dict, counted: dict) -> dict:
+def _row(key: str, record: dict, counted: dict, stated: bool = False) -> dict:
     """One skill of the table generation reads: the years counted from the roles, the person's figure, and what a
-    résumé states (the person's figure exactly; else at most the whole years counted, and no count under two)."""
+    résumé states (the person's figure exactly; once they stated any figure, no count for a skill they gave none;
+    else at most the whole years counted, and no count under two)."""
     own = record.get('source') == 'person'
     roles = counted.get(key) if own else record
     row = {'skill': str(record.get('display') or key), 'from_roles': _plain(roles['years']) if roles else None,
@@ -64,6 +66,8 @@ def _row(key: str, record: dict, counted: dict) -> dict:
     whole = int(record.get('floor_years') or 0)
     if own:
         row.update(used=row['yours'], used_words=_years_words(row['yours']))
+    elif stated:
+        row.update(used=None, used_words='No year count (you gave none)')
     elif whole >= STATED_FROM:
         row.update(used=whole, used_words=f'Up to {whole} years')
     else:
@@ -81,6 +85,8 @@ def _career(roles_only: dict, counted: dict, raw: dict) -> dict:
     answer = {'career_from_roles': from_roles, 'career_yours': None if yours is None else _plain(yours)}
     if yours is not None:
         return {**answer, 'career_used': _plain(yours), 'career_used_words': _years_words(_plain(yours))}
+    if years_truth._stated(years_truth.figures(raw)):
+        return {**answer, 'career_used': None, 'career_used_words': 'No total (you gave none)'}
     held = {'career': None, 'roles_career': years_truth._roles_career(roles_only)}
     floor = years_truth._career(held, 0.0, False)[0]
     if not floor:
@@ -120,7 +126,8 @@ def read_section(raw: dict, revision: str, max_bytes: int = 12 * 1024) -> dict:
     @returns dict"""
     roles_only, counted, stated = _tables(raw)
     counted_skills = counted.get('skills') or {}
-    rows = [_row(key, record, counted_skills) for key, record in (stated.get('skills') or {}).items()]
+    own = years_truth._stated(years_truth.figures(raw))
+    rows = [_row(key, record, counted_skills, own) for key, record in (stated.get('skills') or {}).items()]
     rows.sort(key=lambda row: (row['used'] is None, -(row['used'] or 0), row['skill'].casefold(), row['skill']))
     result = {'ok': True, 'revision': revision, 'field': FIELD, 'rows': [], 'more': 0, **_career(roles_only, counted, raw),
               'limits': limits()}

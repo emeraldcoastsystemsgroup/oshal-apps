@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: the five export endpoints join the independently stated admission table.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: the editor screen and its module allowlist join the table under editor.view.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: cover GET /editor/media and POST /editor/projects/:id/revisions/restore in the catalog admission table.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import express, { type Request } from 'express';
@@ -71,11 +72,12 @@ const ENDPOINTS: Array<[string, string, string[]]> = [
   ['POST', '/pump/shows/joke/resume', ['studio.view', 'pump.manage']], ['POST', '/pump/run', ['studio.view', 'pump.manage']],
   ['GET', '/editor', ['editor.view']], ['GET', '/editor/assets/editor.mjs', ['editor.view']],
   ['GET', '/editor/capabilities', ['editor.view']], ['GET', '/editor/permissions', ['editor.view']],
-  ['GET', `/editor/media/${RECORD}`, ['editor.view', 'editor.read']], ['POST', '/editor/media/cleanup', ['editor.view', 'editor.delete']],
+  ['GET', '/editor/media', ['editor.view', 'editor.read']], ['GET', `/editor/media/${RECORD}`, ['editor.view', 'editor.read']], ['POST', '/editor/media/cleanup', ['editor.view', 'editor.delete']],
   ['DELETE', `/editor/media/${RECORD}`, ['editor.view', 'editor.delete']],
   ['GET', '/editor/projects', ['editor.view', 'editor.read']], ['POST', '/editor/projects', ['editor.view', 'editor.create']],
   ['GET', `/editor/projects/${RECORD}`, ['editor.view', 'editor.read']], ['DELETE', `/editor/projects/${RECORD}`, ['editor.view', 'editor.delete']],
   ['GET', `/editor/projects/${RECORD}/revisions`, ['editor.view', 'editor.read']], ['POST', `/editor/projects/${RECORD}/revisions`, ['editor.view', 'editor.change']],
+  ['POST', `/editor/projects/${RECORD}/revisions/restore`, ['editor.view', 'editor.read', 'editor.change']],
   ['GET', `/editor/projects/${RECORD}/revisions/2`, ['editor.view', 'editor.read']],
   ['POST', `/editor/projects/${RECORD}/exports`, ['editor.view', 'editor.read', 'editor.export']], ['GET', `/editor/projects/${RECORD}/exports`, ['editor.view', 'editor.read']],
   ['GET', `/editor/exports/${RECORD}`, ['editor.view', 'editor.read']], ['POST', `/editor/exports/${RECORD}/cancel`, ['editor.view', 'editor.export']],

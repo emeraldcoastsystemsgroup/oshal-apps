@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I (Roger, 2026-11-21: "we are going to have some flags like run in foreground and stop before submit. or approve submit automatically"): How Career fills in a form and the standing self-identification answers, through Career's real routes over HTTP on a made-up person's real store. The three settings start on Roger's defaults (like a person, in front, stop before Submit), save with Undo, and refuse an unknown choice and Behind with Like a person; the packet carries them as task.flags under its digest, and the approval screen says each in words, its last line saying Career presses Submit once when he chose it. Veteran and disability status save as Yes, No or blank (anything else refused, Undo puts them back) and reach the packet as selfid.veteran and selfid.disability (yes, no; no fact when blank), citizenship as eligibility.citizenship. The sync records Submitted by Career after your approval only with the employer's confirmation verified, Career's own Submit not seen as Not seen yet with its words, the job page's line when he used the mouse, and the kernel's note about his clipboard on the receipt. Red before lane APPLY-I: no flags in the answers, the packet or the review; veteran_status a refused standing answer; the sync refused submitted_by_career as a result that differs from the approval.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: gender, Hispanic or Latino and race are closed standing answers that reach the packet as the kernel's selfid.gender, selfid.hispanic and selfid.race words; a wrong choice is refused and a blank one is no fact.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -78,6 +79,26 @@ test('veteran and disability status are Yes, No or blank, undo, and reach the pa
   assert.equal('selfid.disability' in without, false, 'a blank answer is declined on the form');
   const undone = await save(dana.sub, { undo: blank.body.undo });
   assert.equal(undone.body.standing.disabilityStatus, 'No', 'Undo puts it back');
+});
+
+test('gender, Hispanic or Latino and race are closed choices, reach the packet in the kernel\'s words, and blank is no fact', async () => {
+  const roger = h.person('roger-selfid');
+  for (const wrong of [{ gender: 'male' }, { race: 'Purple' }, { hispanicLatino: 'Maybe' }]) assert.equal((await save(roger.sub, { standing: wrong })).code, 400, JSON.stringify(wrong));
+  const mine = { gender: 'Male', hispanicLatino: 'No', race: 'White', veteranStatus: 'No', disabilityStatus: 'No' };
+  const saved = await save(roger.sub, { standing: mine });
+  assert.equal(saved.code, 200, JSON.stringify(saved.body));
+  for (const [key, value] of Object.entries(mine)) assert.equal(saved.body.standing[key], value, key);
+  const kept = JSON.parse(fs.readFileSync(path.join(roger.dir, 'apply_profile.json'), 'utf8'));
+  assert.deepEqual([kept.gender, kept.hispanic_latino, kept.race], ['Male', 'No', 'White']);
+  const facts = async () => Object.fromEntries((await h.call('GET', '/apply-review/7', null, roger.sub)).body.facts.map((f) => [f.slot, f.value]));
+  const sent = await facts();
+  assert.deepEqual(['selfid.gender', 'selfid.hispanic', 'selfid.race', 'selfid.veteran', 'selfid.disability'].map((slot) => sent[slot]), ['male', 'no', 'white', 'no', 'no']);
+  assert.equal((await save(roger.sub, { standing: { race: 'Two or more races' } })).code, 200);
+  assert.equal((await facts())['selfid.race'], 'two-or-more');
+  await save(roger.sub, { standing: { gender: '', race: '' } });
+  const declined = await facts();
+  assert.equal('selfid.gender' in declined || 'selfid.race' in declined, false, 'a blank answer is declined on the form');
+  assert.equal(declined['selfid.hispanic'], 'no');
 });
 
 /** The Saved answers page as Career serves it, every Career call going to the real routes as `sub`. */

@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §4.4, §5.1): Delete project asks in the page (the Project menu's confirm sheet) instead of a native confirm (DS-30); selecting a clip on a phone turns the bottom tool row into the clip's tools instead of opening a drawer over the work, and Done in that row clears the selection; the first screen's status line is short (DS-31).
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): pass composite preview overlays to player, export profile state to exporter, and support titles on both v1 and v2 timelines.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): wire #projectAspectRatio selector and startNew aspect-ratio options with undoable edits, autosave and preview sync.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-04, -09, -12): load and place owned uploaded media library items, adopt non-destructive revision restores, and wire Duplicate clip for v1 segments.
  */
 import {readVideoArtifact} from './artifact-import.mjs';
 import {bindVideoFoundation} from './editor-foundation-adapter.mjs';
@@ -34,7 +35,7 @@ let player, exporter, multitrack, foundation;
 let textSelection=null;
 function selection(){return textSelection&&doc()[textSelection.kind]?.some(item=>item.id===textSelection.id)?textSelection:doc().version===2?(multitrack?.selected()?{kind:'clip',id:multitrack.selected().clip.id}:null):(state.selected?{kind:'segment',id:state.selected}:null);}
 function selectText(kind,id){textSelection={kind,id};state.selected=null;player?.seek(doc()[kind].find(item=>item.id===id)?.start??0);}
-let motionJobs = [], motionPending = null;
+let motionJobs = [], motionPending = null, uploadedMediaItems = [];
 let pendingSave = null;
 function renderMotion(current,canEdit) {
   const replace = $('motionReplace'), selected = replace.value;
@@ -76,7 +77,7 @@ function render() {
   renderTrack($('track'), current, state.selected);
   renderTitles($('titleTrack'), $('titles'), current, canEdit);
   renderInspector({ none: $('noSelection'), controls: $('segmentControls'), trimIn: $('trimIn'), trimOut: $('trimOut'), volume: $('segmentVolume'),
-    volumeValue: $('segmentVolumeValue'), buttons: [$('split'), $('moveLeft'), $('moveRight'), $('removeSegment')] }, current, state.selected, canEdit);
+    volumeValue: $('segmentVolumeValue'), buttons: [$('split'), $('duplicateSegment'), $('moveLeft'), $('moveRight'), $('removeSegment')] }, current, state.selected, canEdit);
   renderBed($('bedSource'), $('bedVolume'), $('bedVolumeValue'), current, canEdit);
   $('projectName').value = current.name; $('projectName').disabled = !canEdit;
   const aspectSelect = $('projectAspectRatio');
@@ -90,7 +91,53 @@ function render() {
   $('deleteProject').title = state.permissions.delete ? '' : 'Your access does not include deleting projects.';
   $('addTitle').disabled = !canEdit || !(current.version === 2 ? current.tracks.some(t => t.clips.length) : current.segments.length);
   $('dirtyFlag').hidden = !dirty();
-  renderMotion(current,canEdit); multitrack?.render(); player.refresh(); exporter.refresh(); foundation?.refresh();
+  renderMotion(current,canEdit); renderUploadedMedia(canEdit); multitrack?.render(); player.refresh(); exporter.refresh(); foundation?.refresh();
+}
+
+function renderUploadedMedia(canEdit) {
+  const list = $('uploadedMedia'), status = $('uploadedMediaStatus'), refreshBtn = $('refreshUploadedMedia');
+  if (!list) return;
+  if (refreshBtn) refreshBtn.disabled = state.busy || !state.permissions.read;
+  if (!uploadedMediaItems.length) {
+    list.replaceChildren();
+    if (status && !status.textContent) status.textContent = state.permissions.read ? 'No uploaded clips yet.' : '';
+    return;
+  }
+  if (status) status.textContent = `${uploadedMediaItems.length} owned ${uploadedMediaItems.length === 1 ? 'upload' : 'uploads'} ready to add.`;
+  list.replaceChildren(...uploadedMediaItems.map(item => {
+    const li = document.createElement('li');
+    const name = document.createElement('span'); name.className = 'source-name'; name.textContent = item.title;
+    const detail = document.createElement('span'); detail.className = 'muted small';
+    detail.textContent = `${item.kind === 'video' ? `${item.width}×${item.height}` : 'WAV'} · ${(item.durationMs / 1000).toFixed(1)}s`;
+    const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.textContent = 'Add to timeline';
+    addBtn.disabled = !canEdit || state.busy; addBtn.dataset.useUploadedMedia = item.id;
+    li.append(name, detail, addBtn);
+    return li;
+  }));
+}
+
+async function loadUploadedMedia() {
+  if (!state.permissions.read) return;
+  try {
+    const { media } = await call('/media');
+    uploadedMediaItems = Array.isArray(media) ? media : [];
+    renderUploadedMedia(editable());
+  } catch {
+    if ($('uploadedMediaStatus')) $('uploadedMediaStatus').textContent = 'Uploaded library is unavailable right now.';
+  }
+}
+
+function placeUploadedMedia(id) {
+  const item = uploadedMediaItems.find(entry => entry.id === id);
+  if (!item) return;
+  const changed = apply(current => {
+    const existing = Object.entries(current.sources).find(([, src]) => src.asset === item.id);
+    const added = existing ? { document: current, key: existing[0] } : model.addSource(current, item.sourceMetadata);
+    if (added.document.version === 2) return multitrack.appendSource(added.document, added.key);
+    if (item.kind === 'audio' && !added.document.audioBed) return model.setAudioBed(added.document, added.key, 40);
+    return item.kind === 'video' && remainingFrames(added.document) > 0 ? model.appendSegment(added.document, added.key) : added.document;
+  });
+  if (changed) setStatus(`${item.title} added to timeline.`);
 }
 
 function commit(next) {
@@ -129,6 +176,7 @@ async function uploadMediaFile(kind,file,expectedHash) {
     });
     if (!changed) throw new Error('The uploaded media could not be added to this timeline. Correct the timeline and try again.');
     setStatus(`${cleanName(file.name, kind)} added.`);
+    void loadUploadedMedia();
   } catch (error) { showError(describe(error)); setStatus('Upload failed. Your edits are still here.');throw error; }
 }
 
@@ -236,7 +284,22 @@ function move(delta) {
   if (to < 0 || to >= doc().segments.length) return;
   apply(current => model.moveSegment(current, state.selected, to));
 }
+function adoptRestored(result) {
+  const project = result.project;
+  state.draftEpoch += 1;
+  state.projectId = project.id; state.revision = project.revision; state.selected = null;
+  state.history.commit(project.document); state.savedText = JSON.stringify(doc());
+  try { localStorage.removeItem(draftKey()); history.replaceState(null, '', `?project=${project.id}`); } catch { /* unavailable */ }
+  hideError(); render();
+  setStatus(`Restored revision ${result.restoredFromRevision} as revision ${project.revision}.`);
+  void loadProjects();
+}
+
 function removeSelected() { if (selectedIndex() >= 0) apply(current => model.removeSegment(current, state.selected)); }
+function duplicateSelected() {
+  if (selectedIndex() < 0) return;
+  apply(current => { const result = model.duplicateSegment(current, state.selected); state.selected = result.id; return result.document; });
+}
 function undo() { if (state.history.canUndo()) { state.history.undo(); persistDraft(); render(); } }
 function redo() { if (state.history.canRedo()) { state.history.redo(); persistDraft(); render(); } }
 
@@ -292,8 +355,14 @@ function wireInspector() {
   $('segmentVolume').addEventListener('input', () => { $('segmentVolumeValue').value = `${$('segmentVolume').value}%`; });
   $('segmentVolume').addEventListener('change', () => apply(current => model.setSegmentVolume(current, state.selected, Number($('segmentVolume').value))));
   $('split').addEventListener('click', split);
+  $('duplicateSegment')?.addEventListener('click', duplicateSelected);
   $('moveLeft').addEventListener('click', () => move(-1)); $('moveRight').addEventListener('click', () => move(1));
   $('removeSegment').addEventListener('click', removeSelected);
+  $('uploadedMedia')?.addEventListener('click', event => {
+    const id = event.target.closest('[data-use-uploaded-media]')?.dataset.useUploadedMedia;
+    if (id) placeUploadedMedia(id);
+  });
+  $('refreshUploadedMedia')?.addEventListener('click', () => { void loadUploadedMedia(); });
   $('titleForm').addEventListener('submit', addTitle);
   $('bedSource').addEventListener('change', () => apply(current => model.setAudioBed(current, $('bedSource').value || null, Number($('bedVolume').value))));
   $('bedVolume').addEventListener('input', () => { $('bedVolumeValue').value = `${$('bedVolume').value}%`; });
@@ -367,6 +436,7 @@ async function init() {
   () => ({ projectId: state.projectId, revision: state.revision, dirty: dirty(), canExport: !!state.permissions.export, profile: doc().profile }));
   wireTimeline(); wireInspector(); wireProject();
   try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo,startNew,exporter,setStatus,
+    loadUploadedMedia,adoptRestored,
     permissions:()=>state.permissions,clearSelection:()=>{textSelection=null;state.selected=null;multitrack?.deselect();render();},confirmNext:()=>{state.deleteConfirmed=true;}});foundation.refresh(); } catch(failure){showError('The common editor could not start: '+failure.message);}
   try { const current = await call('/permissions'); state.permissions = current.permissions; configureMediaTransport(current.nativeMedia); }
   catch (error) {
@@ -377,6 +447,7 @@ async function init() {
   const id = new URLSearchParams(location.search).get('project');
   if (id && state.permissions.read) await open(id);
   else { startNew(); await loadProjects(); setStatus(state.permissions.create ? 'Ready.' : 'Your access does not include creating projects.'); }
+  void loadUploadedMedia();
   try { await bindDocumentHandoff(); }
   catch (failure) { showError(`The concierge cannot synchronize this document: ${failure.message}`); }
   try{await acceptVideoArtifact();}catch(failure){showError('The clip could not be imported: '+failure.message);}

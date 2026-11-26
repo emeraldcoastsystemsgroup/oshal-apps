@@ -4,6 +4,8 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The 1.5.0 authorization catalog, held to the routers and the manifest on a bare checkout. Every literal route in src-routes, under every manifest mount whose module reaches it, must match exactly one authorization.yaml http binding under the kernel's segment rule, and every binding must serve a route (oshal-app validate reads the catalog alone and cannot see an unbound or stale route; under enforce an unbound request is refused authorization_operation_unbound before package code). The routes that can reach a bot are pinned to venture.execute and no other route is; exports to venture.export. The rebaseline tick is pinned three ways: the jobs binding id is the full schedule id the kernel authorizes, its permission is exactly the schedule's `requires`, and no role grants it, so only a system activation can. The four manifest bots are bound once each. The rule mirror is held to the kernel's real matcher by tests/venture-catalog-kernel.core.spec.mjs.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: account for read-only GET /ventures/:id/scenarios/compare bound to existing [app.open, venture.read].
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: account for 4 Saved-quote inbox routes bound to existing [venture.read] and [venture.change].
  */
 'use strict';
 
@@ -29,7 +31,7 @@ test('every literal route in src-routes is served by a manifest mount and matche
   assert.deepEqual(mounts.map((entry) => entry.mountPath),
     ['/api/venture-plan/home-summary', '/api/venture-plan/_smoke', '/api/venture', '/api/venture-rebaseline']);
   const literal = bindings.routeSources().flatMap((file) => bindings.literalRoutesIn(file));
-  assert.equal(literal.length, 50, `the enumerator reads every route registration (read ${literal.length})`);
+  assert.equal(literal.length, 55, `the enumerator reads every route registration (read ${literal.length})`);
   const mounted = new Set(bindings.mountedRoutes().map((row) => `${row.file}|${row.method}|${row.pattern}`));
   const orphans = literal.filter((row) => !mounted.has(`${row.file}|${row.method}|${row.pattern}`));
   assert.deepEqual(orphans, [], 'a route registered in a source no manifest module reaches is never mounted and never checked');
@@ -44,7 +46,7 @@ test('every literal route in src-routes is served by a manifest mount and matche
 test('every http binding serves a registered route, so a renamed route cannot leave a stale binding behind', () => {
   const used = new Set(bindings.resolvedRoutes().flatMap((row) => row.matches.map((match) => match.id)));
   const http = bindings.catalogBindings('http');
-  assert.equal(http.length, 48, `read ${http.length} http bindings`);
+  assert.equal(http.length, 53, `read ${http.length} http bindings`);
   assert.equal(new Set(http.map((binding) => binding.id)).size, http.length, 'binding ids are unique');
   assert.deepEqual(http.filter((binding) => !used.has(binding.id)).map((binding) => binding.id), []);
 });

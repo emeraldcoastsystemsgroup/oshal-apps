@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register review-brief-gate (the review brief shows only when a connected action mounts).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): register pumpkin-review-merge (tile removal, disclaimer/Refresh removal, Saved lines + Play on the projector).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | RP-PUMP-01: update pumpkin-views for the live Stop control and register stop-mid-sentence (tests/pumpkin-stop.test.cjs) with regressionTests.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Quote the case pumpkin-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -243,7 +244,7 @@ cases:
 
   - id: pumpkin-bot-tools-contract
     name: Inline concierge posture, tool schemas, and tool_call fence contract
-    purpose: Verify pumpkin-bot declares explicit inline posture, chatBot binding, object inputSchemas on all three tools, and valid ```tool_call {"tool": ...} syntax for oshald.
+    purpose: 'Verify pumpkin-bot declares explicit inline posture, chatBot binding, object inputSchemas on all three tools, and valid ```tool_call {"tool": ...} syntax for oshald.'
     level: unit
     runner:
       kind: node-test

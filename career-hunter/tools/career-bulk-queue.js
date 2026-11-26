@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): the queue yields between jobs to the person. While any change they made is waiting to save (deps.pendingWrites, tools/career-pending-writes.js: a Save, a status, notes refused because a résumé is being written), no preparation starts, so when the résumé being written finishes their change goes next and the next résumé after it. Writes the person queued here still go first, as before. Guard: tests/career-concurrent-writes.test.mjs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "when i get to the application screen it fully generated my resume without asking me about adding in my optional addendum"; "this is not a choice in bulk edit"): a preparation carries the Other experience the person chose in bulk Prepare's step (experienceIds, kept with the item in their storage, so a reload or Prepare the failed ones again keeps it). Before a job is prepared the choice is saved on its own tailoring (POST /jobs/:id/status draft, with experienceChosen; nothing is written when it already holds it), so the job is prepared with it whichever way it starts, and Generate sends exactly that choice. A preparation queued before 1.68.1 has no choice and is cancelled with words instead of prepared without asking. Guard: tests/career-bulk-queue.test.mjs, tests/career-prepare-other-experience-browser.test.mjs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (Roger, 2026-11-16, on My jobs with 194 saved jobs: "select multiple rows on a table and push all the applications to prepare application that i select ... bulk select for all of the subsequent screens as well"). The queue behind My jobs' bulk actions. Prepare runs one job's own two writes (POST /jobs/:id/status promoted through CareerJobActions.promote, then POST /jobs/:id/generate through CareerJobActions.prepare with the job's saved tailoring), never a second preparation. At most two preparations at a time, because Career's documents come from the local models the host shares; the kernel lets one run hold a person's Career files, so in practice they run one after another, and a write refused because Career is working on the account waits and is tried again, never counted as a failure. Each item is queued, running, done, failed with its reason in words, skipped or cancelled; what is still queued can be cancelled. The queue is kept in the person's own browser storage (per tenant and principal) and survives a reload; one tab drives it at a time. A preparation whose run ended without its receipt, or that passed the kernel's 30 minute run limit, is failed with words and never retried by itself. Three failures in a row with one reason pause the preparations. Guard: tests/career-bulk-queue.test.mjs.
  */
@@ -74,7 +75,8 @@
    * @description Make one person's queue.
    * @param {object} deps What the queue may use: owner ('tenant:principal', or '' for this visit only), storage
    *   (localStorage; any call may throw), fetch, actions (CareerJobActions), send (id, packetDigest) for an approved
-   *   send, now (ms clock), tab (this tab's id) and onChange (called with no argument when anything changed).
+   *   send, now (ms clock), tab (this tab's id), onChange (called with no argument when anything changed) and
+   *   pendingWrites (how many of the person's own changes are waiting to save; no preparation starts while any are).
    * @returns {object} The queue's controls.
    */
   function create(deps) {
@@ -387,12 +389,19 @@
     }
 
     const running = () => state.items.filter((item) => item.kind === 'prepare' && item.state === 'running');
-    /** @description The next item to run: writes first (they are quick), then a preparation while fewer than two run. */
+    /** @description Whether a change the person made is waiting to save; a preparation started now would make it wait again. */
+    function personWaiting() {
+      try { return Number(deps.pendingWrites ? deps.pendingWrites() : 0) > 0; } catch (_) { return false; }
+    }
+    /**
+     * @description The next item to run: writes first (they are quick), then a preparation while fewer than two run and no
+     * change of the person's is waiting to save.
+     */
     function next() {
       if (now() < state.busyUntil) return null;
       const write = state.items.find((item) => item.state === 'queued' && item.kind !== 'prepare');
       if (write) return write;
-      if (state.paused || running().length >= MAX_AT_ONCE) return null;
+      if (state.paused || running().length >= MAX_AT_ONCE || personWaiting()) return null;
       return state.items.find((item) => item.state === 'queued' && item.kind === 'prepare') || null;
     }
 

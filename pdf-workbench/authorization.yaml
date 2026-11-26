@@ -1,5 +1,6 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Own job status is read; cancellation retains held write management.
 # CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Bind preferences, caller signatures, word-box extraction, photo-to-PDF, size-reduction and OOXML export routes fail-closed.
+# CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Bind guarded PDF export-link and page-navigate routes plus pdf-export, pdf-delete-source and pdf-go-to-page tools using existing permissions.
 version: 1
 resources:
   documents:
@@ -390,6 +391,19 @@ bindings:
         - document.view
         - document.read
         - document.export
+    - id: pdf-document-export-link
+      method: POST
+      path: /documents/:document/export
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: pdf-document-navigate
+      method: GET
+      path: /documents/:document/navigate
+      allOf:
+        - document.view
+        - document.read
     - id: pdf-document-export-format
       method: GET
       path: /documents/:document/export/:format
@@ -463,6 +477,20 @@ bindings:
         - document.view
         - document.read
         - document.delete
+    - id: pdf-delete-source
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+    - id: pdf-export
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: pdf-go-to-page
+      allOf:
+        - document.view
+        - document.read
   bots:
     - id: b28df8cb-1a16-40a4-9b3e-3da4d8f1c129
       allOf:

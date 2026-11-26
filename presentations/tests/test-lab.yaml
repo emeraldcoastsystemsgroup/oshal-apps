@@ -27,6 +27,7 @@
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register supplied Word export lifecycle tests and saved-revision RTF format, authority and phone/desktop download coverage.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | 2.20.11: extend transient-export.test.mjs to verify optional paragraph borderBottom, tabRight and native OOXML tab runs across DOCX, PDF and RTF exports.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): register speaker-notes covering on-screen speaker notes under each slide, native PPTX notesSlide export/import, Edit & regenerate / reopen persistence, `page` patch and Guide `update_slide` contracts, and Chromium 1440x900 + 412x915 verification.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 2.20.13 (CREATE-TOOL-PRESENTATIONS-04, -15, -20): register tool-parity-22013 covering presentations-create-workbook real OOXML .xlsx generation, cover subtitle on screen and in exports/reopen/Guide set_subtitle, and Send to Slack UI + presentations-send-slack explicit confirmation contract.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -795,6 +796,93 @@ cases:
     isolation:
       mode: disposable
       cleanup: Close owned Chromium contexts and loopback HTTP servers; retain no installed records or external traffic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: tool-parity-22013
+    name: Workbook tool, cover subtitle and Slack delivery parity
+    purpose: >-
+      Verify CREATE-TOOL-PRESENTATIONS-04, -15 and -20 across manifest/authorization bindings, compiled routes,
+      real OOXML .xlsx/.pptx/.docx outputs, Guide set_subtitle actions, and Chromium desktop (1440x900) and phone
+      (412x915) studio flows.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/tool-parity-22013.test.mjs
+    expected:
+      - 'presentations-create-workbook and presentations-send-slack are bound in authorization.yaml under [document.view, legacy.access] with zero new permissions or roles.'
+      - 'POST /sections/xlsx renders a valid OOXML .xlsx workbook with cover subtitle and openUrl, and PPTX/DOCX/XLSX persist cover subtitle in GET /list for Edit & regenerate.'
+      - 'Guide set_subtitle and set_title.subtitle update #subtitleInput through proposal review; Send to Slack requires channelId and explicit confirmation and renders status strictly via textContent.'
+      - 'Both 1440x900 desktop and 412x915 phone viewports keep #subtitleInput and #slackRow usable with zero horizontal overflow and zero page errors.'
+    prerequisites:
+      - runner:node-test
+      - runtime:office-pinned-node-dependencies
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close owned Chromium contexts and loopback HTTP servers; retain no installed records or external traffic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: meeting-recap
+    name: Meeting Recap 7-stage pipeline, RGB scene detection, privacy crop and owner isolation
+    purpose: >-
+      Verify the Meeting Recap pipeline end to end: real ffmpeg 16 kHz mono WAV extraction, RGB colour-space scene
+      detection catching isoluminant colour-only slide transitions missed by greyscale, privacy camera-strip cropping,
+      local-only chunked VoiceService transcription with zero outbound audio bytes, text-only Stage 6 reasoning boundary,
+      full-duration timeline.md and summary.md coverage, valid image+text review.pptx with zero charts, explicit ADR-108
+      save, two-owner 404 isolation, read-only GET SQL admission, and DELETE cleanup.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/meeting-recap.test.mjs
+    expected:
+      - 'Isoluminant colour-only slide transition yields greyscale luma MAD near zero while RGB colour-space MAD exceeds threshold 6.0 and captures both keyframes.'
+      - 'Privacy crop mode right-strip removes the right 22% camera strip from exported keyframe PNGs.'
+      - 'Audio extraction produces 16 kHz mono WAV and local transcription passes bounded WAV chunks to local-stt with zero outbound network audio bytes.'
+      - 'Stage 6 prompt contains only transcript text and keyframe metadata with zero media bytes, and summary sections cover full duration with verbatim timestamped quotes and keyframes.'
+      - 'Rendered review.pptx is a valid OOXML archive with embedded cropped PNG images and zero ppt/charts/ parts; second owner receives 404 on read/artifact/save/delete; GET routes execute read-only.'
+    prerequisites:
+      - runner:node-test
+      - runtime:office-pinned-node-dependencies
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary OSHAL_PACKAGE_DATA_DIR and ffmpeg fixture directories after each test.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 512
+    installation: never
+  - id: meeting-recap-browser
+    name: Meeting Recap UI desktop and phone responsive flow
+    purpose: >-
+      Exercise /api/presentations/recap/app in headless Chromium at 1440x900 desktop and 412x915 phone viewports:
+      upload synthetic mp4 and vtt transcript, complete 7-stage progress, inspect artifact download cards, cropped keyframe
+      gallery, timeline and summary previews, explicit Save to Files, and in-page delete confirmation.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/meeting-recap-browser.test.mjs
+    expected:
+      - 'Both 1440x900 desktop and 412x915 phone viewports render Meeting Recap with zero page errors and zero horizontal overflow.'
+      - 'Uploading a recording and local transcript drives all 7 progress stages to completed and reveals timeline.md, summary.md, review.pptx cards, cropped keyframe images, and Save to Files.'
+    prerequisites:
+      - runner:node-test
+      - runtime:office-pinned-node-dependencies
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close owned Chromium contexts, loopback HTTP server, and disposable OSHAL_PACKAGE_DATA_DIR workspace.
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024

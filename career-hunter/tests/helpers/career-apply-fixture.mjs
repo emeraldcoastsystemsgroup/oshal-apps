@@ -3,6 +3,9 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: `person(sub, {locations})` gives some of the made-up person's jobs a location (role id to location) on the record and in the packet's profile snapshot, as Work history saves them before the job's documents are made; without it the person is exactly as before.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3: the scripted ticket port answers getTicket with a status a test can set (ticketStatus), so a run whose ticket the kernel failed can be proved.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4: the scripted port can answer getTicketWork as gone (workGone), as the kernel does for a cancelled ticket's work.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: `job(sub, id, {company, title, url})` adds another prepared job to a made-up person already in the harness (its own company, posting, packet folder with both PDFs and the parse résumé, its row and its preparation receipt, the way job 7 is stored), and `mark(id, status)` sets a job's row as I applied does, so a batch of several jobs runs over the same real routes and store.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the made-up Word file beside the packet is the parse résumé, Resume_Parse.docx, which generation now writes and the packet uploads; `executive` also writes an executive Resume_ATS.docx, so a case can show it is not the one uploaded. The packet's profile snapshot carries the recorded roles, as generation saves it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): a made-up person's job may name its company's engine and token and the posting's engine id ({company: {atsType, atsToken}, atsJobId}), as Career's sources record them, for a company page that embeds an engine's form.
@@ -67,14 +70,15 @@ function loadMapping() {
  * @returns {object} The port and its record.
  */
 export function kernel() {
-  const port = { created: [], started: [], rows: [], accepted: new Map(), artifacts: new Map(), refuseStart: null };
+  const port = { created: [], started: [], rows: [], accepted: new Map(), artifacts: new Map(), refuseStart: null, ticketStatus: new Map() };
   port.createTicket = async (input) => { port.created.push(input); return { ticketId: 'a2000000-0000-0000-0000-00000000000' + port.created.length }; };
   port.startTicket = async (ticketId, input) => {
     if (port.refuseStart) throw port.refuseStart;
     port.started.push({ ticketId, input });
     return { envelope: { id: 'b2000000-0000-0000-0000-00000000000' + port.started.length } };
   };
-  port.getTicketWork = async () => port.rows.map((row) => ({ ...row }));
+  port.getTicketWork = async () => { if (port.workGone) throw Object.assign(Error('no such work'), { code: 'not_found' }); return port.rows.map((row) => ({ ...row })); };
+  port.getTicket = async (id) => ({ id, status: port.ticketStatus.get(id) || 'open' });
   port.getAcceptedWork = async (_ticket, work) => (port.accepted.has(work) ? { answer: JSON.stringify(port.accepted.get(work)) } : null);
   port.getAcceptedArtifact = async (_ticket, work, name) => port.artifacts.get(work + '/' + name) || null;
   return port;
@@ -111,23 +115,26 @@ export async function applyHarness() {
 /**
  * @description One made-up person with one prepared job (id 7) on `url`, stored the way Career stores it.
  * @param {object} modules The loaded modules. @param {string} sub The person's subject.
- *   @param {{url?:string,word?:Buffer|null,executive?:Buffer,company?:{atsType?:string,atsToken?:string},atsJobId?:string}} [options]
+ *   @param {{url?:string,word?:Buffer|null,executive?:Buffer,company?:{atsType?:string,atsToken?:string},atsJobId?:string,locations?:Record<string,string>}} [options]
  *   The posting's address; the parse résumé beside the packet (a made-up one by default; null: none, so Career renders one with
  *   docx_resume.py); an executive Word résumé (Resume_ATS.docx) to write beside it; the company's engine and token and the
- *   posting's engine id, as a source records them.
+ *   posting's engine id, as a source records them; where some of the person's jobs were (role id to location), as Work history
+ *   saves them on the record before the job's documents are made, so the record and the packet's profile snapshot both hold them.
  * @returns {{sub:string,dir:string,folder:string,signal:Function}} The person.
  */
-function person(modules, sub, { url = WORKDAY, word = WORD, executive = null, company = {}, atsJobId = 'fiction-7' } = {}) {
+function person(modules, sub, { url = WORKDAY, word = WORD, executive = null, company = {}, atsJobId = 'fiction-7', locations = {} } = {}) {
   const paths = modules.store.userPaths(sub), dir = paths.userDir, engine = fs.readFileSync(path.join(packageRoot, 'engine/jobhunter/db.py'), 'utf8');
+  const own = record();
+  own.roles = own.roles.map((role) => (locations[role.id] ? { ...role, location: locations[role.id] } : role));
   fs.mkdirSync(path.dirname(paths.corpusDb), { recursive: true }); fs.mkdirSync(dir, { recursive: true });
   const corpus = new Database(paths.corpusDb);
   corpus.exec(engine.match(/CORPUS_SCHEMA\s*=\s*"""([\s\S]*?)"""/)[1].replaceAll('corpus.', ''));
   corpus.prepare("INSERT OR REPLACE INTO companies(id,name,ats_type,ats_token)VALUES(1,'Example Freight Co',?,?)").run(company.atsType ?? null, company.atsToken ?? null);
   corpus.prepare("INSERT OR REPLACE INTO postings_corpus(id,company_id,ats_job_id,title,url,active)VALUES(7,1,?,'Office Manager',?,1)").run(atsJobId, url);corpus.close();
-  fs.writeFileSync(path.join(dir, 'career_db.json'), JSON.stringify(record(), null, 2));
+  fs.writeFileSync(path.join(dir, 'career_db.json'), JSON.stringify(own, null, 2));
   const folder = path.join(dir, 'applications', 'Example_Freight_Co__7'); fs.mkdirSync(folder, { recursive: true });
   fs.writeFileSync(path.join(folder, 'application.json'), JSON.stringify({ company: 'Example Freight Co', title: 'Office Manager', template_family: 'Professional',
-    generated: { resume: resume(), cover: { greeting: 'Dear team,', paragraphs: ['I run offices well.'], closing: 'Sincerely,' } }, profile_snapshot: { profile: record().profile, roles: record().roles } }, null, 2));
+    generated: { resume: resume(), cover: { greeting: 'Dear team,', paragraphs: ['I run offices well.'], closing: 'Sincerely,' } }, profile_snapshot: { profile: own.profile, roles: own.roles } }, null, 2));
   fs.writeFileSync(path.join(folder, 'Resume_ATS.pdf'), '%PDF-1.7\nDana Example resume\n%%EOF');
   fs.writeFileSync(path.join(folder, 'CoverLetter.pdf'), '%PDF-1.7\nDana Example cover\n%%EOF');
   if (word) fs.writeFileSync(path.join(folder, 'Resume_Parse.docx'), word);

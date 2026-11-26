@@ -21,7 +21,9 @@
        (/shared/ui/js/document-handoff.js): before Jarvis or a concierge reads, unsaved title, body, tag and variant edits
        are saved through the existing PATCH /posts/:id and the post's id and updatedAt revision become the turn context;
        after the turn the page re-reads GET /posts/:id and redraws a changed post, but keeps an editor the person is still
-       changing and says so in the error bar. Save and open share those same request helpers. -->
+       changing and says so in the error bar. Save and open share those same request helpers.
+     3 | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): harden phone .snav horizontal strip with overscroll-behavior-x,
+       touch scrolling, hidden webkit scrollbar, max-width:100%, and flex:0 0 auto 44px buttons. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -359,8 +361,9 @@
     .layout { grid-template-columns:minmax(0,1fr); }
     .rail { position:static; display:flex; flex-direction:column; min-width:0; }
     /* Phone: search first, the eight stages as one row that scrolls sideways, then the list; imports live under More. */
-    .snav { flex-direction:row; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:6px; padding-bottom:4px; }
-    .snav button { width:auto; flex:none; white-space:nowrap; min-height:44px; border:1px solid var(--line); border-radius:var(--pill); }
+    .snav { flex-direction:row; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:6px; padding-bottom:4px; max-width:100%; }
+    .snav::-webkit-scrollbar { display:none; }
+    .snav button { width:auto; flex:0 0 auto; white-space:nowrap; min-height:44px; border:1px solid var(--line); border-radius:var(--pill); }
     .rail .railrow { display:flex; gap:8px; align-items:center; }
     .rail .railrow select.wsfilter { margin-bottom:0; flex:1; width:auto; min-width:0; }
     .rail .railrow { margin-bottom:10px; }

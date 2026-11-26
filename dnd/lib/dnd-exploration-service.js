@@ -8,11 +8,13 @@
  * 2026-07-27 23:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | A discovery now changes the MAP, not only the story log: the person, place, or object the party found is cast as a figure on the square the acting hero walked to, and every already-discovered lead is reconciled on each action so a chapter played before figures existed fills itself in.
  * 2026-07-27 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Motion and art become server truths: every attempt (hit or miss) walks the acting hero to the lead in the same write, and discovery/chapter cutaways are requested server-side after commit — the 2026-07-27 session proved client-side triggers die to owner gates and mid-session version skew.
  * 2026-07-31 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Roadmap #13 — the lead roll happens on the big shared d20: an attempt no longer rolls privately server-side. It OPENS a sharedRoll request (actor, skill, DC, precomputed modifier, lead contract) that every device presents on the shared die; the player rolls through the same /roll route as every other check; and the new 'commit-roll' action applies the rolled result exactly once (discovery or ledgered miss) while resolving the die in the same write. The muddled escape hatch (whole party failed) still lands without dice — it was never a roll. Only one shared roll may pend at a time, commit is roller-authorized, and a lead discovered mid-roll resolves the die as a dedupe instead of stranding it.
+ * 2026-11-25 14:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Capture lightweight exact board revisions alongside exploration discoveries, misses, and chapter completion.
  */
 
 'use strict';
 
 const crypto = require('crypto');
+const { captureBoardRevision } = require('./dnd-checkpoint-store');
 const { parsedJson, withTransaction } = require('./dnd-route-helpers');
 const LEADS = require('../ui/leads.js');
 const { reconcileDiscoveredCast, walkHeroBesideLead } = require('./dnd-lead-cast');
@@ -177,6 +179,7 @@ async function saveDiscovery(deps, db, campaign, encounter, state, scene, lead, 
     db, campaign.user_sub, campaign.campaign_id, 'discovery',
     `${credit}: ${lead.reveal}`, true,
   );
+  await captureBoardRevision(db, campaign.user_sub, campaign.campaign_id, next, 'discovery', entry && entry.seq);
   return discoveryResponse(campaign, scene, lead, {
     state: next, rev: Number(saved.rows[0].rev), arrived, met, finder,
     attempt: context && context.attempt || null, entry, credit,
@@ -229,6 +232,7 @@ async function saveAttempt(deps, db, campaign, encounter, state, scene, lead, he
   const entry = await deps.campaign.appendArchive(
     db, campaign.user_sub, campaign.campaign_id, 'discovery', narration, true,
   );
+  await captureBoardRevision(db, campaign.user_sub, campaign.campaign_id, next, 'attempt', entry && entry.seq);
   return {
     ok: true, missed: true, state: next, rev: Number(saved.rows[0].rev),
     narration, attempt, lead: { id: lead.id, name: lead.name },
@@ -253,10 +257,11 @@ async function completeExploration(deps, db, campaign, encounter, state, scene, 
   );
   if (!saved.rowCount) return { ok: false, code: 'REV_CONFLICT', error: 'The table changed. Try following the evidence again.' };
   await db.query('UPDATE dnd_campaigns SET updated_at=now() WHERE campaign_id=$1', [campaign.campaign_id]);
-  await deps.campaign.appendArchive(
+  const entry = await deps.campaign.appendArchive(
     db, campaign.user_sub, campaign.campaign_id, 'milestone',
     scene.afterword || `The party has uncovered the truth in ${scene.title}.`, true,
   );
+  await captureBoardRevision(db, campaign.user_sub, campaign.campaign_id, next, 'chapter', entry && entry.seq);
   return {
     ok: true, complete: true, state: next, rev: Number(saved.rows[0].rev),
     _cutaway: {

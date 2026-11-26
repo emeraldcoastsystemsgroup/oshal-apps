@@ -1,4 +1,5 @@
 /* CHANGE LOG:
+ * 32 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): Save, Unsave and Remove on My jobs wait while a résumé is written and save by themselves (tools/career-pending-writes.js, loaded by the page frame). Keeping a job's description when its sheet opens is the sheet's own work with its own fallback when Career is busy (it reads the description for the view), so it is sent as batch work and does not wait. Guard: tests/career-concurrent-writes-browser.test.mjs, tests/career-job-details-sheet-browser.test.mjs.
  * 31 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday, and his open jobs need new documents): Generate again (tools/career-regenerate.js) is mounted above the jobs on Saved, Getting ready and New matches, the stages whose jobs have documents; a List row of a job in its queue says its place (Generate again: In line, Starting, Writing now). Guard: tests/career-regenerate-browser.test.mjs.
  * 30 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH, store gate: the fill-in queue panel is not mounted on New matches (its swipe deck and status line are the match deck's own; tests/career-match-deck-page.test.mjs). Saved, Getting ready and the other stages show it.
  * 29 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH (Roger, 2026-11-21: "i really need to be able to post 200 resumes by monday"): while Fill in several on my Chrome is offered (his Job Apply computer reports browser-apply), each List row of Saved and Getting ready has a Select checkbox, the selection the Table's module keeps (CareerJobsTable.picks, isSelected), so he selects in the List too; the page hands the List's rows to that module (deps.rows). The fill-in queue panel (tools/career-apply-batch.js) is mounted above the jobs and says each queued job's state; a List row of a queued job reads its state. Guard: tests/career-apply-batch-browser.test.mjs.
@@ -328,7 +329,8 @@
  async function readPostingDescription(id,job,dialog){
   const area=()=>dialog.querySelector(`[data-posting-description="${id}"]`);let read;
   try{
-   const kept=await fetch('/api/career-hunter/jobs/'+id+'/details',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(45000)});
+   // Keeping the description is the sheet's own work with its own fallback when Career is busy (read it for this view), so it does not wait to save.
+   const kept=await fetch('/api/career-hunter/jobs/'+id+'/details',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(45000),careerBatch:true});
    if(kept.ok)read=await kept.json();
    else{
     /* Not kept (Career is preparing applications, or this account may only read): read it for this view only. */

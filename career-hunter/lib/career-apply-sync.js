@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I (ADR-222): two more ends of an attempt, submitted_by_career (Career pressed Submit once after his approval and the employer's confirmation was seen; the picture is verified and the job recorded as for his own Submit, with submittedBy career) and submit_not_seen (pressed once, no confirmation seen; Not seen yet). The job page's lines for a run that stopped because he used the mouse (window: "Paused because you used the mouse. It goes on by itself when you stop, or press Stop.") or because its window is not in front (window-front), and for Career's Submit while it waits for the confirmation (confirming); the run's ready words (why Career did not press Submit, when his approval let it) are kept beside them, and the kernel's notes (a paste that could not put his clipboard back) go on the receipt.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4 (Roger's Honeycomb run, 2026-11-25 22:05: stopped while it waited on him, its ticket cancelled, then every sync answered not_found and the run held the job for a day): a run whose work the kernel no longer answers for reads its ticket; a cancelled ticket ends the run as stopped, a failed one as failed.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.76.5 (the same Honeycomb run): its cancelled ticket's work read as completed with no answer ("completed ticket work is unavailable"); that read also ends the run with its ticket (endedWithTicket).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: only the latest attempt is read. A Go on whose start was refused left its new attempt unstarted, the sync read the ended attempt before it again and put the run back to Paused, and the next Go on was refused, so the person could not go on at all.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 4.6, 5.2 and 5.3): read an assisted application's progress from the kernel's work record for executor orbit-apply-v1 (the person's own ticket, through the package ticket port), say it as the job page's one line, and when an attempt ends read its accepted answer only when its intent, attempt and request digest are the approved ones. It keeps the pictures the run took, each checked against the digest the kernel recorded; writes apply-receipt.json in the job's folder (the files uploaded with their digests, each change with where its value came from, the questions, the hand-backs, the pictures, how it ended); records Submitted by you only with the employer's confirmation picture verified; and writes back what the person kept on a question card, as his own page reads it from the kernel's card route (GET /api/apply/cards `kept`, lane D) and hands it to POST /apply-runs/:id/kept: an answer into Saved answers by its question id, a month (2012-05, 05/2012, May or May 2012) into that role's start or end through the main résumé's own revision-checked edit, and only where the record held that year alone.
  */
@@ -162,17 +164,37 @@ async function ended(dir,run,attempt,row,tickets,writers){
  * The package ticket port. @param {{month:Function,recordSubmitted:Function,folder:Function}} writers Career's own writers.
  * @returns {Promise<object>} The run as its owner reads it.
  */
+/**
+ * @description A run whose ticket ended while its work cannot be read (a Stop while the run waited on him leaves the
+ * work completed with no answer, or gone): the run ends with its ticket, so the job can be approved again.
+ * @param {string} dir The person's store. @param {string} id The run. @param {object} run The run's record.
+ * @param {object} tickets The package ticket port. @param {Error} error What the read said.
+ * @returns {Promise<object|null>} The run as its owner reads it, or null when the ticket has not ended.
+ */
+async function endedWithTicket(dir,id,run,tickets,error){
+ logger.error({err:error,runId:id,ticketId:run.nativeTicketId},'apply run work read failed');
+ const ticket=typeof tickets.getTicket==='function'?await tickets.getTicket(run.nativeTicketId).catch(()=>null):null;
+ const state=String(ticket?.status||ticket?.state||'');
+ if(state==='cancelled')return runs.publicRun(runs.update(dir,id,{status:'stopped',live:null,reason:'You stopped it. Nothing was submitted.'}));
+ if(state==='failed')return runs.publicRun(runs.update(dir,id,{status:'failed',live:null,reason:'Your computer stopped before the form reached Review. Nothing was submitted.'}));
+ return null;
+}
 async function sync(dir,id,tickets,writers){
  const run=runs.get(dir,id),attempt=run.attempts.at(-1);
  // Only the latest attempt is read: one published but not started yet (a Go on whose start was refused) leaves the run
  // as it is, and an attempt that ended (paused included) is read once; Go on starts the next, which moves the run on again.
  if(!run.nativeTicketId||!attempt?.workId||['submitted','not_seen','stopped','failed','paused'].includes(run.status))return runs.publicRun(run);
- const rows=await tickets.getTicketWork(run.nativeTicketId);
+ let rows;
+ try{rows=await tickets.getTicketWork(run.nativeTicketId);}
+ catch(error){const gone=await endedWithTicket(dir,id,run,tickets,error);if(gone)return gone;throw error;}
  if(!Array.isArray(rows)||rows.length>MAX_ROWS)fail('native_binding_changed','The application has unexpected work references.');
  const row=rows.find(item=>item?.id===attempt.workId);if(!row)return runs.publicRun(run);
  if(row.executor!==EXECUTOR)fail('native_binding_changed','The application’s work reference changed.');
  let patch;
- if(row.state==='completed')patch=await ended(dir,run,attempt,row,tickets,writers);
+ if(row.state==='completed'){
+  try{patch=await ended(dir,run,attempt,row,tickets,writers);}
+  catch(error){const gone=await endedWithTicket(dir,id,run,tickets,error);if(gone)return gone;throw error;}
+ }
  else if(['failed','unknown','cancelled'].includes(row.state))patch={status:row.state==='cancelled'?'stopped':'failed',live:null,
   reason:row.state==='cancelled'?'You stopped it. Nothing was submitted.':'Your computer stopped before the form reached Review. Nothing was submitted.'};
  else{const now=live(row);patch={status:now.status,live:now.live};}

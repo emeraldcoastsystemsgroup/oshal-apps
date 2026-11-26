@@ -15,6 +15,8 @@
 <!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: a failed generate left every generate button disabled until a reload (the error path returned before the re-enable); the buttons now come back on every way out, and a draft whose outline was cut off says so beside the saved file. -->
 <!-- 2.15.0 | maintainer@emeraldcoastsystemsgroup.com | The slide canvas gets a real design row (Roger, 2026-11-03, on the demo: "no controls... can't add an image"): a layout picker, an image file with its caption, all over the renderer's own #layout:/#image:/#caption: directives, drawn in the draft and the My-files quick look. The AI-partner box takes the rail's width and grows as you type, with Dictate and Send under it. The phantom empty "making" bar is gone (.making's display:flex defeated the hidden attribute). Where Create is installed, the studio names its suite (✦ Create suite). -->
 <!-- 2.20.12 | maintainer@emeraldcoastsystemsgroup.com | Speaker notes on screen (CREATE-TOOL-PRESENTATIONS-08): preserve bounded per-slide `notes` across the slide workspace, outline serialization, `.pptx` export/import, Edit & regenerate, reopen, and Guide `update_slide`/`add_slide`/`set_outline` actions. -->
+<!-- 2.20.13 | maintainer@emeraldcoastsystemsgroup.com | Cover subtitle field (#subtitleInput) with save/reopen and Guide set_subtitle parity (CREATE-TOOL-PRESENTATIONS-15) and explicit-confirmation Send to Slack studio delivery controls (CREATE-TOOL-PRESENTATIONS-20). -->
+<!-- 2.20.14 | maintainer@emeraldcoastsystemsgroup.com | Add "Recap a meeting" front-door and studio header link opening /api/presentations/recap/app. -->
 <!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
@@ -564,6 +566,7 @@
       <div class="wzAlt">
         <button class="wzAltBtn" id="wzTalk">💬 Just talk — build it with my Guide</button>
         <button class="wzAltBtn" id="wzUpload">📂 I have a file — open &amp; remix it</button>
+        <a class="wzAltBtn" id="wzRecap" href="/api/presentations/recap/app" style="text-decoration:none">🎥 Recap a meeting</a>
       </div>
       <div class="wzRecent" id="wzRecent"></div>
     </section>
@@ -643,11 +646,16 @@
         <button class="btn ghost" id="genAlt1"></button>
         <button class="btn ghost" id="genAlt2"></button>
         <button class="btn ghost" id="emailBtn" title="Email the current outline as a rendered attachment — sent from your own mailbox, only when you click Send">✉ Email</button>
+        <button class="btn ghost" id="slackBtn" type="button" title="Upload the current file to a Slack channel using your own connected Slack account, only after explicit confirmation">💬 Send to Slack</button>
+        <a class="btn ghost" id="recapMeetingLink" href="/api/presentations/recap/app" style="text-decoration:none" title="Turn a meeting recording into a timeline, summary with cropped screenshots, and review PowerPoint deck">🎥 Recap a meeting</a>
         <button class="destchip" type="button" id="destChip" title="Where this file will be saved — click to change">📁 <span id="destText">Checking where this saves…</span></button>
         <span class="hint" id="status"></span>
       </div>
       <div class="lbl" id="outlineStep">Presentation title</div>
-      <input id="title" data-bridge-field="title" placeholder="Deck title (e.g. Q3 Strategy Review)" />
+      <div class="office-title-row">
+        <input id="title" data-bridge-field="title" placeholder="Deck title (e.g. Q3 Strategy Review)" aria-label="Title" />
+        <input id="subtitleInput" data-bridge-field="subtitle" maxlength="200" placeholder="Cover subtitle (optional)" aria-label="Cover subtitle" />
+      </div>
       <div id="slideWorkspace" class="office-workspace"></div>
       <div id="sheetWorkspace" class="office-workspace" hidden></div>
       <div id="documentWorkspace" class="office-workspace" hidden></div>
@@ -695,6 +703,14 @@
         <input id="emailNote" type="text" placeholder="Optional message…" style="flex:2;min-width:200px" />
         <button class="btn" id="emailSend">Send .pptx ✉</button>
         <button class="btn ghost" id="emailCancel">Cancel</button>
+      </div>
+      <div class="bar" id="slackRow" style="display:none" role="region" aria-label="Send to Slack">
+        <span class="hint" id="slackTargetNote" hidden></span>
+        <input id="slackChannel" type="text" maxlength="64" placeholder="Slack channel ID (e.g. C0123456789)" aria-label="Slack channel ID" style="flex:1;min-width:180px" />
+        <input id="slackComment" type="text" maxlength="4000" placeholder="Optional Slack message…" aria-label="Slack comment" style="flex:2;min-width:200px" />
+        <label class="office-slack-confirm"><input id="slackConfirm" type="checkbox" /> Confirm upload to Slack</label>
+        <button class="btn" id="slackSend" type="button">Send .pptx to Slack</button>
+        <button class="btn ghost" id="slackCancel" type="button">Cancel</button>
       </div>
       <div class="result" id="result"></div>
     </div>
@@ -758,6 +774,7 @@ function renderKinds(){
   $('genAlt1').textContent = others[0].icon + ' .' + others[0].id; $('genAlt1').dataset.fmt = others[0].id;
   $('genAlt2').textContent = others[1].icon + ' .' + others[1].id; $('genAlt2').dataset.fmt = others[1].id;
   $('emailSend').textContent = 'Send .' + KIND + ' ✉';
+  if ($('slackSend') && !slackTarget) $('slackSend').textContent = 'Send .' + KIND + ' to Slack';
 }
 function pickKind(id){ if(window.officeFlushDraft && !window.officeFlushDraft()){$('officeFormat').value=KIND;return;} KIND = id; renderChatChips(); renderKinds(); if (SEL && SEL !== 'blank' && !templatesFor(KIND).some(t => t.id === SEL)) SEL = null; renderTemplates(); applyKindVocabulary(); pvKick(); }
 
@@ -1119,6 +1136,7 @@ function deckOpts(){
   const dest = $('saveTo').value;
   return {
     ...lookOpts(),
+    subtitle: ($('subtitleInput')?.value || '').trim().slice(0, 200) || undefined,
     byline: $('byline').value.trim() || undefined,
     autoLayout: $('autoLayout').checked,
     slideNumbers: $('slideNumbers').checked,
@@ -1214,6 +1232,7 @@ $('emailSend').onclick = async () => {
       body: JSON.stringify({
         confirm: true, to, note: $('emailNote').value.trim() || undefined, title, sections, format: KIND,
         ...lookOpts(), byline: $('byline').value.trim() || undefined,
+        subtitle: ($('subtitleInput')?.value || '').trim().slice(0, 200) || undefined,
         autoLayout: $('autoLayout').checked, slideNumbers: $('slideNumbers').checked,
       }),
     });
@@ -1222,6 +1241,65 @@ $('emailSend').onclick = async () => {
     else { res('✉ Sent <b>' + esc(j.fileName) + '</b> to ' + esc(j.to) + ' via ' + esc(j.via) + '.', true); $('emailRow').style.display = 'none'; }
   } catch(e){ res('Error: ' + e.message, false); }
   $('emailSend').disabled = false; $('status').textContent = '';
+};
+
+// ── Send to Slack (CREATE-TOOL-PRESENTATIONS-20): explicit channel + checkbox confirmation before
+// posting to POST /api/presentations/sections/slack. Status text is always rendered via textContent.
+let slackTarget = null;
+function openSlackPanel(savedDeck){
+  slackTarget = savedDeck || null;
+  const row = $('slackRow');
+  const note = $('slackTargetNote');
+  const fmt = slackTarget && KINDS.some(k => k.id === slackTarget.format) ? slackTarget.format : KIND;
+  $('slackConfirm').checked = false;
+  $('slackSend').textContent = 'Send .' + fmt + ' to Slack';
+  if (note){
+    if (slackTarget){ note.textContent = 'Sending saved file: ' + (slackTarget.fileName || slackTarget.title || 'Untitled'); note.hidden = false; }
+    else { note.textContent = ''; note.hidden = true; }
+  }
+  row.style.display = 'flex';
+  $('slackChannel').focus();
+}
+$('slackBtn').onclick = () => {
+  const row = $('slackRow');
+  if (row.style.display !== 'none' && !slackTarget){ row.style.display = 'none'; return; }
+  openSlackPanel(null);
+};
+$('slackCancel').onclick = () => { slackTarget = null; $('slackRow').style.display = 'none'; $('slackConfirm').checked = false; };
+$('slackSend').onclick = async () => {
+  const channelId = $('slackChannel').value.trim();
+  if (!channelId){ $('slackChannel').focus(); resText('Enter a Slack channel ID (for example C0123456789).', false); return; }
+  if (!$('slackConfirm').checked){ $('slackConfirm').focus(); resText('Explicit confirmation is required: check "Confirm upload to Slack" before sending.', false); return; }
+  const target = slackTarget;
+  const fmt = target && KINDS.some(k => k.id === target.format) ? target.format : KIND;
+  const title = target ? (String(target.title || 'Document').trim() || 'Document') : ($('title').value.trim() || 'Document');
+  const sections = target
+    ? (Array.isArray(target.outline) ? target.outline.map(s => ({ title: s.title || '', content: (s.bullets || []).join('\n'), ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })) : [])
+    : parseOutline($('outline').value || '');
+  if (!sections.length){ resText('Write or open an outline first — Send to Slack uploads what is in the editor.', false); return; }
+  const subtitle = target
+    ? (deckSubtitle(target) || undefined)
+    : (($('subtitleInput')?.value || '').trim().slice(0, 200) || undefined);
+  $('slackSend').disabled = true; $('status').textContent = 'Rendering + uploading to Slack…';
+  try {
+    const r = await fetch('/api/presentations/sections/slack', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        confirm: true, channelId, comment: $('slackComment').value.trim() || undefined,
+        title, subtitle, sections, format: fmt,
+        ...(target && target.theme && !isBrandId(target.theme) ? { theme: target.theme } : lookOpts()),
+        byline: $('byline').value.trim() || undefined,
+        autoLayout: $('autoLayout').checked, slideNumbers: $('slideNumbers').checked,
+      }),
+    });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || !j || j.error){ resText('Slack send failed: ' + String((j && (j.message || j.error)) || ('HTTP ' + r.status)), false); }
+    else {
+      resText('Sent ' + String(j.fileName || (title + '.' + fmt)) + ' to Slack channel ' + String(j.channelId || channelId) + '.', true);
+      slackTarget = null; $('slackRow').style.display = 'none'; $('slackConfirm').checked = false;
+    }
+  } catch(e){ resText('Slack send error: ' + String(e && e.message || e), false); }
+  $('slackSend').disabled = false; $('status').textContent = '';
 };
 
 // ── My files: an Explorer, not a card wall. Rows of real file NAMES; click a row for the
@@ -1281,16 +1359,19 @@ function openFileView(d){
       <div class="fSub">${[t ? t.name : null, prov, d.slides ? d.slides + ' ' + kindName + 's' : null, when(d.createdAt)].filter(Boolean).join(' · ')}</div>
     </div></div>
     <div class="fActions">${dl}${op}
-      ${blocks.length && d.outlineComplete ? '<button class="btn ghost" id="fEdit">✎ Edit &amp; regenerate</button>' : '<span class="hint">Full editable source is unavailable for this older record. Download the file and use Open a file.</span>'}
+      ${blocks.length && d.outlineComplete ? '<button class="btn ghost" id="fEdit">✎ Edit &amp; regenerate</button><button class="btn ghost" id="fSlack" type="button">💬 Send to Slack</button>' : '<span class="hint">Full editable source is unavailable for this older record. Download the file and use Open a file.</span>'}
       ${d.fileName ? '<button class="btn ghost" id="fDel" style="color:#e06c6c">🗑 Delete</button>' : ''}
     </div>${look}`;
   $('fBack').onclick = renderFileList;
+  const fs = $('fSlack');
+  if (fs) fs.onclick = () => { openSlackPanel(d); $('slackRow').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
   const fe = $('fEdit');
   if (fe) fe.onclick = () => {
     if(window.officeFlushDraft && !window.officeFlushDraft())return;
     if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
     const saved = savedLook(d.theme); if (saved) pickTheme(saved);
     $('title').value = d.title || '';
+    if ($('subtitleInput')) $('subtitleInput').value = deckSubtitle(d);
     writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [], ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })));
     SEL = null; renderTemplates(); showTab('preview'); landOnPreview();
     res('✓ Loaded <b>' + esc(d.title || d.fileName) + '</b> into the editor — tweak, then regenerate in any format.', true);
@@ -1310,7 +1391,14 @@ function openFileView(d){
     } catch(e){ res('Error: ' + e.message, false); fd.disabled = false; fd.textContent = '🗑 Delete'; }
   };
 }
+function deckSubtitle(d){
+  if (!d) return '';
+  if (typeof d.subtitle === 'string') return d.subtitle.slice(0, 200);
+  const first = Array.isArray(d.outline) ? d.outline[0] : null;
+  return first && typeof first.coverSubtitle === 'string' ? first.coverSubtitle.slice(0, 200) : '';
+}
 function res(msg, ok){ const r=$('result'); if(ok===null){ r.className='result'; r.innerHTML=''; return; } r.className='result '+(ok?'ok':'err'); r.innerHTML=msg; }
+function resText(msg, ok){ const r=$('result'); if(ok===null){ r.className='result'; r.textContent=''; return; } r.className='result '+(ok?'ok':'err'); r.textContent=String(msg==null?'':msg); }
 
 $('refreshDecks').onclick = loadDecks;
 
@@ -1398,6 +1486,7 @@ let pvTimer = null;
 function pvKick(){ window.officeRefresh?.(); if ($('panePreview').style.display !== 'none'){ clearTimeout(pvTimer); pvTimer = setTimeout(renderPreview, 250); } }
 $('outline').addEventListener('input', pvKick);
 $('title').addEventListener('input', pvKick);
+$('subtitleInput')?.addEventListener('input', pvKick);
 
 // ── Open a file: parse an existing .docx/.pptx/.xlsx into the editor ───────────
 $('openBtn').onclick = () => $('openFile').click();
@@ -1417,6 +1506,7 @@ async function importOfficeBlob(blob, name){
     if (!r.ok || j.error){ res('Couldn’t open it: ' + esc(j.error || ('HTTP ' + r.status)), false); }
     else {
       if (j.title) $('title').value = j.title;
+      if ($('subtitleInput')) $('subtitleInput').value = typeof j.subtitle === 'string' ? j.subtitle.slice(0, 200) : '';
       writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n'), ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })));
       if (j.format && KINDS.some(k => k.id === j.format)) pickKind(j.format);
       SEL = null; renderTemplates();
@@ -1469,7 +1559,8 @@ function writeOutline(slides){
  *  generic vocabulary needs no translation at all. */
 function toBridgeEvents(a){
   if (!a || typeof a.op !== 'string') return [];
-  if (a.op === 'set_title')    return [{ op: 'set_field', field: 'title', value: String(a.title ?? '') }];
+  if (a.op === 'set_title')    return [{ op: 'set_field', field: 'title', value: String(a.title ?? '') }, ...(typeof a.subtitle === 'string' ? [{ op: 'set_field', field: 'subtitle', value: a.subtitle }] : [])];
+  if (a.op === 'set_subtitle') return [{ op: 'set_field', field: 'subtitle', value: String(a.subtitle ?? '') }];
   if (a.op === 'set_theme')    return [{ op: 'set_field', field: 'theme', value: String(a.theme ?? '') }];
   if (a.op === 'set_outline')  return [{ op: 'set_content', region: 'outline', content: serializeHelperSlides(a.slides) }];
   if (a.op === 'update_cell') return [{op:'custom',name:'update_cell',data:{index:a.index,cell:a.cell,value:a.value}}];
@@ -1501,6 +1592,7 @@ function serializeHelperSlides(slides){
 /** Apply ONE contract event to the editor; return a short note of what changed, or null. */
 function applyBridgeEvent(ev){
   if (ev.op === 'set_field' && ev.field === 'title'){ $('title').value = String(ev.value ?? ''); return 'set the title'; }
+  if (ev.op === 'set_field' && ev.field === 'subtitle'){ const v = String(ev.value ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, 200); if ($('subtitleInput')) $('subtitleInput').value = v; return v ? 'set the cover subtitle' : 'cleared the cover subtitle'; }
   if (ev.op === 'set_field' && ev.field === 'theme'){
     const id = String(ev.value ?? ''); pickTheme(id);
     const t = THEMES.find(x => x.id === id); return 'switched to ' + ((t && t.name) || id);
@@ -1564,7 +1656,7 @@ async function sendChat(){
   const typing = addMsg('bot', '…', true);
   try {
     const r = await fetch('/api/presentations/sections/guide', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, title: $('title').value.trim(), slides: guideSlides(), theme: THEME, kind: KIND, selection: window.officeSelection?.(), history: hist }) });
+      body: JSON.stringify({ message: text, title: $('title').value.trim(), subtitle: ($('subtitleInput')?.value || '').trim(), slides: guideSlides(), theme: THEME, kind: KIND, selection: window.officeSelection?.(), history: hist }) });
     const j = await r.json().catch(() => ({}));
     typing.remove();
     if (!r.ok || j.error){ addMsg('bot', '⚠ ' + ((j && j.error) || ('HTTP ' + r.status))); }
@@ -1755,6 +1847,7 @@ function reopenDeck(d){
   if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
   const saved = savedLook(d.theme); if (saved) pickTheme(saved);
   $('title').value = d.title || '';
+  if ($('subtitleInput')) $('subtitleInput').value = deckSubtitle(d);
   writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [], ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })));
   SEL = null; renderTemplates();
   closeWiz(true); showTab('preview'); landOnPreview();
@@ -1880,7 +1973,7 @@ import {createProposalReview,draftSnapshot} from '/api/presentations/sections/as
 if (!window.AppView || !AppView.active()) {
 const readSections = () => parseOutline($('outline').value || '');
 const writeSections = sections => { $('outline').value = serializeOfficeSections(sections); pvKick(); };
-const readDraft = () => ({kind:KIND,title:$('title').value,outline:$('outline').value,theme:THEME});
+const readDraft = () => ({kind:KIND,title:$('title').value,subtitle:$('subtitleInput')?.value || '',outline:$('outline').value,theme:THEME});
 const selectionChanged = () => {
   const s = window.officeSelection();
   $('officeSelection').textContent = s ? `${KIND === 'xlsx' ? 'Sheet' : KIND === 'docx' ? 'Section' : 'Slide'} ${s.index}: ${s.title}${s.cell ? ' · '+s.cell : ''}` : 'Whole draft';

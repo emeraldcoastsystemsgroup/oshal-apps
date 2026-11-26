@@ -16,9 +16,19 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). On a phone the row of a section's pages is one line that scrolls sideways (career-frame.css); after drawing it the frame scrolls the open page's tab into view (showCurrentTab), so a page at the end of the row (Improve it) is never off screen when it opens.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (lane MARQUEE1; the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z, at 412: Career's Concierge pressed, "did not show the chat window"). The bar draws Concierge before Career's concierge has mounted (career-concierge.mjs and the shared assistant are still on their way, seconds on a busy or just-started installation), and a press then reached no handler and was lost: the button did nothing. A press before the concierge is ready is now kept (data-career-concierge="wanted", the button aria-busy) and the concierge opens as soon as it mounts; one that cannot load clears it with the reason.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: stageChip reads active `stats.applied` (matching the mutually exclusive Applied stage) instead of total `stats.tracked`, falling back to `stats.tracked` only when `applied` is absent.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): every page that has the frame also loads tools/career-pending-writes.js first thing, the one door its changes go through: a change the kernel refused unrun because a résumé is being written waits and saves by itself, with the page saying so. Guard: tests/career-concurrent-writes-browser.test.mjs.
  */
 (function (root) {
   'use strict';
+
+  /** The one door a Career page's changes go through (tools/career-pending-writes.js), loaded before any press. */
+  var PENDING_WRITES_PATH = '/api/career-hunter/static/career-pending-writes.js';
+  (function loadPendingWrites(doc) {
+    if (!root || !doc || root.CareerPendingWrites || doc.querySelector('script[src="' + PENDING_WRITES_PATH + '"]')) return;
+    var script = doc.createElement('script');
+    script.src = PENDING_WRITES_PATH;
+    (doc.head || doc.documentElement).appendChild(script);
+  })(root && root.document);
 
   var BRAND = 'Intelligent Career';
   /** The profiles whose bar this frame draws: the front door that borrows Career's pages, then Career by itself. */

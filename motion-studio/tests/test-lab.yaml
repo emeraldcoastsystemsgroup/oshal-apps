@@ -20,6 +20,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register media-and-motion-blur (RP-MOT-01 video/audio layers and RP-MOT-02 composition and layer motion blur) and update design-standard for live Video, Audio and Motion blur controls.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): phone-start proves the window's composer (model menu, Files, Tap to talk, Keep trying, Send) inside the sheet and the column and under the finger, in place of the old pane's Attach and Read aloud icons; common-editor-foundation's unavailable-provider turn and design-standard's live Summarize starter are in the window.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: register one-chat-window (every concierge entry on Motion Studio, standalone and as Create's Motion Studio screen, opens Motion Studio's own chat window, and on a phone the window's own Close closes the Concierge sheet so the editor takes the next tap).
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4: register tool-parity (CREATE-TOOL-MOTION-STUDIO-01, -04, -05, -09: motion-preview bounded frame inspection, canvas drag/scale/rotate, timeline layer-bar and keyframe drag, and Revision History Restore plus Redo).
 version: 1
 cases:
   - id: storage-busy-retry
@@ -1490,5 +1491,24 @@ cases:
     isolation:
       mode: disposable
       cleanup: Close the exact owned browser contexts and loopback fixture. Only synthetic data is used; no model is called.
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: tool-parity
+    name: Motion Studio tool parity for preview frame, canvas handles, timeline drag and history
+    purpose: "Verify CREATE-TOOL-MOTION-STUDIO-01, -04, -05 and -09 across HTTP routes, manifest/persona contracts, and live Chromium at 1440x900 and 412x915."
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/tool-parity.test.mjs]}
+    expected:
+      - "motion-preview returns a bounded revision-pinned PNG frame under 60 KiB with verified magic bytes and sha256, enforces own read grants, and is referenced in motion-editor.yaml."
+      - "Dragging layer position, corner scale and rotation handles on the canvas with mouse (1440x900) and touch (412x915) saves exact matching transform values."
+      - "Dragging layer timing bars, trim handles and keyframe diamonds in #timeline with mouse and touch saves exact matching timing and key ticks while tap/click still opens #keyEditor."
+      - "The Revision history sheet lists revisions matching motion-revision-history, Restore appends a non-destructive restored revision, and Redo steps back forward cleanly."
+    prerequisites: [runner:node, browser:chromium, runtime:motion-engine-reviewed, runtime:sharp-playwright, service:postgres-disposable-35689, runtime:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/application-fixture.mjs]
+      cleanup: Close owned browser contexts, compositor children and unique fixture SQL schema/role; preserve shared PG35689.
     limits: {timeoutMs: 240000, maxMemoryMb: 1536}
     installation: never

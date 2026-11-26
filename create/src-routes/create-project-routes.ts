@@ -8,17 +8,19 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Compose bounded PSD review/import and immutable original export without replacing existing project routes.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: a refused agent project or edit batch says why in `detail` (the editor validator's sentence), so Jarvis can correct the call instead of guessing.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: an agent project may carry its first layers, so one approval makes a finished drawing; the batch rules are the edit route's.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.5: add POST /projects/:id/revisions/restore (undo/restore as new immutable revision) and POST /projects/:id/apply-brand (one-step brand application matching the editor).
  */
 import { Router, json, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import multer from 'multer';
 import { AsyncResource } from 'node:async_hooks';
 import { resolve } from 'node:path';
 import { ProjectError, PROJECT_LIMITS, type ProjectContext, type ProjectOwner } from './create-project-types';
-import { projectId, baseRevision, exactFields, projectInput, loadProjectValidator, loadProjectAgent, type ProjectValidator } from './create-project-validation';
+import { projectId, baseRevision, exactFields, projectInput, validateDocument, loadProjectValidator, loadProjectAgent, type ProjectValidator } from './create-project-validation';
 import { CreateProjectStore } from './create-project-store';
 import { registerCreateProjectAuthorization, requireProjectAccess, projectPermissions, type ProjectAction } from './create-project-authorization';
 import { projectAssetRoot, saveProjectImage, readProjectImage, removeProjectImage } from './create-project-assets';
-import { registerBrandKitRoutes } from './create-brand-kit-routes';
+import { registerBrandKitRoutes, requireBrandAccess, loadBrandModule } from './create-brand-kit-routes';
+import { CreateBrandKitStore } from './create-brand-kit-store';
 import { registerPsdRoutes } from './create-psd-routes';
 import { registerRegionEditRoutes, type RegionEditDependencies, type RegionEditSettings } from './create-region-edit-routes';
 
@@ -131,6 +133,50 @@ function projectWrites(router: Router, env: RouteEnvironment): void {
   }));
 }
 
+function projectParityWrites(router: Router, env: RouteEnvironment): void {
+  const pkgDir = env.ctx.appPackageDir ?? resolve(__dirname, '..');
+  const brandStore = new CreateBrandKitStore(env.store);
+  const brandModule = loadBrandModule(pkgDir);
+  const admitBrandRead: RequestHandler = (_req, res, next) => {
+    requireBrandAccess(env.ctx, 'read').then(() => next()).catch(error => sendError(res, error));
+  };
+  router.post('/projects/:id/revisions/restore', admit(env, 'change'), admit(env, 'read'), bodyParser, handler(env, 'change', async (req, res, owner) => {
+    const body = req.body ?? {};
+    exactFields(body, ['id', 'revision', 'baseRevision']);
+    const id = projectId(req.params.id);
+    if (body.id !== undefined && projectId(body.id) !== id) throw new ProjectError(400, 'invalid_project_id');
+    const target = body.revision === undefined ? undefined : baseRevision(body.revision);
+    const expected = body.baseRevision === undefined ? undefined : baseRevision(body.baseRevision);
+    await requireProjectAccess(env.ctx, 'read', owner);
+    const validate = await env.validator;
+    const restored = await env.store.restoreRevision(owner, id, target, expected,
+      doc => validateDocument(doc, validate),
+      async () => { await requireProjectAccess(env.ctx, 'read', owner); await requireProjectAccess(env.ctx, 'change', owner); });
+    res.status(201).json(restored);
+  }));
+  router.post('/projects/:id/apply-brand', admit(env, 'change'), admit(env, 'read'), admitBrandRead, bodyParser, handler(env, 'change', async (req, res, owner) => {
+    const body = req.body ?? {};
+    exactFields(body, ['id', 'baseRevision']);
+    const id = projectId(req.params.id);
+    if (body.id !== undefined && projectId(body.id) !== id) throw new ProjectError(400, 'invalid_project_id');
+    const expected = body.baseRevision === undefined ? undefined : baseRevision(body.baseRevision);
+    await requireProjectAccess(env.ctx, 'read', owner); await requireBrandAccess(env.ctx, 'read', owner);
+    const brandRecord = await brandStore.get(owner);
+    if (!brandRecord) throw new ProjectError(404, 'brand_kit_not_found', 'Save a brand kit before applying it to a project');
+    const current = await env.store.get(owner, id);
+    if (expected !== undefined && current.revision !== expected) throw new ProjectError(409, 'project_revision_conflict');
+    const { applyBrandToProject } = await brandModule;
+    let applied;
+    try { applied = applyBrandToProject(current.document, brandRecord.kit); }
+    catch (error) { throw new ProjectError(400, 'invalid_project_document', reason(error)); }
+    const input = projectInput({ title: String(applied.project.name ?? current.title), document: applied.project }, await env.validator);
+    const project = await env.store.save(owner, id, current.revision, input, async () => {
+      await requireProjectAccess(env.ctx, 'read', owner); await requireProjectAccess(env.ctx, 'change', owner); await requireBrandAccess(env.ctx, 'read', owner);
+    });
+    res.status(201).json({ project, changes: applied.changes, brandKitRevision: brandRecord.revision });
+  }));
+}
+
 function projectAssets(router: Router, env: RouteEnvironment): void {
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: PROJECT_LIMITS.imageBytes, files: 1, fields: 0, parts: 2 } }).single('image');
   const decodeImage: RequestHandler = (req, res, next) => upload(req, res, AsyncResource.bind(next));
@@ -155,7 +201,7 @@ export function createCreateProjectRoutes(ctx: ProjectContext, options: { dataRo
   const env = { ctx, store: new CreateProjectStore(ctx.pool), dataRoot: options.dataRoot ?? projectAssetRoot(),
     validator: loadProjectValidator(ctx.appPackageDir ?? resolve(__dirname, '..')) };
   router.get('/permissions', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json({ permissions: await projectPermissions(ctx) }); }));
-  projectReads(router, env); projectWrites(router, env); projectAssets(router, env);
+  projectReads(router, env); projectWrites(router, env); projectParityWrites(router, env); projectAssets(router, env);
   registerPsdRoutes(router, { ...env, ctx: { ...ctx, appPackageDir: ctx.appPackageDir ?? resolve(__dirname, '..') }, guards: { personalOnly, sendError } });
   registerBrandKitRoutes(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError } });
   registerRegionEditRoutes(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError }, validator: env.validator,

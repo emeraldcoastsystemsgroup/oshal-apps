@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                  | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0 (Roger, 2026-11-21: "making sure there is a version of the resume that fills their stuff accurately .. we keep getting offset .. for the input fields it needs to be clearly labeled"): the parse résumé's contract on a made-up person with six roles (one held by year only, one client engagement under its employer) and two schools. The format: no tab, table, text box, column, header, footer, drawing or theme font in any part. The structure: the six standard headings in order, labelled contact lines, every role exactly once with Job Title, Company, Location, Start Date and End Date in that order (the engagement's Company the client, Through its employer), MM/YYYY or a year alone everywhere, schools as School, Degree, Field of Study, Start Date, End Date. The real parse: the plain line reader of tests/helpers/resume_line_parser.py over the Word paragraphs and over pdftotext of the LibreOffice PDF recovers every role exactly from the parse résumé, and not from the executive Word résumé of the same person.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: the location is the recorded role's, as Work history saves it: a location the generated entry carries never replaces the record's (Madison, WI is printed, not the entry's) or stands in for one the record does not hold (no Location line), and an entry no record anchors (other experience) keeps its own.
 """Parse résumé contract: Resume_Parse.docx is laid out for an employer's résumé parser."""
 from __future__ import annotations
 
@@ -208,6 +209,35 @@ def test_edges(out: Path) -> None:
     check("edges: without the record, no Location line", not any(line.startswith("Location:") for line in lines))
 
 
+def _head(lines: list[str], title: str) -> list[str]:
+    """One role's labelled lines (its block up to its first bullet)."""
+    start = lines.index("Job Title: " + title)
+    end = next((n for n in range(start + 1, len(lines)) if lines[n].startswith(("• ", "Job Title: ")) or lines[n] in SECTIONS), len(lines))
+    return lines[start:end]
+
+
+def test_location(out: Path) -> None:
+    """@description The location is the recorded role's, as Work history saved it: a location the generated entry
+    carries never replaces it or stands in for one the record does not hold; an entry no record anchors keeps its own."""
+    data = resume()
+    data["experience"][0]["location"] = "Somewhere Else, ZZ"   # r1 records Madison, WI
+    data["experience"][3]["location"] = "Guessed City, QQ"     # r4's record holds none below
+    roles = [dict(role, location="") if role["id"] == "r4" else role for role in recorded_roles()]
+    lines = reader.docx_lines(str(render(out, data, roles)))
+    check("location: the recorded location is printed, not one the résumé entry carries",
+          _head(lines, "Director of Operations")[2:3] == ["Location: Madison, WI"], str(_head(lines, "Director of Operations")))
+    check("location: a recorded role with no location prints none, even when the résumé entry carries one",
+          _head(lines, "Operations Manager") == ["Job Title: Operations Manager", "Company: Contoso Logistics, Inc.",
+                                                 "Start Date: 08/2012", "End Date: 04/2016"], str(_head(lines, "Operations Manager")))
+    data = resume()
+    data["additional_experience"] = [{"title": "Volunteer Coordinator", "org": "Example Food Bank", "span": "2019 to 2020",
+                                      "location": "Madison, WI", "bullets": ["Scheduled 40 volunteers a week."]}]
+    lines = reader.docx_lines(str(render(out, data)))
+    check("location: an entry no record anchors keeps the location it carries",
+          _head(lines, "Volunteer Coordinator")[:3] == ["Job Title: Volunteer Coordinator", "Company: Example Food Bank", "Location: Madison, WI"],
+          str(_head(lines, "Volunteer Coordinator")))
+
+
 def _truth() -> list[dict]:
     return [{key: role[key] for key in ("title", "company", "start", "end")} for role in EXPECTED]
 
@@ -263,7 +293,7 @@ def main() -> int:
     """@description Run every check and print one JSON summary line. @returns 0 when every check passed, else 1."""
     comparison: dict = {}
     with tempfile.TemporaryDirectory(prefix="career-parse-resume-") as tmp:
-        for fn in (test_format, test_structure, test_edges, test_real_parse, test_cli):
+        for fn in (test_format, test_structure, test_edges, test_location, test_real_parse, test_cli):
             folder = Path(tmp) / fn.__name__
             folder.mkdir()
             try:

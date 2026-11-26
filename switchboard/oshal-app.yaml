@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.6.7: UX audit batch 7 (switchboard-stage MERGE, switchboard-threads MERGE, switchboard-inbox FIX-LAYOUT, switchboard-today FIX-LAYOUT): fold Stage into Compose (Same text everywhere switch + confirmed Send to all chosen networks fan-out) and Threads into Inbox (?group=person segmented view) while retaining both surface ids for business-experience; phone list-detail + Back on Inbox, single Connect accounts sheet and time-of-day greeting on Today, and plain Connect links in route notes. Guard: tests/switchboard-ux-batch7.test.js.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: publishing with an attached image works. Compose's Attach to posts sends the generated image with Publish, Schedule and Send to all; the route uploads it to X (v2 chunked media upload on api.twitter.com, the X connection's API host, already declared) and posts with its media id; Streams and the Calendar executor carry a post's mediaRef on the same path. /publish answered 501 "Attaching generated media on publish is not yet supported" and Streams/Calendar dropped the image. Guard: tests/switchboard-publish-media.test.js.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.7.1: declare `approvals:` (`/api/switchboard/streams/posts`, `/approvals`) so Streams posts in `in_review` state appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`) and transition through the existing `/transition` route.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.7.2 (NAV-02): convert phone (<=760px) Switchboard navigation and filter strips (.sb-topnav, .wsbar, Inbox .navlist/.groupbar, Calendar .controls/.nav, Compose/Stage .plats, Streams .snav) into single-row horizontal scrollable strips with 44px nowrap touch targets and zero page overflow; add 412x915 Chromium browser test (tests/switchboard-nav-phone.test.mjs).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — switchboard (the merged comms + social command center)
@@ -69,7 +70,7 @@ description: >-
   whole day in one place instead of app-hopping. Reads run on your own connector
   tokens; ranking and drafting run on the communications bot with cost captured
   per user. Nothing is sent or posted without your say-so.
-version: 0.7.1
+version: 0.7.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml

@@ -16,13 +16,14 @@
  * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Arm join-code admission as a validated transaction-local database capability before any RLS-protected campaign lookup.
  * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The host deletes their own campaign (deleteCampaign): its snapshots, archive, characters, encounter and seats, then the campaign row, in one transaction. The native kernel stores package rows without foreign-key cascades, so each child table is removed explicitly. Live, a host's test campaigns could only be resumed, never removed.
  * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Write owner_sub explicitly on every INSERT: the native kernel skips migration 006, whose triggers stamp it on PostgreSQL (where they still override it from the parent campaign).
+ * 2026-11-25 14:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Capture lightweight deduplicated board revisions alongside campaign creation, board state saves, and archived story beats.
  */
 
 'use strict';
 
 const crypto = require('crypto');
 const { CharacterImportError, normalizeInternalSheet } = require('./character-import');
-const { captureRoundBoundary } = require('./dnd-checkpoint-store');
+const { captureBoardRevision, captureRoundBoundary } = require('./dnd-checkpoint-store');
 const { stateWriteDecision, stripTokenPrivateFields } = require('./multiplayer-guard');
 const { normalizeRollPayload } = require('./dnd-roll-payload');
 const {
@@ -179,7 +180,12 @@ async function archiveTimelineCurrent(db, transactional, campaignId, timelineId)
 async function archive(deps, sub, campaignId, kind, content, payload, timelineId) {
   return withTransaction(deps.pool, async (db, transactional) => {
     if (!(await archiveTimelineCurrent(db, transactional, campaignId, timelineId))) return null;
-    return appendArchive(deps, db, sub, campaignId, kind, content, transactional, payload);
+    const entry = await appendArchive(deps, db, sub, campaignId, kind, content, transactional, payload);
+    const boardRow = await db.query('SELECT state FROM dnd_encounters WHERE campaign_id=$1', [campaignId]);
+    if (boardRow.rowCount && boardRow.rows[0] && boardRow.rows[0].state) {
+      await captureBoardRevision(db, sub, campaignId, parsedJson(boardRow.rows[0].state, null), 'beat', entry.seq);
+    }
+    return entry;
   });
 }
 
@@ -231,7 +237,8 @@ async function createCampaignRows(deps, db, sub, body, savedIds) {
     'INSERT INTO dnd_encounters (campaign_id, user_sub, adventure_id, state, round, rev, owner_sub) VALUES ($1,$2,$3,$4,0,1,$2)',
     [campaign.campaign_id, sub, adventure.id, JSON.stringify(state)]
   );
-  await appendArchive(deps, db, sub, campaign.campaign_id, 'milestone', `A new campaign begins: ${scene.title}. Join code: ${code}`, false);
+  const opening = await appendArchive(deps, db, sub, campaign.campaign_id, 'milestone', `A new campaign begins: ${scene.title}. Join code: ${code}`, false);
+  await captureBoardRevision(db, sub, campaign.campaign_id, state, 'start', opening && opening.seq);
   return { campaign, state };
 }
 
@@ -660,6 +667,9 @@ async function commitAcceptedState(deps, db, campaign, body, current, proposed, 
   await db.query('UPDATE dnd_campaigns SET updated_at=now(), status=$2 WHERE campaign_id=$1', [body.campaignId, status]);
   await captureRoundBoundary(
     deps, db, campaign.user_sub, body.campaignId, current.state, proposed,
+  );
+  await captureBoardRevision(
+    db, campaign.user_sub, body.campaignId, proposed, 'state',
   );
   return { ok: true, rev: Number(saved.rows[0].rev) };
 }

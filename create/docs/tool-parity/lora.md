@@ -1,56 +1,53 @@
 # LoRA Studio: parity audit against Civitai and Kohya
 
-`lora` 1.7.6 trains a reusable character model on the owner's GPU worker, scores each version on a fixed validation matrix, and improves weak spots by regenerating data and retraining. It is measured against the Civitai on-site trainer (web, guided, paid in Buzz) and Kohya_ss (a local training GUI with every setting exposed). LoRA Studio goes further than both on scoring, and falls well short on dataset work and on getting the model out. The `lora-director` concierge has two read tools and one of them cannot work (row 15); its persona says it only reasons.
+`lora` 1.10.6 trains a reusable character model on the owner's GPU worker, scores each version on a fixed validation matrix, and improves weak spots by regenerating data and retraining. It is measured against the Civitai on-site trainer (web, guided, paid in Buzz) and Kohya_ss (a local training GUI with every setting exposed). LoRA Studio goes further than both on scoring, now gives `lora-director` full read and approval-held action parity across existing studio routes (characters, models, scorecards, dataset receipts, character create/delete, train/validate/improve, active version, overnight toggle, artifact import, and single-version deletion), and still has open backlog work on zip/.txt batch dataset upload, dataset image removal, and model export/prompt testing.
 
 ## Table
 
 How to read it:
-- Our side comes from reading the snapshot. Nothing here was run. `lora.html` means `lora/tools/lora.html`; routes are in `lora/src-routes/bot-lora-routes.ts` unless named.
+- Our side comes from reading the snapshot. `lora.html` means `lora/tools/lora.html`; routes are in `lora/src-routes/bot-lora-routes.ts` and `lora/src-routes/lora-read-queries.ts` unless named.
 - Train, validate and improve need a registered GPU worker; otherwise they answer `box_required`.
 - Letters in brackets are sources, listed at the end. [K] means general product knowledge, not re-read. "n/c" means not confirmed. Tier: basic is what the guided Civitai flow shows by default; pro is advanced settings or a Kohya-level control. Neither source shows a phone app, so the mobile cell is n/c unless stated. Kohya runs on the training computer [K].
 
 | # | Capability | Tier | Industry mobile | Industry desktop | Our UX control | Our concierge tool | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | Create a model or character | basic | n/c | Civitai: Train a model [A]; Kohya: yes [B] | `#characterForm`, `lora.html`; starter button `#addStarterBtn` | none | UX only |
-| 2 | Edit a character after saving | basic | n/c | n/c | none: `POST /characters` answers 409 if it exists (`lora-character-create.ts`); no update route | none | missing |
-| 3 | List my characters | basic | n/c | Civitai: yes [K] | `#chars`, `lora.html` | `lora-characters`; its description promises dataset counts and training state, but the query returns neither | both |
-| 4 | Add one image to the dataset | basic | n/c | Civitai: from Generator or profile [A] | `#importArtifactBtn`, `lora.html`: only when another app opened the page with `?artifact=`; no file picker | none | UX only |
-| 5 | Upload many images at once, with captions | basic | n/c | Civitai: zip of images and .txt files [A]; Kohya: folder [K] | none | none | missing |
-| 6 | Write a caption for an image | basic | n/c | Civitai: manual captions [A] | `#datasetCaption`, `lora.html`, at import only | none | UX only |
+| 1 | Create a model or character | basic | n/c | Civitai: Train a model [A]; Kohya: yes [B] | `#characterForm`, `lora.html`; starter button `#addStarterBtn` | `lora-create-character` (held, `POST /api/lora/characters`, 1.10.6) | both |
+| 2 | Edit a character after saving | basic | n/c | n/c | Cosmetic display name via `#editIdentityName` (`PATCH /characters/:subject/editor`); full identity settings remain immutable after creation | `lora-editor-character-edit` (cosmetic display name only) | partial |
+| 3 | List my characters | basic | n/c | Civitai: yes [K] | `#chars` & `#phoneChars`, `lora.html` (shows version count, dataset count, active version, best score, training state) | `lora-characters` (`GET /api/lora/characters` returns `datasetCount`, `activeModelVersion`, `trainingState`/`activeRunState`, 1.10.6) | both |
+| 4 | Add one image to the dataset | basic | n/c | Civitai: from Generator or profile [A] | `#uploadPhotosBtn` multi-photo device uploader with crop/caption (1.10.0) + `#importArtifactBtn` Send-to import | `lora-dataset-import` (held, `POST /api/lora/dataset/import`, 1.10.6) | both |
+| 5 | Upload many images at once, with captions | basic | n/c | Civitai: zip of images and .txt files [A]; Kohya: folder [K] | Multi-photo device picker with per-photo captions (1.10.0), no `.zip` + `.txt` batch import yet | none | partial |
+| 6 | Write a caption for an image | basic | n/c | Civitai: manual captions [A] | `#datasetCaption`, `#photoCaptionInput`, and saved caption editor `#editSavedCaption` | `lora-editor-caption`, `lora-editor-caption-edit`, `lora-editor-caption-retry` | both |
 | 7 | Auto-tag or auto-caption | basic | n/c | Civitai: WD Tagger, JoyCaption, threshold, blacklist [A] | none | none | missing |
-| 8 | See, edit and remove dataset images | basic | n/c | Civitai: captions in the dataset step [A]; removal n/c | list of file names and states only, `#datasetRows`, `#refreshDatasetBtn`; no thumbnail, caption edit or delete; no such route in `lora-dataset-ingest.ts` | none | missing |
-| 9 | Choose the base model | basic | n/c | Civitai: SD 1.5, SDXL, Flux, others, custom [A]; Kohya: any file [K] | `baseModel` free text at creation, `lora.html`; must name a file on the worker | none | UX only |
+| 8 | See, edit and remove dataset images | basic | n/c | Civitai: captions in the dataset step [A]; removal n/c | `#datasetRows` with preview thumbnails and caption editing (1.10.0/1.8.x); no dataset image delete route or button yet | `lora-dataset` (read, 1.10.6) + `lora-editor-caption-edit`; no delete tool yet | partial |
+| 9 | Choose the base model | basic | n/c | Civitai: SD 1.5, SDXL, Flux, others, custom [A]; Kohya: any file [K] | `baseModel` free text at creation, `lora.html`; must name a file on the worker | `baseModel` input on `lora-create-character` | both |
 | 10 | Training settings: epochs, repeats, learning rate, network size, buckets | pro | n/c | Civitai: epochs, repeats, some others [A]; Kohya: all [B] | none: rank and epochs are shown afterwards, not chosen | none | missing |
-| 11 | Start training | basic | n/c | yes [A][B] | `#trainBtn`, `lora.html`; `POST /train` | none (persona: it never trains) | UX only |
+| 11 | Start training | basic | n/c | yes [A][B] | `#trainBtn`, `lora.html`; `POST /train` | `lora-train` (held, `POST /api/lora/train`, 1.10.6) | both |
 | 12 | Sample images during training | basic | n/c | Civitai: three per epoch from prompts [A]; Kohya: to the output folder [B] | none | none | missing |
-| 13 | See state and progress of a run | basic | n/c | Civitai: review screen per epoch [A] | state badge on the version card, `lora.html`; no step, percent or log | none: `GET /characters` query has no training state | UX only |
+| 13 | See state and progress of a run | basic | n/c | Civitai: review screen per epoch [A] | state badge on `#chars` and version cards, `lora.html`; no step, percent or log yet | `lora-characters` (`trainingState`/`activeRunState`) & `lora-models` (`status`) (1.10.6) | partial |
 | 14 | Save and choose between epochs | pro | n/c | Civitai: up to 20 to download [A]; Kohya: save every N [B] | none (one file per version) | none | missing |
-| 15 | List trained versions | basic | n/c | Civitai: yes [K] | `#vers`, `lora.html`; `GET /models?subject=` | `lora-models` is declared with no input, but `GET /models` answers 400 `subject required` without a subject (`bot-lora-routes.ts`, compiled `routes/bot-lora-routes.js:477`), so it cannot succeed | UX only |
-| 16 | Score a version on a fixed test set | pro | n/c | Not a built-in feature in either source | `#valBtn`, `lora.html`; `POST /validate` | none | UX only |
-| 17 | See the scorecard and weak cells | pro | n/c | Not a built-in feature in either source | View scorecard, `gallery()`, `lora.html`; `GET /scorecard` | none: no tool reads a scorecard, though the persona's job is to explain one | UX only |
-| 18 | Continue from an earlier model; targeted improve | pro | n/c | Kohya: start from existing weights [B] | `#impBtn`, `lora.html`; `POST /improve` | none | UX only |
-| 19 | Unattended overnight runs | pro | n/c | Civitai: several jobs at once [A]; overnight n/c | `#autoTog`, `#overnightBtn`, `lora.html` | none | UX only |
-| 20 | Mark the version to use | basic | n/c | Civitai: publish chosen epoch [A] | Keep as active, `lora.html` | none | UX only |
+| 15 | List trained versions | basic | n/c | Civitai: yes [K] | `#vers`, `lora.html`; `GET /models?subject=` | `lora-models` (`GET /api/lora/models?subject={input.subject}`: lists all owned versions newest-first when omitted or filters by subject, 1.10.6) | both |
+| 16 | Score a version on a fixed test set | pro | n/c | Not a built-in feature in either source | `#valBtn`, `lora.html`; `POST /validate` | `lora-validate` (held, `POST /api/lora/validate`, 1.10.6) | both |
+| 17 | See the scorecard and weak cells | pro | n/c | Not a built-in feature in either source | View scorecard, `gallery()`, `lora.html`; `GET /scorecard` | `lora-scorecard` (read, `GET /api/lora/scorecard?subject={input.subject}&version={input.version}`, 1.10.6) | both |
+| 18 | Continue from an earlier model; targeted improve | pro | n/c | Kohya: start from existing weights [B] | `#impBtn`, `lora.html`; `POST /improve` | `lora-improve` (held, `POST /api/lora/improve`, 1.10.6) | both |
+| 19 | Unattended overnight runs | pro | n/c | Civitai: several jobs at once [A]; overnight n/c | `#autoTog`, `#overnightBtn`, `lora.html` | `lora-overnight-toggle` (held, `POST /api/lora/characters/{input.subject}/autonomous`, 1.10.6) | both |
+| 20 | Mark the version to use | basic | n/c | Civitai: publish chosen epoch [A] | Keep as active, `lora.html` | `lora-activate-model` (held, `POST /api/lora/characters/{input.subject}/active`, 1.10.6) | both |
 | 21 | Download the trained file | basic | n/c | Civitai: yes [A]; Kohya: local file [B] | none: no download route; only a worker path is stored | none | missing |
 | 22 | Publish or share a model | pro | n/c | Civitai: Publish [A] | none | none | missing |
 | 23 | Try the model with my own prompt | basic | n/c | Civitai: on-site generator [K] | none (only the fixed matrix) | none | missing |
-| 24 | Delete a character | basic | n/c | Civitai: n/c | `#deleteCharBtn` with confirm step, `lora.html` | none | UX only |
-| 25 | Delete one version | basic | n/c | Civitai: n/c | none: `DELETE /models/:subject/:version` exists; `lora.html` never calls it | none | missing |
+| 24 | Delete a character | basic | n/c | Civitai: n/c | `#deleteCharBtn` with confirm step, `lora.html` | `lora-delete-character` (held, `DELETE /api/lora/characters/{input.subject}`, 1.10.6) | both |
+| 25 | Delete one version | basic | n/c | Civitai: n/c | Delete version button with inline confirm & active-version warning on each version card, `lora.html` (1.10.6) | `lora-delete-model` (held, `DELETE /api/lora/models/{input.subject}/{input.version}`, 1.10.6) | both |
 
 ## Backlog
 
 Ordered by what people hit first.
 
-- **CREATE-TOOL-LORA-01: Fix the `lora-models` tool.** It sends no subject and the route needs one. Accept a subject, or let the route list all of the person's versions.
-  Done when: "what models have I trained?" returns the real list through a test that runs the tool's declared endpoint against the real route, not only its name.
-- **CREATE-TOOL-LORA-02: Make `lora-characters` return what it promises.** Add dataset counts and current run state to the query, or correct the description.
-  Done when: while a run is training, asking the concierge names it as training and gives the right image count.
-- **CREATE-TOOL-LORA-03: Upload a dataset on screen.** A file picker for many images, and a zip with matching .txt captions.
+- **CREATE-TOOL-LORA-01: Fix the `lora-models` tool.** **DONE (1.10.6).** `GET /api/lora/models` lists all of the signed-in owner's trained versions newest-first (with `subject`, `display_name`, `version`, `overall`, `status`, `active`) when `subject` is omitted and filters when `subject` is supplied; `lora-models` declares optional `subject` (`GET /api/lora/models?subject={input.subject}`), proven against the real route both with and without `subject` in `lora/tests/lora-tool-parity.test.mjs`.
+- **CREATE-TOOL-LORA-02: Make `lora-characters` return what it promises.** **DONE (1.10.6).** `GET /api/lora/characters` returns accurate per-character `datasetCount`/`dataset_count`, `activeModelVersion`/`active_version`, and `trainingState`/`activeRunState` (`training`, `queued`, `validating`, `ready`, `failed`, `idle`), surfaced on `#chars` and `#phoneChars` in `lora.html` and proven in `lora/tests/lora-tool-parity.test.mjs`.
+- **CREATE-TOOL-LORA-03: Upload a dataset on screen.** **OPEN (partial: multi-photo device picker with crop/caption landed in 1.10.0; `.zip` with matching `.txt` captions still missing).** A file picker for many images, and a zip with matching .txt captions.
   Done when: a person drops a zip of 30 pairs, sees 30 queued rows with their captions, and invalid files are refused by name.
-- **CREATE-TOOL-LORA-04: See, edit and remove dataset images.** Thumbnails, caption editing, delete.
+- **CREATE-TOOL-LORA-04: See, edit and remove dataset images.** **OPEN (partial: preview thumbnails and caption editing landed in 1.8.x/1.10.0; dataset image delete still missing).** Thumbnails, caption editing, delete.
   Done when: a person fixes one caption and removes one image, and the next training run uses that set. The worker's copy matches.
-- **CREATE-TOOL-LORA-05: Concierge action tools.** Held tools for create character, train, validate, improve, keep as active, overnight switch, delete character, dataset import; a read tool for the scorecard and dataset.
-  Done when: "validate the latest version and tell me the weakest pose" shows a card, starts the run, and later answers from the saved scorecard; the persona's statement that it only reasons is updated.
+- **CREATE-TOOL-LORA-05: Concierge action tools.** **DONE (1.10.6).** Added read tools `lora-scorecard` and `lora-dataset`, plus approval-held action tools `lora-create-character`, `lora-train`, `lora-validate`, `lora-improve`, `lora-activate-model`, `lora-overnight-toggle`, `lora-delete-character`, and `lora-dataset-import` bound in `authorization.yaml` with existing permissions only; updated `personas/lora-director.yaml` to remove the reason-only claim and document read vs approval-held tools.
 - **CREATE-TOOL-LORA-06: Download the trained model.** An owner-only route and button, plus a tool that returns the link.
   Done when: a person downloads a version's .safetensors, it loads in a stock ComfyUI, and another account's request is refused.
 - **CREATE-TOOL-LORA-07: Try it with my own prompt.** A prompt box and strength setting on a version.
@@ -65,8 +62,7 @@ Ordered by what people hit first.
   Done when: changed settings reach the worker command and are recorded on the version, and a bad value is refused before dispatch.
 - **CREATE-TOOL-LORA-12: Edit a character.** An update route and form, keeping old versions tied to the settings they used.
   Done when: changing the trigger word affects only new versions, and the old version's record still shows the old value.
-- **CREATE-TOOL-LORA-13: Delete one version, by button and held tool.**
-  Done when: deleting v2 removes its row, score and thumbnails and leaves v1 and v3; deleting the active version asks first.
+- **CREATE-TOOL-LORA-13: Delete one version, by button and held tool.** **DONE (1.10.6).** Added **Delete version** button with inline confirmation (explicitly warning when deleting the active version, no native confirm dialog) on `#vers` in `lora.html`, and approval-held `lora-delete-model` (`DELETE /api/lora/models/{input.subject}/{input.version}`) bound to `lora.configure`; verified row/score/thumbnail deletion leaves other versions intact and refuses other owners.
 - **CREATE-TOOL-LORA-14: Publish or share a version.** To another person on the installation, or an exported package with a model card.
   Done when: a person shares a version with a named account, that account can use it, and revoking works.
 

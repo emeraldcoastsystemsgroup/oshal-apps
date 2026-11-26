@@ -842,3 +842,13 @@ Every paint layer (`image`, `text`, `rect`, `ellipse`, `freehand`, `path`) and `
 ## Text styling and in-place canvas typing — 1.20.4
 
 Text layers accept optional `italic`, `underline`, `lineHeight` (`0.8..3`, default `1.2`), `letterSpacing` (`-10..100` px, default `0`), and outline `stroke`/`strokeWidth` (`0..32` px) alongside layer `shadow`, omitting defaults from canonical JSON. Format inspector controls, double-click in-place canvas typing (`#inlineTextEditor`), and concierge `create-apply-edits` share the same validated undo/save/export path across Canvas preview, PNG/JPEG export, and SVG export. See [EDITOR.md](EDITOR.md#text-styling-and-in-place-canvas-typing-1204). No route, permission, migration, or `authorization.yaml` change.
+
+## Concierge and editor parity — 1.20.5
+
+Delivers `CREATE-TOOL-CREATE-02`, `-08`, `-10`, `-29` and `CREATE-TOOL-BRAND-01`..`-03`:
+
+- **Text alignment on screen (`CREATE-TOOL-CREATE-02`):** Left / Center / Right segmented buttons (`#textAlignLeft`, `#textAlignCenter`, `#textAlignRight`) in the Format inspector, synced with concierge `align` patches, persisting across save/reload and Canvas2D/PNG/SVG exports.
+- **Undo and revision restore for the concierge (`CREATE-TOOL-CREATE-08`):** `create-list-revisions` (`GET /api/create/projects/{input.id}/revisions`, `auto`) and approval-held `create-restore-revision` (`POST /api/create/projects/{input.id}/revisions/restore`, `ask`) restore an explicit revision or default to the immediately previous retained revision as a new immutable revision.
+- **Brand kit read, update, and one-step Apply my brand (`CREATE-TOOL-CREATE-10`, `CREATE-TOOL-BRAND-01`..`-03`):** `create-read-brand-kit` (`GET /api/create/brand-kit`, `auto`), approval-held `create-update-brand-kit` (`PUT /api/create/brand-kit`, `ask`), approval-held `create-apply-brand` (`POST /api/create/projects/{input.id}/apply-brand`, `ask`), and on-screen **Apply my brand** (`#applyBrandBtn`) sharing `applyBrandToProject` in `tools/editor/brand-kit.mjs` as a single undoable step / single new revision returning every layer change and placing the owned logo once.
+- **Canvas size parity (`CREATE-TOOL-CREATE-29`):** `create-new-project` now accepts up to `8192` px per side (32 MP ceiling) matching the editor, with identical validation error wording.
+- Route and tool bindings in `authorization.yaml` use existing permissions only (`policy_pending` unchanged).

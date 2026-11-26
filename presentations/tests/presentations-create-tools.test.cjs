@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A made file answers openUrl, and an open= link reopens that saved file in the studio (Jarvis never offered to open a deck it made).
  *
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard current-document editing precedence and unchanged approval/ownership boundaries for all Office kinds.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.13 (CREATE-TOOL-PRESENTATIONS-04, -20): extend create-tools contract to cover presentations-create-workbook (POST /xlsx, subtitle, openUrl) and approval-gated presentations-send-slack (POST /slack, confirm: true, cardText).
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -66,7 +67,7 @@ async function post(route, body) {
   return res;
 }
 
-for (const [name, kind] of [['presentations-create-deck', 'pptx'], ['presentations-create-document', 'docx']]) {
+for (const [name, kind] of [['presentations-create-deck', 'pptx'], ['presentations-create-document', 'docx'], ['presentations-create-workbook', 'xlsx']]) {
   test(`${name} is an automatic route write onto POST /${kind}`, () => {
     const block = toolBlock(name);
     assert.match(block, new RegExp(`apiEndpoint: "POST /api/presentations/sections/${kind}"`));
@@ -76,14 +77,25 @@ for (const [name, kind] of [['presentations-create-deck', 'pptx'], ['presentatio
   });
 
   test(`the body ${name} sends renders and saves a ${kind}`, async () => {
-    const res = await post(`POST /${kind}`, { title: 'Q3 review', sections: [{ title: 'Where we are', content: 'revenue up\nchurn flat' }, { title: 'Next', content: 'hire two' }] });
+    const res = await post(`POST /${kind}`, { title: 'Q3 review', subtitle: 'Board Edition', sections: [{ title: 'Where we are', content: 'revenue up\nchurn flat' }, { title: 'Next', content: 'hire two' }] });
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.ok, true);
     assert.equal(res.body.slides, 2);
+    assert.equal(res.body.subtitle, 'Board Edition');
     assert.equal(res.body.savedTo, `oshal/a0000000-0000-0000-0000-000000000042/Q3 review.${kind}`);
     assert.equal(res.body.openUrl, `/cockpit/?app=presentations&open=${encodeURIComponent(`Q3 review.${kind}`)}`);
   });
 }
+
+test('presentations-send-slack is declared approval-gated with explicit confirmation on POST /slack', () => {
+  const block = toolBlock('presentations-send-slack');
+  assert.match(block, /apiEndpoint: "POST \/api\/presentations\/sections\/slack"/);
+  assert.match(block, /defaultAuthMode: ask/);
+  assert.match(block, /requiresApproval: true/);
+  assert.match(block, /cardText:/);
+  assert.match(block, /const: true/);
+  assert.match(block, /required: \[confirm, channelId, title, sections\]/);
+});
 
 test('the persona tells deck-builder to make the file instead of sending the person to Generate', () => {
   const persona = fs.readFileSync(path.join(PKG, 'personas', 'deck-builder.yaml'), 'utf8');
@@ -119,8 +131,10 @@ test('current Office context takes precedence over standalone generation without
   assert.match(edit, /CURRENT office-editor document, including a blank one/);
   assert.match(edit, /POST \/api\/presentations\/editor\/documents\/\{input\.id\}\/edits/);
   assert.match(toolBlock('office-read-selection-part'), /revision=\{input\.revision\}/);
-  for (const name of ['presentations-create-deck', 'presentations-create-document']) {
+  for (const name of ['presentations-create-deck', 'presentations-create-document', 'presentations-create-workbook']) {
     assert.match(toolBlock(name), /when no current office-editor document is being edited/);
     assert.match(toolBlock(name), /use office-apply-edits to populate or change that same document instead/);
   }
+  assert.match(persona, /`presentations-create-workbook`/);
+  assert.match(persona, /`presentations-send-slack`/);
 });

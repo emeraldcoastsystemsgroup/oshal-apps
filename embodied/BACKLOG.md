@@ -511,7 +511,7 @@ flies (its JSBSim XML ships in the release under `PteroSimAircrafts/`, readable 
 the first step of that leg. If the operator declines, the core entry records *neither: licence* and
 closes; this entry closes with it.
 
-## The assistant cannot call its route-backed tools yet (2026-10-06)
+## The assistant cannot call its route-backed tools yet (2026-10-06) — DONE (CLOSED 2026-11-19, 0.20.5)
 
 **CLOSED 2026-11-19 (version 0.20.5).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `0.20.5` declares explicit `posture: inline` on `embodied-operator` alongside `chatBot: embodied-operator`, adds explicit object `inputSchema` declarations to all read-only tools, lists `embodied-capabilities`, `embodied-physics-status`, and `embodied-physics-reports` in `personas/embodied-operator.yaml`, and guards manifest, persona, and route execution in `tests/engine-bot-tools-contract.test.js`.
 
@@ -553,7 +553,7 @@ reads the same model the live routes serve; and either the leg parts are lighten
 (thinner cheeks, a lattice femur) or the target in `hexapod-spec.ts` is re-decided by the operator with
 the reasoning beside it — never by editing a fill factor to make the number fit.
 
-## B30 — The spider-18: a learned gait that beats the CPG (ADR-202 D4, the first result is a miss)
+## B30 — The spider-18: a learned gait that beats the CPG (ADR-202 D4) — WALK BAR, GATE & CERTIFIED GAIT DONE (0.19.3–0.19.5); INVERTED BAR STILL OPEN
 
 The first long runs were made on 2026-10-30 on the box's CPU (`engine/tasks/hexapod_walk.py`, PPO, residual on
 the CPG, 300 000 steps, seed 0, about 2.1 hours each, the brief's-mass fixtures): **neither policy beats the

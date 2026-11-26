@@ -5,7 +5,10 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: replace Video, Audio and Motion blur placeholders with live Video… and Audio… imports, audio mute/levels controls with keyframe diamonds, composition motion-blur shutter controls, and per-layer motion-blur switches.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1 (RP-ALL-01): remove duplicate greyed Summarize planned control from Motion Studio's Concierge panel because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: on a phone the Concierge sheet holds the one Jarvis chat window, whose own Close button dispatches editor-concierge:hide from the pane inside the modal dialog (outside the editor shell); close the sheet on editor-concierge:hide so the editor takes the next tap.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-01, -09): attach interactive on-canvas drag/scale/rotate overlay handles and expose the Revision History sheet with Restore in Composition and More menus.
  */
+import { setupCanvasOverlay } from './canvas-overlay.mjs';
+import { populateHistorySheet } from './history-sheet.mjs';
 const number = (key, label, value, group = 'Transform', unit = '') => ({ key, label, value, type: 'number', step: 'any', group, unit });
 const readable = value => typeof value === 'number' && Number.isFinite(value);
 const KEYABLE = new Set(['transform/opacity', 'transform/position', 'transform/scale', 'transform/rotation', 'audio/levels']);
@@ -154,37 +157,8 @@ function setupStageOverlays({ $, adapter, stage, wide, getFoundation }) {
     try { await adapter.prepare(); inline.hidden = true; } catch (error) { adapter.problem(error); }
   };
   close.onclick = () => { inline.hidden = true; };
-  const handle = make('button', 'motion-position-handle'); handle.type = 'button'; handle.hidden = true; handle.setAttribute('aria-label', 'Move selected layer in composition'); stage.append(handle);
-  handle.addEventListener('dblclick', () => $('preview').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
-  const movable = () => {
-    const info = adapter.state.propertiesInfo, selected = adapter.layer(), prop = info?.properties.find(item => item.path === 'transform/position');
-    return adapter.propertiesCurrent() && !info?.locked && !info?.threeD && !prop?.hasExpression && !selected?.parent && Array.isArray(prop?.value) && prop.value.slice(0, 2).every(readable) && !adapter.state.playing ? prop : null;
-  };
-  function placeHandle() {
-    const position = movable(), image = $('preview'), comp = adapter.comp();
-    handle.hidden = !position || image.hidden || !comp || adapter.state.busy;
-    if (handle.hidden) return;
-    const area = stage.getBoundingClientRect(), box = image.getBoundingClientRect();
-    handle.style.left = (box.left - area.left + Number(position.value[0]) / Number(comp.width) * box.width) + 'px';
-    handle.style.top = (box.top - area.top + Number(position.value[1]) / Number(comp.height) * box.height) + 'px';
-    handle.textContent = '↔'; handle.title = 'Drag ' + adapter.layer().name;
-  }
-  handle.onpointerdown = event => {
-    if (event.button !== 0) return; const prop = movable(); if (!prop) return; event.preventDefault();
-    const origin = target(), start = [event.clientX, event.clientY], box = $('preview').getBoundingClientRect(), comp = adapter.comp(), original = prop.value;
-    let updated = original; handle.setPointerCapture(event.pointerId);
-    handle.onpointermove = move => {
-      if (origin !== target()) return;
-      updated = original.map((val, i) => i === 0 ? val + (move.clientX - start[0]) * Number(comp.width) / box.width : i === 1 ? val + (move.clientY - start[1]) * Number(comp.height) / box.height : val);
-      const area = stage.getBoundingClientRect();
-      handle.style.left = (box.left - area.left + updated[0] / Number(comp.width) * box.width) + 'px';
-      handle.style.top = (box.top - area.top + updated[1] / Number(comp.height) * box.height) + 'px';
-    };
-    handle.onpointercancel = () => { handle.onpointermove = null; placeHandle(); };
-    handle.onpointerup = async () => { handle.onpointermove = null; if (origin !== target() || updated === original) return; try { await adapter.patchProperties([{ prop: prop.prop, value: updated }]); } catch (error) { adapter.problem(error); } placeHandle(); };
-  };
-  new ResizeObserver(placeHandle).observe(stage); $('preview').addEventListener('load', placeHandle);
-  return { syncOverlays() { if (inlineTarget && inlineTarget !== target()) inline.hidden = true; placeHandle(); } };
+  const overlay = setupCanvasOverlay({ $, adapter, stage, target });
+  return { syncOverlays() { if (inlineTarget && inlineTarget !== target()) inline.hidden = true; overlay.place(); } };
 }
 
 function setupKeyframeDiamonds({ $, root, adapter, act }) {
@@ -326,11 +300,22 @@ function wireMenusAndActions(ctx) {
     await layers.open(layer, { nodes: [assistant.element] });
     assistant.element.querySelector('textarea')?.focus({ preventScroll: true });
   }
+  async function openHistorySheet() {
+    const container = make('div', 'motion-history-sheet');
+    const layer = layers.create('Revision history', 'ds-sheet');
+    layer.body.append(container);
+    await layers.open(layer);
+    await populateHistorySheet({ container, adapter, onDone: () => layers.close(layer.dialog) });
+  }
   const tools = {
     layers: tool('Layers', '☰', () => sheet('Layers', [navigation])), add: tool('Add', '+', button => addMenu(button)),
     properties: tool('Properties', '≡', () => sheet(adapter.layer() ? adapter.layer().name : 'Composition', [side]), 'motion-phone-only'),
     concierge: tool('Concierge', '✦', () => openConcierge(), 'motion-concierge'),
-    more: tool('More', '⋯', button => menu('More', [{ label: 'More editing commands…', run: () => sheet('More editing commands', [advanced]), disabled: !adapter.state.project }, { label: 'Help', run: () => sheet('Help', [], [help]) }], button))
+    more: tool('More', '⋯', button => menu('More', [
+      { label: 'Revision history…', run: () => openHistorySheet(), disabled: !adapter.state.project || !adapter.state.permissions?.read },
+      { label: 'More editing commands…', run: () => sheet('More editing commands', [advanced]), disabled: !adapter.state.project },
+      { label: 'Help', run: () => sheet('Help', [], [help]) }
+    ], button))
   };
   for (const [name, button] of Object.entries(tools)) button.dataset.tool = name;
   row.append(tools.layers, tools.add, tools.properties, tools.concierge, tools.more);
@@ -339,6 +324,7 @@ function wireMenusAndActions(ctx) {
     return menu('Composition', [
       { label: 'New', run: () => { stateFlags.setDraft(true); adapter.closeProject(); stateFlags.refresh(); }, disabled: !p.create },
       { label: 'Open…', run: () => sheet('Your compositions', [], [...stateFlags.compositionRows()]), disabled: !stateFlags.saved().length },
+      { label: 'Revision history…', run: () => openHistorySheet(), disabled: !adapter.state.project || !p.read },
       { label: 'Import document…', run: () => sheet('Import document', [$('importDocument'), $('bundlePanel')]), disabled: !p.create },
       { label: 'Duplicate', run: () => $('duplicate').click(), disabled: $('duplicate').disabled },
       { label: 'Export editable JSON', run: () => $('export').click(), disabled: $('export').disabled }, '-',

@@ -4,12 +4,14 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24 (Roger, 2026-11-19: "i have to be able to generate accurate resumes ... i cant have random numbers 2 years vs 11 years vs 20 years getting out of place"): Work history's Years by skill section. Résumé generation has stated a person's own years since 1.68.22 and no screen wrote them. The section reads every skill with the years counted from the roles, the person's own figure and what a résumé states (GET /resume/master-section?field=years, with the main résumé's revision), draws it with DOM nodes only, and saves the whole form as one revision-checked main-résumé edit (POST /resume/master-edit, field years), then Undo (POST /resume/master-undo). The page sends what was typed and nothing else: an empty box is no figure, a box that holds no number is sent as it is so the server refuses it in words, and a refusal is shown in the server's words. After a save the table is what the server answers. Figures typed and not yet saved survive the page reading the main résumé again (a job saved, the concierge asking).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Synchronously drop stale Undo and follow a newer main-résumé revision (sync) before GET /resume/master-section?field=years settles, clear Undo on load failure, and ignore out-of-order load responses so a job save cannot leave a stale Undo button visible or cause Save years to 409.
  */
 (function (win) {
   'use strict';
   var doc = win.document, API = '/api/career-hunter/resume/';
   var UNSAVED = 'Not saved yet';
   var state = { revision: '', rows: [], more: 0, total: {}, limits: null, undo: null, error: '', busy: false };
+  var loadSeq = 0;
 
   function $(id) { return doc.getElementById(id); }
   function el(tag, attrs, children) {
@@ -114,6 +116,16 @@
     mark();
   }
 
+  /** The main résumé moved (or was read again): follow its revision and drop any Undo for an earlier one at once. */
+  function sync(revision) {
+    var next = typeof revision === 'string' ? revision : '';
+    if (state.undo && state.undo.revision !== next) {
+      state.undo = null;
+      if ($('yrUndo')) $('yrUndo').hidden = true;
+    }
+    if (next && state.revision && state.revision !== next) state.revision = next;
+  }
+
   /**
    * @description Read the person's years by skill and in total with the main résumé's revision, and draw them.
    * Figures typed and not saved are kept over the new read unless `fresh` is asked (after this form's own save or Undo).
@@ -124,10 +136,16 @@
   async function load(given) {
     var options = given || {}, section = $('whYears');
     if (!section) return state;
-    if (options.profile === false) { section.hidden = true; Object.assign(state, { revision: '', undo: null }); return state; }
+    var seq = ++loadSeq;
+    if (options.profile === false) {
+      section.hidden = true; Object.assign(state, { revision: '', undo: null });
+      if ($('yrUndo')) $('yrUndo').hidden = true;
+      return state;
+    }
     var keep = !options.fresh && Boolean(state.revision);
     try {
       var data = await request(API + 'master-section?field=years');
+      if (seq !== loadSeq) return state;
       // Read what is typed only now, so a figure typed while the read was on its way is kept too.
       var kept = keep ? typed() : null;
       Object.assign(state, { revision: data.revision || '', rows: Array.isArray(data.rows) ? data.rows : [], more: data.more || 0,
@@ -136,7 +154,9 @@
       render();
       if (kept) retype(kept);
     } catch (error) {
-      Object.assign(state, { revision: '', error: error.message });
+      if (seq !== loadSeq) return state;
+      Object.assign(state, { revision: '', undo: null, error: error.message });
+      if ($('yrUndo')) $('yrUndo').hidden = true;
       busy(state.busy);
       notice('Your years by skill could not be read. ' + error.message);
     }
@@ -179,6 +199,7 @@
     event.preventDefault();
     if (state.busy || !state.revision) return;
     var before = state.revision;
+    loadSeq += 1;
     busy(true); notice('Saving your years…');
     try {
       var result = await request(API + 'master-edit', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -198,15 +219,17 @@
   async function undo() {
     if (!state.undo || state.busy) return;
     var change = state.undo;
+    loadSeq += 1;
     busy(true);
     try {
       var result = await request(API + 'master-undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
       state.undo = null;
+      if ($('yrUndo')) $('yrUndo').hidden = true;
       follow(change.revision, result.revision);
       await load({ fresh: true });
       notice('Undone. Your years are as they were before that save.');
     } catch (error) {
-      if (error.status === 409) { state.undo = null; await load(); }
+      if (error.status === 409) { state.undo = null; if ($('yrUndo')) $('yrUndo').hidden = true; await load(); }
       notice(error.message);
     } finally { busy(false); }
   }
@@ -239,6 +262,6 @@
     });
   }
 
-  win.CareerYearsBySkill = { init: init, load: load, values: values, state: state };
+  win.CareerYearsBySkill = { init: init, load: load, sync: sync, values: values, state: state };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
 }(window));

@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: the concierge "said that it couldnt change my dates and i needed to go to career profile.. but there is no career profile page"). Nothing Career says sends a person to a Profile page for jobs or dates, the two personas no longer send résumé work to another assistant or call dates unchangeable, they name Work history, and the patch tool the concierge proposes accepts exactly what the engine applies (a job edit, a move, a one-line summary the approval card shows).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: the patch tool's operations include split (a pasted block into one bullet per line), which the engine applies.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the exact patch contract guard for explicit employer grouping alongside every existing edit and approval assertion.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: the patch tool's job keys include location, and they are exactly the job details the engine sets (work_history.ROLE_KEYS) and the employer links it keeps (role_hierarchy.FIELDS).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +44,10 @@ test('the patch tool takes exactly what the engine applies, and each edit carrie
   const item = tool.inputSchema.properties.edits.items;
   assert.deepEqual(item.properties.op.enum, ['set', 'add', 'remove', 'move', 'split']);
   assert.ok(item.properties.field.enum.includes('role'));
-  assert.deepEqual(item.properties.key.enum, ['title', 'org', 'start', 'end', 'parent_role_id', 'engagements_heading']);
+  assert.deepEqual(item.properties.key.enum, ['title', 'org', 'start', 'end', 'location', 'parent_role_id', 'engagements_heading']);
+  const roleKeys = read('engine', 'jobhunter', 'work_history.py').match(/ROLE_KEYS = \(([^)]*)\)/)[1].match(/'([a-z_]+)'/g).map((key) => key.slice(1, -1));
+  const linkKeys = read('engine', 'jobhunter', 'role_hierarchy.py').match(/FIELDS = \(([^)]*)\)/)[1].match(/'([a-z_]+)'/g).map((key) => key.slice(1, -1));
+  assert.deepEqual(item.properties.key.enum, [...roleKeys, ...linkKeys], 'the schema names every job detail the engine sets, and no other');
   assert.ok(item.required.includes('summary'), 'the approval card names each edit by its summary');
   const engine = read('engine', 'jobhunter', 'master_edit.py').match(/EDIT_KEYS = \{([^}]*)\}/)[1].match(/'([a-zA-Z]+)'/g).map((key) => key.slice(1, -1)).sort();
   assert.deepEqual(Object.keys(item.properties).sort(), engine, 'the schema and the engine accept the same keys');

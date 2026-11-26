@@ -17,6 +17,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.10.4: the routes name lora-director by its own id a0000000-0000-0000-0000-000000000065 (LORA_DIRECTOR_AGENT_ID in bot-lora-routes and lora-train-dispatch). Store PR #47 moved the bot off a0...0049, intelligent-trades' trading-research-analyst, but the routes kept 049 for every lora-train ticket's assignee and the box tasks' fromAgentId (scripts/check-store-bots.mjs PENDING). No route, permission, migration or catalog change.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.10.5: LoRA Studio carries its own concierge, the kernel's one Jarvis chat window (createRegisteredEditorAssistant as lora-director), starting closed at every width so Today hides its floating ball and its bar's Concierge (and the phone's bottom bar Concierge) opens LoRA Studio's own window both standalone and inside Create (create-lora). Presentation only: no route, tool, permission, migration or catalog change. Guard: tests/lora-one-chat-window.test.mjs.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.10.6 (CREATE-TOOL-LORA-01, -02, -05, -13): fix lora-models to list all owned versions when subject is omitted (or filter by optional subject), return datasetCount/activeModelVersion/trainingState from GET /characters and surface them in the studio, add lora-scorecard and lora-dataset read tools plus approval-held action tools (create character, train, validate, improve, activate model, overnight toggle, delete character, dataset import, delete model) bound with existing permissions only, and add Delete version inline confirmation on the studio surface.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — lora ("LoRA Studio")
@@ -74,7 +75,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.10.5
+version: 1.10.6
 status: active
 
 source:
@@ -199,12 +200,229 @@ tools:
     displayName: My Trained LoRA Models
     type: api
     category: creative
-    description: The person's trained LoRA model versions, newest first, with their character, score and state. Read-only.
-    executor: { executorType: api, apiEndpoint: "GET /api/lora/models" }
+    description: The person's trained LoRA model versions, newest first, with character, version, score, state, and active flag. Optionally filter by subject. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lora/models?subject={input.subject}" }
     defaultAuthMode: auto
     requiresApproval: false
-    inputSchema: { type: object, properties: {} }
-    usageInstructions: Call with {} when the person asks what models they have trained. An empty list means none are trained yet.
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+    usageInstructions: Call with {} when the person asks what models they have trained across all characters, or pass {"subject":"<slug>"} to filter to one character. An empty list means none are trained yet.
+    tags: [lora, route-backed]
+
+  - name: lora-scorecard
+    displayName: Read LoRA Validation Scorecard
+    type: api
+    category: creative
+    description: Read the saved validation scorecard (overall, identity, quality, per-cell scores, and weak poses) for one trained LoRA model version. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lora/scorecard?subject={input.subject}&version={input.version}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject, version]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        version: { type: integer, minimum: 1, maximum: 100000 }
+    usageInstructions: Call with subject and version from lora-models to inspect saved per-cell scores and weak cells before answering about poses or regressions.
+    tags: [lora, route-backed]
+
+  - name: lora-dataset
+    displayName: List LoRA Dataset Images
+    type: api
+    category: creative
+    description: List the signed-in owner's saved dataset images, captions, and worker sync statuses for one LoRA character. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lora/dataset?subject={input.subject}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+    usageInstructions: Call with {"subject":"<slug>"} to inspect a character's saved dataset images, captions, and worker receipt statuses.
+    tags: [lora, route-backed]
+
+  - name: lora-create-character
+    displayName: Create LoRA Character
+    type: api
+    category: creative
+    description: Create a new owner-scoped LoRA character configuration without starting training or schedules.
+    cardText: Create a new character configuration in LoRA Studio.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/characters" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject, heroImage, identPrompt]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        displayName: { type: string, minLength: 1, maxLength: 2048 }
+        triggerWord: { type: string, minLength: 1, maxLength: 2048 }
+        heroImage: { type: string, minLength: 1, maxLength: 2048 }
+        identPrompt: { type: string, minLength: 1, maxLength: 2048 }
+        negativePrompt: { type: string, maxLength: 2048 }
+        identityStructure: { type: string, maxLength: 2048 }
+        identityViolation: { type: string, maxLength: 2048 }
+        baseModel: { type: string, maxLength: 2048 }
+    usageInstructions: Propose when the person asks to create a new character. Provide a unique subject slug, heroImage, and identPrompt (and both identityStructure and identityViolation or neither).
+    tags: [lora, route-backed]
+
+  - name: lora-train
+    displayName: Train LoRA Version
+    type: api
+    category: creative
+    description: Dispatch a new LoRA training run for a character on the owner's GPU worker.
+    cardText: Start training a new LoRA model version on your GPU worker.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/train" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+    usageInstructions: Propose when the person asks to train a new version of an owned character. Report box_required honestly if no GPU worker is online.
+    tags: [lora, route-backed]
+
+  - name: lora-validate
+    displayName: Validate LoRA Version
+    type: api
+    category: creative
+    description: Dispatch validation of a trained LoRA version (or the latest trained version) on the fixed held-out pose matrix.
+    cardText: Validate a trained LoRA model version on your GPU worker.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/validate" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        version: { type: integer, minimum: 1, maximum: 100000 }
+    usageInstructions: Propose when the person asks to validate or score a trained version. Omit version to validate the latest trained version.
+    tags: [lora, route-backed]
+
+  - name: lora-improve
+    displayName: Improve LoRA Character
+    type: api
+    category: creative
+    description: Regenerate training data targeting the latest scorecard's weak cells and retrain a new LoRA version.
+    cardText: Run targeted weak-cell improvement and retrain in LoRA Studio.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/improve" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+    usageInstructions: Propose when the person asks to improve a character after at least one scored version exists.
+    tags: [lora, route-backed]
+
+  - name: lora-activate-model
+    displayName: Set Active LoRA Version
+    type: api
+    category: creative
+    description: Mark one trained LoRA model version as the active version for its character.
+    cardText: Set the chosen LoRA model version as active for this character.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/characters/{input.subject}/active" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject, version]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        version: { type: integer, minimum: 1, maximum: 100000 }
+    usageInstructions: Propose when the person chooses which trained version to keep as active.
+    tags: [lora, route-backed]
+
+  - name: lora-overnight-toggle
+    displayName: Toggle Overnight LoRA Improvement
+    type: api
+    category: creative
+    description: Enable or disable autonomous overnight improvement loops (and optional hour/plateau bounds) for a character.
+    cardText: Update autonomous overnight improvement for this LoRA character.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/characters/{input.subject}/autonomous" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject, enabled]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        enabled: { type: boolean }
+        maxHours: { type: number, minimum: 1, maximum: 24 }
+        plateauEpsilon: { type: number, minimum: 0.0001, maximum: 0.5 }
+    usageInstructions: Propose when the person asks to turn overnight autonomous improvement on or off for a character.
+    tags: [lora, route-backed]
+
+  - name: lora-delete-character
+    displayName: Delete LoRA Character
+    type: api
+    category: creative
+    description: Permanently delete an owned LoRA character along with all of its versions, scorecards, hosted thumbnails, and dataset receipts.
+    cardText: Delete this LoRA character and all of its versions and scorecards.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/lora/characters/{input.subject}" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+    usageInstructions: Propose only when the person explicitly asks to delete a character and all of its versions.
+    tags: [lora, route-backed]
+
+  - name: lora-dataset-import
+    displayName: Import Artifact into LoRA Dataset
+    type: api
+    category: creative
+    description: Import an owner-bound artifact handle into a character's curated training dataset with a caption.
+    cardText: Import an image artifact into this character's LoRA dataset.
+    executor: { executorType: api, apiEndpoint: "POST /api/lora/dataset/import" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject, ref]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        ref: { type: string, minLength: 12, maxLength: 72 }
+        caption: { type: string, maxLength: 2048 }
+    usageInstructions: Propose when importing a real owner-bound art_* artifact handle into a character's dataset. Never invent a ref.
+    tags: [lora, route-backed]
+
+  - name: lora-delete-model
+    displayName: Delete LoRA Model Version
+    type: api
+    category: creative
+    description: Delete one trained LoRA model version along with its scorecard and hosted thumbnails while leaving other versions intact.
+    cardText: Delete this LoRA model version, its scorecard, and its thumbnails.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/lora/models/{input.subject}/{input.version}" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [subject, version]
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 64 }
+        version: { type: integer, minimum: 1, maximum: 100000 }
+    usageInstructions: Check lora-characters or lora-models first and warn explicitly if this version is currently active before proposing deletion.
     tags: [lora, route-backed]
 
 

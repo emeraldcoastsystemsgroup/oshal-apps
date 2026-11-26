@@ -3,6 +3,7 @@
  * CHANGE LOG
  * 50 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): the nightly score-titles marks the person's unreadable jobs "details needed" after keyword matching (score.mark_unreadable: native kernel, no read, no model call, at most 200 a night) and its count line says how many (needsDetails; the settled pass adds the jobs it marked after a refused read). prepare-job passes CH_JOB_DESCRIPTION, the description the person pasted, to prepare_job.
  * 51 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: forward optional CH_TEMPLATE_FAMILY to generate.rerender_packet on rerender so template family selection persists and re-renders matched DOCX/RTF/PDF/HTML artifacts.
+ * 52 | maintainer@emeraldcoastsystemsgroup.com | DEMO-03: `strengthen list` reads through gaps.list_themes(), which never writes a store it may only read. It used to scan first whenever the store had no saved scan, and on the native kernel a read mounts the store read-only, so a person who had never scanned got a 500 and a store with no theme table got every theme with no jobs.
  * 49 | maintainer@emeraldcoastsystemsgroup.com | score-titles runs the settled nightly pass (jobhunter.settle) when the nightly route sets CH_SETTLE=1, with its own bounds (CH_LIMIT up to 2000, CH_CONCURRENCY, CH_BAND, CH_BUDGET_SECONDS, read before keyword matching so the whole run counts against its time) and its own count line; without it the nightly pass is exactly as before (CH_LIMIT must be 50).
  * 48 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: `resume base-earlier` answers the main résumé document as it read at an earlier revision (master_edit.earlier_documents), so the My résumé Word document can be told apart: only behind, or holding typed text.
  * 47 | maintainer@emeraldcoastsystemsgroup.com | Select incremental keyword and AI work for nightly passes without changing explicit refresh commands.
@@ -620,8 +621,7 @@ function strengthenRuns(rest) {
   const sub = rest[0] || 'list';
   if (sub === 'scan') return [['-c', 'from jobhunter import gaps; print("scanned", gaps.scan())']];
   if (sub === 'list') return [['-c', 'import json\nfrom jobhunter import gaps\n'
-    + 'gaps.scan() if not gaps.is_scanned() else None\n'
-    + 't,total=gaps.themes_with_stats()\n'
+    + 't,total=gaps.list_themes()\n'
     + 'out=[dict(key=x["key"], title=gaps.title_of(x["key"]), n_jobs=x.get("n_jobs",0), avg_fit=x.get("avg_fit"), status=x.get("status"), response=x.get("response"), addressable=x.get("addressable"), prompt=x.get("prompt",""), desc=x.get("desc","")) for x in t]\n'
     + 'print(json.dumps({"themes":out,"total":total}, default=str))']];
   if (sub === 'answer') return [['-c', 'import os, json\nfrom jobhunter import gaps, profile\n'

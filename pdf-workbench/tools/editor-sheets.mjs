@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Modal workflow sheets for caller signatures (drawn or transparent-background image), multi-photo PDF creation, PDF size reduction and approximate-layout Office exports (.docx, .xlsx, .pptx).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add openAnnotationsSheet for listing, editing, moving and deleting annotations with live draft operations (CREATE-TOOL-PDF-WORKBENCH-05).
  */
 const el=(tag,attrs={})=>Object.assign(document.createElement(tag),attrs);
 const uuid=()=>crypto.randomUUID();
@@ -210,5 +211,100 @@ export async function openConvertSheet({layers,adapter,initialFormat='docx',feed
  };
  const actions=el('div',{className:'actions'});actions.append(runBtn);
  body.append(el('p',{className:'help pdf-disclosure',textContent:'Converted Office files reconstruct paragraphs, detected tables and embedded images approximately; complex multi-column PDF layouts may shift.'}),field,actions,outcome);
+ await layers.open(layer);
+}
+
+function movedAnnotationProps(ann,nextX,nextY,box){
+ const w=ann.rect[2]-ann.rect[0],h=ann.rect[3]-ann.rect[1];
+ const x0=Math.min(Math.max(Number(nextX),box[0]),Math.max(box[0],box[2]-w));
+ const y0=Math.min(Math.max(Number(nextY),box[1]),Math.max(box[1],box[3]-h));
+ const rect=[Number(x0.toFixed(2)),Number(y0.toFixed(2)),Number(Math.min(box[2],x0+w).toFixed(2)),Number(Math.min(box[3],y0+h).toFixed(2))];
+ const ow=Math.max(0.001,ann.rect[2]-ann.rect[0]),oh=Math.max(0.001,ann.rect[3]-ann.rect[1]),nw=rect[2]-rect[0],nh=rect[3]-rect[1];
+ const mx=x=>Number((rect[0]+(x-ann.rect[0])/ow*nw).toFixed(3)),my=y=>Number((rect[1]+(y-ann.rect[1])/oh*nh).toFixed(3));
+ const props={rect};
+ if(ann.kind==='ink'&&Array.isArray(ann.points))props.points=ann.points.map(([x,y])=>[mx(x),my(y)]);
+ if(Array.isArray(ann.quadPoints))props.quadPoints=ann.quadPoints.map(q=>q.map((v,i)=>i%2===0?mx(v):my(v)));
+ return props;
+}
+
+function buildEditPanel(ann,onApply,feedback){
+ const box=el('div',{className:'pdf-ann-editor',hidden:true});
+ const colorIn=el('input',{type:'color',value:'#'+(ann.color??'ffcc00')});colorIn.setAttribute('aria-label','Annotation color');
+ const textIn=ann.kind==='text'?el('textarea',{rows:2,maxLength:2000,value:ann.text??''}):null;
+ textIn?.setAttribute('aria-label','Annotation text');
+ const widthIn=ann.kind==='ink'?el('input',{type:'number',min:'0.5',max:'24',step:'0.5',value:String(ann.strokeWidth??2)}):null;
+ widthIn?.setAttribute('aria-label','Stroke width');
+ const saveBtn=el('button',{type:'button',className:'primary',textContent:'Apply edit'});
+ saveBtn.onclick=()=>{
+  try{
+   const properties={color:colorIn.value.slice(1).toLowerCase()};
+   if(textIn)properties.text=textIn.value;
+   if(widthIn)properties.strokeWidth=Number(widthIn.value);
+   onApply(properties);
+  }catch(err){feedback(err);}
+ };
+ const fields=el('div',{className:'form'});
+ const cf=el('div',{className:'field'});cf.append(el('label',{textContent:'Color'}),colorIn);fields.append(cf);
+ if(widthIn){const wf=el('div',{className:'field'});wf.append(el('label',{textContent:'Stroke width'}),widthIn);fields.append(wf);}
+ if(textIn){const tf=el('div',{className:'field wide'});tf.append(el('label',{textContent:'Note text'}),textIn);fields.append(tf);}
+ const act=el('div',{className:'actions'});act.append(saveBtn);
+ box.append(fields,act);
+ return box;
+}
+
+function buildMovePanel(ann,pageBox,onMove,feedback){
+ const box=el('div',{className:'pdf-ann-editor',hidden:true});
+ const xIn=el('input',{type:'number',step:'1',value:String(Number(ann.rect[0].toFixed(1)))});xIn.setAttribute('aria-label','Move X');
+ const yIn=el('input',{type:'number',step:'1',value:String(Number(ann.rect[1].toFixed(1)))});yIn.setAttribute('aria-label','Move Y');
+ const applyBtn=el('button',{type:'button',className:'primary',textContent:'Apply move'});
+ const nudges=el('div',{className:'row'});
+ for(const[lbl,dx,dy]of [['Left',-20,0],['Right',20,0],['Up',0,20],['Down',0,-20]]){
+  const b=el('button',{type:'button',className:'pdf-tool',textContent:lbl});
+  b.onclick=()=>{try{onMove(movedAnnotationProps(ann,Number(xIn.value)+dx,Number(yIn.value)+dy,pageBox));}catch(err){feedback(err);}};
+  nudges.append(b);
+ }
+ applyBtn.onclick=()=>{try{onMove(movedAnnotationProps(ann,Number(xIn.value),Number(yIn.value),pageBox));}catch(err){feedback(err);}};
+ const fields=el('div',{className:'form'});
+ const xf=el('div',{className:'field'});xf.append(el('label',{textContent:'X (pt)'}),xIn);
+ const yf=el('div',{className:'field'});yf.append(el('label',{textContent:'Y (pt)'}),yIn);
+ fields.append(xf,yf);
+ const act=el('div',{className:'actions'});act.append(applyBtn);
+ box.append(fields,nudges,act);
+ return box;
+}
+
+export async function openAnnotationsSheet({layers,adapter,pageInfo,canEdit,onSelect,feedback}){
+ const layer=layers.create('Annotations','ds-sheet'),body=layer.body;
+ layer.dialog.dataset.pdfSheet='annotations';
+ const list=el('div',{className:'pdf-ann-list'});
+ function renderList(){
+  list.replaceChildren();
+  const s=adapter.snapshot(),pages=s.model?.pages??[],anns=s.model?.annotations??[],editable=canEdit();
+  if(!anns.length){list.append(el('p',{className:'help',textContent:'No annotations on this document yet.'}));return;}
+  anns.forEach((ann,idx)=>{
+   const pageIdx=pages.findIndex(p=>p.id===ann.page),page=pages[pageIdx],info=page?pageInfo(page):null;
+   const row=el('div',{className:'pdf-ann-row'});row.dataset.annotationId=ann.id;
+   const head=el('div',{className:'pdf-ann-head'}),swatch=el('span',{className:'pdf-ann-swatch'});
+   swatch.style.background='#'+(ann.color??'ffcc00');
+   const summary=el('button',{type:'button',className:'link pdf-ann-summary',textContent:`Page ${pageIdx+1} · ${ann.kind}${ann.text?`: ${ann.text.slice(0,80)}`:''}`});
+   summary.onclick=()=>{try{onSelect?.(ann.page,ann.id);}catch(err){feedback(err);}};
+   const controls=el('div',{className:'row'});
+   const editBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Edit',disabled:!editable});
+   editBtn.setAttribute('aria-label',`Edit annotation ${idx+1}`);
+   const moveBtn=el('button',{type:'button',className:'pdf-tool',textContent:'Move',disabled:!editable||!info?.box});
+   moveBtn.setAttribute('aria-label',`Move annotation ${idx+1}`);
+   const delBtn=el('button',{type:'button',className:'pdf-tool danger',textContent:'Delete',disabled:!editable});
+   delBtn.setAttribute('aria-label',`Delete annotation ${idx+1}`);
+   const editPanel=buildEditPanel(ann,properties=>{adapter.edit({op:'update-annotation',id:ann.id,properties});renderList();},feedback);
+   const movePanel=info?.box?buildMovePanel(ann,info.box,properties=>{adapter.edit({op:'update-annotation',id:ann.id,properties});renderList();},feedback):null;
+   editBtn.onclick=()=>{editPanel.hidden=!editPanel.hidden;if(movePanel)movePanel.hidden=true;};
+   moveBtn.onclick=()=>{if(movePanel){movePanel.hidden=!movePanel.hidden;editPanel.hidden=true;}};
+   delBtn.onclick=()=>{try{adapter.edit({op:'remove-annotation',id:ann.id});renderList();}catch(err){feedback(err);}};
+   controls.append(editBtn,moveBtn,delBtn);head.append(swatch,summary,controls);
+   row.append(head,editPanel,...(movePanel?[movePanel]:[]));list.append(row);
+  });
+ }
+ body.append(el('p',{className:'help',textContent:'Edit, move or delete annotations on this document. Save revision commits your changes; Undo restores before saving.'}),list);
+ renderList();
  await layers.open(layer);
 }

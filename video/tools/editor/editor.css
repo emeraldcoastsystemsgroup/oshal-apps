@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every colour, line, radius, size and space from the --ds-* tokens; solid controls with a 3:1 edge (no translucent fill, gradient, lift or fade), one 2px focus ring, radii 10/14/20, the type scale with nothing under 12px, 44px targets on touch, opaque sheets and menus in the top layer, the tool row as the phone's bottom bar, the preview and timeline in the dark category look the manifest declares, and the canvas wide on a desktop (the media rail leaves for the Add sheet).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): composite preview layers (underlay video, chroma/matte canvas, sticker layer, caption overlay) and solid --ds-* controls for speed, looks, stickers, voice, sound effects, captions and export profile sheets.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): render preview stage at the project's exact aspectRatio (16:9, 9:16, 1:1) and size #projectAspectRatio cleanly across desktop and phone widths.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: style track header rename/delete controls, uploaded media library section and version history revision items across desktop and phone widths.
  */
 :root {
   --bg: var(--ds-page, var(--bg-primary)); --panel: var(--ds-surface, var(--bg-card)); --panel-2: var(--ds-surface-2, var(--bg-secondary)); --text: var(--ds-ink, var(--text-primary)); --muted: var(--ds-ink-2, var(--text-secondary));
@@ -75,7 +76,9 @@ progress { width: 100%; }
   .workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "preview" "timeline" "media" "inspector" "export"; padding: 12px; }
   .title-form { grid-template-columns: minmax(0, 1fr); }
 }
-.multitrack{grid-column:1/-1}.multi-track{padding:8px;margin:8px 0;border:1px solid var(--line);border-radius:10px}.multi-track h3{margin:0 0 8px;font:600 14px/20px var(--ds-font,system-ui)}.multi-track>button{margin:0 8px 8px 0}
+.multitrack{grid-column:1/-1}.multi-track{padding:8px;margin:8px 0;border:1px solid var(--line);border-radius:10px}.multi-track-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.multi-track h3{margin:0 auto 0 0;font:600 14px/20px var(--ds-font,system-ui)}.multi-track-rename{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%}.multi-track-rename input{flex:1 1 10rem;min-width:0}
+.uploaded-media-section{margin:12px 0;padding-top:8px;border-top:1px solid var(--ds-hairline)}.uploaded-media-section h3{margin:0;font:600 14px/20px var(--ds-font,system-ui)}
+.rp-rev-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.rp-rev-item{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}.rp-rev-item p{margin:0}
 .multi-clips{position:relative;min-height:52px;display:block;overflow:hidden;margin-top:8px}.multi-clips button{position:absolute;top:4px;min-width:20px;height:44px;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.multi-clips button:focus{z-index:2}.multi-clips [aria-pressed=true]{outline:2px solid var(--ds-focus,var(--accent));background:var(--ds-ink);color:var(--ds-page)}
 #multiWaveform{display:block;max-width:100%;height:80px}.multitrack fieldset{min-width:0;border:1px solid var(--line);border-radius:10px}.multitrack .row label{min-width:100px;max-width:220px}.multitrack .row input,.multitrack .row select{max-width:100%}
 #motionImportPanel { margin: 16px 0; }

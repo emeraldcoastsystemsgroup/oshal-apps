@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The export routes are registered at their full /jobs/:jobId/artifact paths (registerVidsPublishRoutes) instead of a sub-router mounted at a parameterised use() path, which the native kernel's bridge router matched literally, so attach, preview, publish, revoke and remove all answered 404 "No matching application route". The page reads the artifact record's `attach` state: where exports cannot be kept (the native sandbox) a finished job says so instead of offering a file input, and a refused attach shows the server's sentence rather than its code.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: single brief form (remove duplicate Generation source/settings Properties), withhold Generate clip when no worker is online with setup in Help, close inline Concierge on load, and style one top action row with Saved caption.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.6.7 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: the brief started 485 px down a 915 px phone, 53%): the description under the title is hidden again at every size (its rule `.ef-header-slot>.sub` stopped matching when the page moved the description into a <header>; it is `.ef-header-slot .sub` now), and on a phone the brief row (title, New brief, Undo, Redo) is one line and the empty preview is one line of text instead of a 200 px band. Presentation only.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8 (tool parity): normalize case-insensitive orientation on /jobs and /story (CREATE-TOOL-VIDS-03), add Brand intro/Brand graphic/Story controls on the page (CREATE-TOOL-VIDS-05), and add owner-scoped POST /jobs/:id/cancel and POST /jobs/:id/retry routes plus Cancel/Retry UI buttons with inline feedback (CREATE-TOOL-VIDS-08).
  */
 /*
  * CHANGE LOG
@@ -44,12 +45,52 @@ const authz_1 = require("@/shared/middleware/authz");
 const trusted_service_user_identity_1 = require("@/shared/middleware/trusted-service-user-identity");
 const request_identity_1 = require("@/shared/services/database/request-identity");
 const vids_publish_routes_1 = require("./vids-publish-routes");
+const vids_job_controls_1 = require("./vids-job-controls");
 const logger = (0, logger_1.createChildLogger)({ module: 'vids-routes' });
 // The Veo-specialist bot seeded by migration 059 — the `fromAgentId` on dispatched tasks.
 const VIDS_BOT_AGENT_ID = 'b00e0000-0000-0000-0000-000000000001';
-const VIDS_ORIENTATIONS = new Set(['Landscape', 'Portrait', 'Square']);
 const VIDS_INSERT_MODES = new Set(['Insert', 'Extend', 'none']);
-const VIDS_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
+const VIDS_STATUSES = new Set(['queued', 'running', 'done', 'failed', 'cancelled']);
+const activeWatchers = new Map();
+function stopWatcher(jobId) {
+    const stop = activeWatchers.get(jobId);
+    if (stop) {
+        activeWatchers.delete(jobId);
+        stop();
+    }
+}
+async function notifyWorkerCancel(clientId, jobId, taskId, userSub) {
+    if (!taskId)
+        return false;
+    const registry = remote_client_routes_1.remoteClientRegistry;
+    const targetClientId = clientId || findVidsWorker()?.clientId || null;
+    if (!targetClientId)
+        return false;
+    try {
+        if (typeof registry.cancelTask === 'function') {
+            await registry.cancelTask(targetClientId, taskId);
+            return true;
+        }
+        const worker = registry.listClients().find((c) => c.clientId === targetClientId && isVidsWorker(c)) ?? findVidsWorker();
+        if (!worker)
+            return false;
+        await registry.enqueueTask(worker.clientId, {
+            taskId: (0, crypto_1.randomUUID)(),
+            correlationId: (0, crypto_1.randomUUID)(),
+            fromAgentId: VIDS_BOT_AGENT_ID,
+            toAgentId: worker.agentId ?? worker.clientId,
+            userSub,
+            intent: 'mcp.call-tool',
+            input: { name: 'vids.cancel', arguments: { jobId, taskId } },
+            createdAt: new Date().toISOString(),
+        });
+        return true;
+    }
+    catch (err) {
+        logger.warn({ errorType: err instanceof Error ? err.name : 'UnknownError', jobId }, 'Vids worker cancel notification failed');
+        return false;
+    }
+}
 /** True if a remote client advertises the Vids tools (by capability or tag). */
 function isVidsWorker(c) {
     const caps = Array.isArray(c.capabilities) ? c.capabilities : [];
@@ -76,6 +117,7 @@ function callerSub(req) {
  * direct-enqueuer pull path (getCompletedResult), no loopback HTTP.
  */
 function watchTask(ctx, clientId, taskId, jobId, userSub) {
+    stopWatcher(jobId);
     let ticks = 0;
     let polling = false;
     let settled = false;
@@ -88,8 +130,7 @@ function watchTask(ctx, clientId, taskId, jobId, userSub) {
             try {
                 const result = await remote_client_routes_1.remoteClientRegistry.getCompletedResult(clientId, taskId);
                 if (result) {
-                    settled = true;
-                    clearInterval(timer);
+                    stop();
                     const ok = result.status === 'completed';
                     const output = result.output && typeof result.output === 'object'
                         ? result.output
@@ -104,7 +145,7 @@ function watchTask(ctx, clientId, taskId, jobId, userSub) {
                    client_id = $4,
                    outcome = outcome || $5::jsonb,
                    updated_at = now()
-             WHERE job_id = $1 AND user_sub = $6`, [
+             WHERE job_id = $1 AND user_sub = $6 AND status IN ('queued', 'running')`, [
                         jobId,
                         ok ? 'done' : 'failed',
                         finalPrompt,
@@ -129,9 +170,11 @@ function watchTask(ctx, clientId, taskId, jobId, userSub) {
                 polling = false;
             }
             if (ticks > 360)
-                clearInterval(timer); // ~30 min ceiling at 5s
+                stop(); // ~30 min ceiling at 5s
         })();
     }, 5000);
+    const stop = () => { settled = true; clearInterval(timer); activeWatchers.delete(jobId); };
+    activeWatchers.set(jobId, stop);
     if (typeof timer.unref === 'function')
         timer.unref();
 }
@@ -174,6 +217,14 @@ function createVidsRoutes(ctx) {
     router.use(trusted_service_user_identity_1.requireTrustedServiceUserIdentity);
     // Full paths, not router.use('/jobs/:jobId/artifact', ...): the native bridge matches a use() path literally.
     (0, vids_publish_routes_1.registerVidsPublishRoutes)(router, ctx);
+    (0, vids_job_controls_1.registerVidsJobControlRoutes)(router, ctx, {
+        callerSub,
+        findVidsWorker,
+        enqueueVidsTask,
+        watchTask,
+        stopWatcher,
+        notifyWorkerCancel,
+    });
     // Brand Graphics uses the same durable worker and owner ledger as clips/stories.
     // Keep a distinct dispatch door so a brand request can never become a generic clip.
     router.post('/brand', async (req, res) => {
@@ -230,21 +281,21 @@ function createVidsRoutes(ctx) {
             res.status(400).json({ error: 'prompt is too long' });
             return;
         }
-        const orientation = typeof body.orientation === 'string' && body.orientation
-            ? body.orientation
-            : null;
+        const orientCheck = (0, vids_job_controls_1.normalizeOrientation)(body.orientation);
         const insertMode = typeof body.insertMode === 'string' && body.insertMode
             ? body.insertMode
             : null;
         const ingredient = typeof body.ingredient === 'string' && body.ingredient
             ? body.ingredient.trim()
             : null;
-        if ((orientation && !VIDS_ORIENTATIONS.has(orientation))
+        if (!orientCheck.ok
+            || (body.insertMode !== undefined && body.insertMode !== null && body.insertMode !== '' && !insertMode)
             || (insertMode && !VIDS_INSERT_MODES.has(insertMode))
             || (ingredient && ingredient.length > 2_048)) {
             res.status(400).json({ error: 'invalid Vids job options' });
             return;
         }
+        const orientation = orientCheck.value;
         const worker = findVidsWorker();
         const userSub = callerSub(req);
         if (!userSub) {
@@ -289,16 +340,17 @@ function createVidsRoutes(ctx) {
         const storyId = typeof body.storyId === 'string' && body.storyId ? body.storyId.trim() : null;
         const title = typeof body.title === 'string' && body.title ? body.title.trim() : null;
         const script = typeof body.script === 'string' && body.script ? body.script.trim() : null;
-        const orientation = typeof body.orientation === 'string' && body.orientation ? body.orientation : null;
+        const orientCheck = (0, vids_job_controls_1.normalizeOrientation)(body.orientation);
         const beats = body.beats != null ? Number(body.beats) : undefined;
         if ((storyId && storyId.length > 256)
             || (title && title.length > 1_000)
             || (script && script.length > 50_000)
-            || (orientation && !VIDS_ORIENTATIONS.has(orientation))
+            || !orientCheck.ok
             || (beats !== undefined && (!Number.isInteger(beats) || beats < 1 || beats > 100))) {
             res.status(400).json({ error: 'invalid Vids story options' });
             return;
         }
+        const orientation = orientCheck.value;
         const specific = storyId || (title && script);
         const toolName = specific ? 'content.produce' : 'content.next';
         const args = {};
@@ -413,7 +465,7 @@ const SURFACE_HTML = `<!doctype html>
 (function () {
   var A = window.AppView; if (!A) return;
   var API = '/api/vids', FULL = '/cockpit/?app=vids', KICKER = 'Our videos', SHOWN = 8, PREVIEW = '/api/vids/jobs/';
-  var WORDS = { queued: 'Waiting its turn', running: 'Being made now', done: 'Finished', failed: 'Did not finish' };
+  var WORDS = { queued: 'Waiting its turn', running: 'Being made now', done: 'Finished', failed: 'Did not finish', cancelled: 'Cancelled' };
   var KINDS = { story: ['📖', 'Story video'], brand: ['✨', 'Brand graphic'] };
   function call(path) {
     return fetch(API + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
@@ -529,7 +581,11 @@ const SURFACE_HTML = `<!doctype html>
   table{width:100%;border-collapse:collapse;font-size:13px} th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
   th{color:var(--muted);font-weight:500} .st{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
   .st.done{color:var(--accent);border-color:var(--accent)} .st.failed{color:var(--bad);border-color:var(--bad)}
-  .st.running,.st.queued{color:var(--warn);border-color:var(--warn)} .idea{max-width:380px}
+  .st.running,.st.queued{color:var(--warn);border-color:var(--warn)} .st.cancelled{color:var(--muted);border-color:var(--line)} .idea{max-width:380px}
+  .vids-modes{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)} .vids-modes-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .vids-story-fields{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px} .vids-story-fields[hidden]{display:none}
+  .vids-story-fields input{flex:1 1 160px;min-width:0;max-width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+  .vids-story-fields input[type=number]{flex:0 1 92px}
   .artifact{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.artifact button,.artifact a{font-size:12px;padding:4px 7px}.artifact input{max-width:150px;font-size:11px}.artifact .unkept{font-size:12px;color:var(--muted)}
   .empty{color:var(--muted);text-align:center;padding:18px}
   @media(max-width:640px){
@@ -550,7 +606,7 @@ const SURFACE_HTML = `<!doctype html>
 .ef-editor #selectedExportActions{display:flex;flex-direction:column;gap:10px}.ef-editor #vidsStatus{padding:8px 14px;margin:0;font-size:13px}.ef-editor #prompt{min-height:160px}.ef-editor button{min-height:40px}
 @media(max-width:800px){.ef-editor #selectedExportActions a{display:inline-flex;align-items:center;min-height:44px;padding:8px;border:1px solid var(--border-color);border-radius:8px}.ef-editor button,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor textarea,.ef-editor input,.ef-editor select{font-size:16px}}
 /* 1.6.7, the phone first screen: the brief row is one line (Redo wrapped to a second), and with nothing selected the preview is one line of text instead of a 200 px band. */
-@media(max-width:800px){.ef-editor .vids-source-actions{flex-wrap:nowrap}.ef-editor .vids-source-actions input{flex:1 1 0;width:0;min-width:0}.ef-editor .vids-source-actions button{flex:0 0 auto}.ef-editor .vids-save-caption{min-width:0}.ef-editor .vids-save-caption:empty{display:none}.ef-editor #selectedPreview:not(:has(video)){min-height:0;place-items:start;margin-bottom:12px}.ef-editor #selectedPreview:not(:has(video)) p{margin:0;font-size:13px;color:var(--muted)}}
+@media(max-width:800px){.ef-editor .vids-viewport{padding-bottom:136px}.ef-editor .vids-source-actions{flex-wrap:nowrap}.ef-editor .vids-source-actions input{flex:1 1 0;width:0;min-width:0}.ef-editor .vids-source-actions button{flex:0 0 auto}.ef-editor .vids-save-caption{min-width:0}.ef-editor .vids-save-caption:empty{display:none}.ef-editor #selectedPreview:not(:has(video)){min-height:0;place-items:start;margin-bottom:12px}.ef-editor #selectedPreview:not(:has(video)) p{margin:0;font-size:13px;color:var(--muted)}}
 
 </style>
 </head>
@@ -565,6 +621,19 @@ const SURFACE_HTML = `<!doctype html>
       <select id="insertMode"><option value="Insert">Insert (new scene)</option><option value="Extend">Extend</option><option value="none">Don't place</option></select>
       <button class="primary" id="go" hidden>Generate clip</button>
       <span class="worker"><span class="dot" id="wdot"></span><span id="wtxt">checking worker…</span></span>
+    </div>
+    <div class="vids-modes" id="vidsModes">
+      <div class="vids-modes-row">
+        <button type="button" id="brandIntroBtn" data-vids-action="brand-intro">Brand intro</button>
+        <button type="button" id="brandGraphicBtn" data-vids-action="brand-graphic">Brand graphic</button>
+        <button type="button" id="storyToggleBtn" data-vids-action="story-toggle" aria-expanded="false" aria-controls="storyFields">Story</button>
+      </div>
+      <div class="vids-story-fields" id="storyFields" hidden>
+        <input id="storyTitle" type="text" maxlength="1000" placeholder="Story title (optional; uses brief as script)" aria-label="Story title" />
+        <input id="storyId" type="text" maxlength="256" placeholder="Library story ID (optional)" aria-label="Library story ID" />
+        <input id="storyBeats" type="number" min="1" max="100" placeholder="Scenes" aria-label="Story scenes" />
+        <button type="button" class="primary" id="storyBtn" data-vids-action="story">Generate story</button>
+      </div>
     </div>
     <details class="worker-help" id="workerHelp" hidden>
       <summary>Help</summary>
@@ -628,7 +697,7 @@ const SURFACE_HTML = `<!doctype html>
   }
   function fmt(ts){ try { return new Date(ts).toLocaleTimeString(); } catch(e){ return ts; } }
   function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function statusKey(v){ return ['done','failed','running','queued'].indexOf(v)>=0?v:'unknown'; }
+  function statusKey(v){ return ['done','failed','running','queued','cancelled'].indexOf(v)>=0?v:'unknown'; }
   async function refresh(){
     try{
       var r = await fetch('/api/vids/jobs'); var d = await r.json();
@@ -649,7 +718,9 @@ const SURFACE_HTML = `<!doctype html>
       tb.innerHTML = d.jobs.map(function(j,index){
         var status=statusKey(j.status);
         var rec=artifacts[index], a=rec&&rec.artifact, attach=rec&&rec.attach, artifact='—';
-        if (status==='done' && !a && attach && attach.available===false) artifact='<span class="unkept" title="'+esc(attach.detail||'')+'">Exports cannot be kept on this installation yet</span>';
+        if (status==='queued' || status==='running') artifact='<button type="button" data-job-action="cancel" data-job="'+esc(j.job_id)+'">Cancel</button>';
+        else if (status==='failed' || status==='cancelled') artifact='<button type="button" data-job-action="retry" data-job="'+esc(j.job_id)+'">Retry</button>';
+        else if (status==='done' && !a && attach && attach.available===false) artifact='<span class="unkept" title="'+esc(attach.detail||'')+'">Exports cannot be kept on this installation yet</span>';
         else if (status==='done') artifact=a
           ? '<a href="'+esc(a.previewUrl)+'" target="_blank" rel="noreferrer">Preview</a>'+
             (a.publicUrl ? '<a href="'+esc(a.publicUrl)+'" target="_blank" rel="noreferrer">Public link</a><button data-artifact="unpublish" data-job="'+esc(j.job_id)+'">Revoke</button>' : '<button data-artifact="publish" data-job="'+esc(j.job_id)+'">Publish</button>')+
@@ -681,6 +752,60 @@ const SURFACE_HTML = `<!doctype html>
       dispatching=false;go.textContent=old;vidsEditor?.refresh();refresh();
     };
     document.body.addEventListener('click',async function(event){
+      var modeBtn=event.target.closest('[data-vids-action]');
+      if(modeBtn){
+        var modeAction=modeBtn.getAttribute('data-vids-action');
+        if(modeAction==='story-toggle'){
+          var sf=document.getElementById('storyFields'); if(!sf) return;
+          sf.hidden=!sf.hidden; modeBtn.setAttribute('aria-expanded',String(!sf.hidden)); return;
+        }
+        if(dispatching) return;
+        if(modeAction==='brand-intro' || modeAction==='brand-graphic'){
+          var brief=(document.getElementById('prompt')?.value||'').trim();
+          if(!brief){ vidsStatus('Write a brand brief in the prompt box first.'); return; }
+          var brandMode=modeAction==='brand-graphic'?'graphic':'intro';
+          dispatching=true; modeBtn.disabled=true;
+          try{
+            var br=await fetch('/api/vids/brand',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true,brief:brief,brandMode:brandMode})});
+            var bd=await br.json().catch(function(){return {};});
+            if(!br.ok) throw new Error(bd.message||bd.error||'The brand job could not be queued.');
+            vidsStatus(brandMode==='graphic'?'Brand graphic queued.':'Brand intro queued.');
+          }catch(e){ vidsStatus(e.message||'The brand job could not be queued.'); }
+          dispatching=false; modeBtn.disabled=false; refresh(); return;
+        }
+        if(modeAction==='story'){
+          var sid=(document.getElementById('storyId')?.value||'').trim();
+          var stitle=(document.getElementById('storyTitle')?.value||'').trim();
+          var sscript=(document.getElementById('prompt')?.value||'').trim();
+          var sorient=document.getElementById('orientation')?.value||'Landscape';
+          var sbeatsRaw=(document.getElementById('storyBeats')?.value||'').trim();
+          var payload={orientation:sorient};
+          if(sid) payload.storyId=sid;
+          if(stitle){ payload.title=stitle; if(sscript) payload.script=sscript; }
+          if(sbeatsRaw){ var n=Number(sbeatsRaw); if(!Number.isInteger(n)||n<1||n>100){ vidsStatus('Enter a whole scene count between 1 and 100.'); return; } payload.beats=n; }
+          dispatching=true; modeBtn.disabled=true;
+          try{
+            var sr=await fetch('/api/vids/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            var sd=await sr.json().catch(function(){return {};});
+            if(!sr.ok) throw new Error(sd.message||sd.error||'The story job could not be queued.');
+            vidsStatus('Multi-scene story queued.');
+          }catch(e){ vidsStatus(e.message||'The story job could not be queued.'); }
+          dispatching=false; modeBtn.disabled=false; refresh(); return;
+        }
+      }
+      var jobBtn=event.target.closest('[data-job-action]');
+      if(jobBtn){
+        var ja=jobBtn.getAttribute('data-job-action'), jid=jobBtn.getAttribute('data-job');
+        if(!jid || (ja!=='cancel' && ja!=='retry')) return;
+        jobBtn.disabled=true;
+        try{
+          var jr=await fetch('/api/vids/jobs/'+encodeURIComponent(jid)+'/'+ja,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+          var jd=await jr.json().catch(function(){return {};});
+          if(!jr.ok) throw new Error(jd.message||jd.error||('Job '+ja+' failed.'));
+          vidsStatus(ja==='cancel'?'Job cancelled.':'Retry job queued.');
+        }catch(e){ vidsStatus(e.message||('Job '+ja+' failed.')); }
+        jobBtn.disabled=false; refresh(); return;
+      }
       var target=event.target.closest('[data-artifact]'); if(!target || target.tagName==='INPUT') return;
       var action=target.getAttribute('data-artifact'), job=target.getAttribute('data-job');
       if(!job || !window.confirm(action==='publish'?'Publish this finished export publicly?':action==='unpublish'?'Revoke its public link?':'Remove this private export?')) return;
@@ -717,4 +842,3 @@ void mountConnectedActions({app:'vids',element,contextForOffer:()=>{const notes=
 </script>
 </body>
 </html>`;
-//# sourceMappingURL=vids-routes.js.map

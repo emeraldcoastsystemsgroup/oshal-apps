@@ -9,6 +9,8 @@
  * 2026-07-21 19:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Require coherent starting inventory for every bundled hero: typed mundane items, all five coin denominations, and one inventory item per weapon action.
  * 2026-07-22 22:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Require every adventure scene to carry a persistent player-visible story anchor.
  * 2026-07-23 00:39:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Require every recurring foe to have a proper name, distinct role, playable manner, and continuity hook.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept sphere AoE templates, buff/reaction spell modes, and condition-applying save spells for deeper spellcasting.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept sphere AoE healing spells and verify Level 2-5 progression coverage for all playable hero classes.
  */
 
 'use strict';
@@ -32,12 +34,14 @@ const coinDenominations = ['cp', 'sp', 'ep', 'gp', 'pp'];
 function checkAction(owner, a) {
   check(!!a.name && !!a.mode && !!a.delivery, `${owner}: action "${a.id}" has name/mode/delivery`);
   if (a.mode === 'attack') { check(typeof a.toHit === 'number', `${owner}/${a.id}: attack has toHit`); check(a.damage && a.damage.dice, `${owner}/${a.id}: attack has damage.dice`); }
-  if (a.mode === 'save') { check(a.save && typeof a.save.dc === 'number' && a.save.ability, `${owner}/${a.id}: save has dc+ability`); check(a.damage && a.damage.dice, `${owner}/${a.id}: save has damage.dice`); }
+  if (a.mode === 'save') { check(a.save && typeof a.save.dc === 'number' && a.save.ability, `${owner}/${a.id}: save has dc+ability`); check((a.damage && a.damage.dice) || (a.applyCondition && a.applyCondition.id), `${owner}/${a.id}: save has damage.dice or applyCondition`); }
+  if (a.mode === 'buff') { check(a.applyCondition && a.applyCondition.id, `${owner}/${a.id}: buff has applyCondition`); }
+  if (a.mode === 'reaction') { check(!!a.reactionTrigger, `${owner}/${a.id}: reaction has reactionTrigger`); }
   if (a.mode === 'autohit') { check(a.damage && a.damage.dice, `${owner}/${a.id}: autohit has damage`); check(a.darts >= 1, `${owner}/${a.id}: autohit has darts`); }
   if (a.mode === 'heal') { check(a.heal && a.heal.dice, `${owner}/${a.id}: heal has heal.dice`); }
   if (a.delivery === 'ranged') check(typeof a.range === 'number', `${owner}/${a.id}: ranged has range`);
   if (a.type === 'spell' && a.slot) check(typeof a.slot === 'number', `${owner}/${a.id}: spell slot is numeric`);
-  if (a.aoeShape) { check(a.aoeShape === 'cone', `${owner}/${a.id}: aoeShape supported`); check(typeof a.aoeSize === 'number' && a.aoeSize >= 5, `${owner}/${a.id}: aoeSize sane`); check(a.mode === 'save', `${owner}/${a.id}: cone AoE resolves via saves`); }
+  if (a.aoeShape) { check(a.aoeShape === 'cone' || a.aoeShape === 'sphere', `${owner}/${a.id}: aoeShape supported`); check(typeof a.aoeSize === 'number' && a.aoeSize >= 5, `${owner}/${a.id}: aoeSize sane`); check(a.mode === 'save' || a.mode === 'buff' || a.mode === 'heal', `${owner}/${a.id}: AoE resolves via save, buff, or heal`); }
 }
 
 // Starting inventory is deliberately small and data-oriented. `actionId` is the
@@ -90,8 +94,12 @@ heroes.forEach((pc) => {
     if (a.type === 'spell' && a.slot) check(pc.slots && pc.slots[String(a.slot)] >= 1, `pc:${pc.id}/${a.id}: has an L${a.slot} slot to cast it`);
   });
   checkInventory(pc);
-  // Every playable class must have a level-2 delta so /advance never no-ops a class.
-  check(!!leveling.level2[pc.class], `hero ${pc.id}: class "${pc.class}" has a level-2 delta`);
+  // Every playable class must have level 2-5 deltas so /advance never no-ops a class.
+  for (const lvl of [2, 3, 4, 5]) {
+    const delta = leveling[`level${lvl}`] && leveling[`level${lvl}`][pc.class];
+    check(!!delta, `hero ${pc.id}: class "${pc.class}" has a level-${lvl} delta`);
+    if (delta && Array.isArray(delta.newActions)) delta.newActions.forEach((a) => checkAction(`lvl${lvl}:${pc.class}`, a));
+  }
 });
 const ids = new Set();
 heroes.forEach((pc) => { check(!ids.has(pc.id), `hero id ${pc.id} is unique`); ids.add(pc.id); });

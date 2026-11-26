@@ -19,6 +19,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | GET /worker (lora.read): { gpuWorker } from hasEdgeWorker(), the same worker selection every dispatch uses. A pure read with no side effect; the studio reads it once on open and withholds Train, Validate, Improve and Overnight where no GPU worker is registered (UX audit 2026-11-06, lora--lora-studio), instead of offering actions that could only answer box_required.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: serve GET /ui/photo-upload.mjs (app.open) for the studio's Step 2 multi-photo device uploader with interactive crop and per-photo captioning.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | 1.10.4: LORA_DIRECTOR_AGENT_ID is lora-director's own id a0000000-0000-0000-0000-000000000065 (oshal-app.yaml bots, personas/lora-director.yaml agent_id). Store PR #47 (2026-08-02) moved lora-director off a0...0049, which belongs to intelligent-trades' trading-research-analyst, but this constant kept 049, so the studio's lora-train tickets (train, validate, improve, overnight, dataset import and caption) named the Trades analyst's id as their assignee and scripts/check-store-bots.mjs listed the routes as calling a bot this package neither declares nor imports.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 1.10.6 (CREATE-TOOL-LORA-01, CREATE-TOOL-LORA-02): delegate character and model list reads to lora-read-queries so GET /characters includes datasetCount, activeModelVersion, and trainingState/activeRunState, and GET /models lists all owned versions newest-first when subject is omitted.
  */
 
 /**
@@ -68,6 +69,7 @@ import {
 import { isValidIssuer, registerLoraAuthorization, verifiedIssuer } from './lora-authorization';
 import type { AppContext } from '@/app/composition/app-context';
 import { createLoraCharacter } from './lora-character-create';
+import { listOwnerCharacters, listOwnerModels } from './lora-read-queries';
 import { runWithSystemIdentity } from '@/shared/services/database/request-identity';
 
 const logger = createChildLogger({ module: 'bot-lora-routes' });
@@ -390,29 +392,6 @@ async function ensureOwnerStarterCharacter(ctx: AppContext, ownerSub: string): P
 }
 
 /**
- * @description The caller's characters, oldest first, each with its latest version, version count
- * and latest overall score. Read only.
- * @param ctx - The app context whose pool runs as the caller.
- * @param ownerSub - The authenticated owner.
- * @returns The character rows GET /characters and POST /characters/starter answer with.
- */
-async function listOwnerCharacters(ctx: AppContext, ownerSub: string): Promise<Array<Record<string, unknown>>> {
-  return (await ctx.pool.query(
-    `SELECT c.subject, c.display_name, c.trigger_word, c.hero_image, c.base_model, c.ident_prompt,
-            'lora-' || replace(c.id::text, '-', '') AS storage_key,
-            c.negative_prompt, c.identity_structure, c.identity_violation,
-            c.autonomous, c.max_hours, c.plateau_epsilon, c.active_version, c.created_at,
-            (SELECT max(version) FROM oshal_lora_models m WHERE m.character_id = c.id) AS latest_version,
-            (SELECT count(*) FROM oshal_lora_models m WHERE m.character_id = c.id) AS version_count,
-            (SELECT s.overall FROM oshal_lora_scores s WHERE s.character_id = c.id ORDER BY s.version DESC LIMIT 1) AS latest_score
-     FROM oshal_lora_characters c
-     WHERE c.owner_sub = $1
-     ORDER BY c.created_at ASC`,
-    [ownerSub],
-  )).rows as Array<Record<string, unknown>>;
-}
-
-/**
  * @description Creates the gated LoRA Studio routes (mounted behind requiresAuth). Read/data routes
  * for characters, versions, and scorecards; the box-dependent action routes return `box_required`
  * until the training dispatch lands (P3).
@@ -500,24 +479,15 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
   // ADR-139 dataset destination: GET /dataset and POST /dataset/import (lora-dataset-ingest.ts).
   router.use(createLoraDatasetRoutes(ctx, { callerSub, loadCharacter, directorAgentId: LORA_DIRECTOR_AGENT_ID }));
 
-  /** GET /models?subject= — the version timeline (each version joined with its score). */
+  /** GET /models (optional ?subject=) — list all owned versions newest-first, or one character's timeline. */
   router.get('/models', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     const subject = String(req.query.subject || '').trim();
-    if (!subject) { res.status(400).json({ error: 'subject required' }); return; }
     try {
-      const id = await characterId(ctx, subject, sub);
-      if (!id) { res.status(404).json({ error: 'character not found' }); return; }
-      const rows = (await ctx.pool.query(
-        `SELECT m.version, m.status, m.lora_path, m.base_model, m.dataset_count, m.network_dim, m.epochs,
-                m.steps, m.final_loss, m.duration_sec, m.parent_version, m.ticket_id, m.created_at,
-                s.overall, s.identity_mean, s.quality_mean, s.min_cell, s.weak_cells, s.gallery_url
-         FROM oshal_lora_models m
-         LEFT JOIN oshal_lora_scores s ON s.character_id = m.character_id AND s.version = m.version
-         WHERE m.character_id = $1 ORDER BY m.version DESC`, [id],
-      )).rows as Array<Record<string, unknown>>;
-      res.json({ subject, models: rows });
+      const listed = await listOwnerModels(ctx, sub, subject);
+      if (!listed) { res.status(404).json({ error: 'character not found' }); return; }
+      res.json(listed);
     } catch (err) {
       logger.error({ err }, 'list models failed');
       res.status(502).json({ error: (err as Error).message });

@@ -9,13 +9,19 @@
  * 2026-07-23 01:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Retain every play mark permanently and share image-free exact-state checkpoint persistence with round transitions.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Preserve the campaign adventure identity when building its next authored scene.
  * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Write owner_sub explicitly on every INSERT: the native kernel skips migration 006, whose triggers stamp it on PostgreSQL (where they still override it from the parent campaign).
+ * 2026-11-25 14:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Correlate continuous board revisions (rev:*) and cutaway artwork links into read-only playback, keep manual save listings clean, and capture revisions on scene advance.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Delegate multi-level SRD 5.1 progression (Levels 2-5) to shared ui/engine.js so server /advance and client stay in exact parity across multi-chapter arcs.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Include normalized cutawayBudget counters on GET /playback responses alongside cutaway coverage counts.
  */
 
 'use strict';
 
 const crypto = require('node:crypto');
+const ENG = require('../ui/engine.js');
 const { CharacterImportError } = require('./character-import');
-const { captureCheckpoint } = require('./dnd-checkpoint-store');
+const { captureBoardRevision, captureCheckpoint, isBoardRevisionLabel } = require('./dnd-checkpoint-store');
+const { DEFAULT_CUTAWAY_CAP, buildCutawayBudget } = require('./dnd-cutaway-beats');
+const { _test: replayExportHelpers } = require('./dnd-replay-export');
 const { stripTokenPrivateFields } = require('./multiplayer-guard');
 const { buildSceneState, campaignDto, parsedJson, withTransaction } = require('./dnd-route-helpers');
 
@@ -42,7 +48,8 @@ async function saveSnapshot(deps, sub, body) {
 async function listSnapshots(deps, sub, campaignId) {
   if (!(await deps.campaign.access(sub, campaignId))) return { ok: false, error: 'No seat at this table.' };
   const result = await deps.pool.query(
-    'SELECT snapshot_id, label, auto, archive_seq, created_at FROM dnd_snapshots WHERE campaign_id=$1 ORDER BY created_at DESC',
+    `SELECT snapshot_id, label, auto, archive_seq, created_at FROM dnd_snapshots
+      WHERE campaign_id=$1 AND label NOT LIKE 'rev:%' ORDER BY created_at DESC`,
     [campaignId]
   );
   return { ok: true, snapshots: result.rows };
@@ -55,17 +62,66 @@ function playbackBoard(rawState, isOwner) {
   return { ...state, tokens: state.tokens.filter((token) => !token.hidden) };
 }
 
-/** @description Project an archive fact without inventing a board revision for it. */
-function archivePlaybackFrame(row) {
+/** @description Extract a validated cutaway link from a persisted cutaway archive beat. */
+function cutawayFromArchiveRow(row, previousBeat) {
+  if (!row || String(row.kind) !== 'cutaway') return null;
+  const url = replayExportHelpers.safeExportUrl(row.content);
+  if (!url) return null;
+  const basename = url.split('/').pop() || '';
+  const key = basename.replace(/\.[^.]+$/, '') || `cutaway-${Number(row.seq) || 0}`;
+  const caption = previousBeat && previousBeat.content
+    ? String(previousBeat.content).trim().slice(0, 240)
+    : 'Scene illustration';
+  return {
+    url,
+    title: previousBeat && previousBeat.kind
+      ? `${String(previousBeat.kind).replaceAll('-', ' ')} cutaway`
+      : 'Scene illustration',
+    caption,
+    kind: 'cutaway',
+    key,
+    archiveSeq: Number(row.seq),
+    createdAt: row.created_at,
+  };
+}
+
+/** @description Build a readable title for a standalone captured board revision. */
+function readableRevisionLabel(row) {
+  const state = parsedJson(row.state, {});
+  const sceneId = String(state.sceneId || 'board').replaceAll('-', ' ');
+  const round = Number(state.round) || 0;
+  return round > 0 ? `Board revision · ${sceneId} (round ${round})` : `Board revision · ${sceneId}`;
+}
+
+/** @description Project an archive fact with its exact board revision and cutaway link when captured. */
+function archivePlaybackFrame(row, revision, isOwner, cutaway) {
+  const exact = !!revision;
   const frame = {
     id: `archive-${Number(row.seq)}`, type: 'archive', seq: Number(row.seq),
     archiveSeq: Number(row.seq), kind: row.kind, content: row.content,
-    createdAt: row.created_at, fidelity: 'archive-only', board: null,
-    fidelityNote: 'No exact board revision was captured for this story beat; token positions are not reconstructed.',
+    createdAt: row.created_at,
+    fidelity: exact ? 'exact-board' : 'archive-only',
+    board: exact ? playbackBoard(revision.state, isOwner) : null,
+    fidelityNote: exact
+      ? 'Exact board revision captured alongside this story beat.'
+      : 'No exact board revision was captured for this story beat; token positions are not reconstructed.',
   };
+  if (exact) frame.boardRevisionId = revision.snapshot_id;
+  if (cutaway) frame.cutaway = cutaway;
   const payload = parsedJson(row.payload, null);
   if (payload && typeof payload === 'object') frame.payload = payload;
   return frame;
+}
+
+/** @description Project one standalone mid-beat board revision as a non-restorable playback frame. */
+function revisionPlaybackFrame(row, isOwner) {
+  const cursor = row.archive_seq === null || row.archive_seq === undefined ? null : Number(row.archive_seq);
+  return {
+    id: `revision-${row.snapshot_id}`, type: 'revision', snapshotId: row.snapshot_id,
+    archiveSeq: cursor, label: readableRevisionLabel(row), auto: true, createdAt: row.created_at,
+    fidelity: 'exact-board', fidelityNote: 'Exact board revision captured during play.',
+    branch: 'current', restorable: false, board: playbackBoard(row.state, isOwner),
+  };
 }
 
 /** @description Classify whether a snapshot cursor still belongs to the current archive branch. */
@@ -107,6 +163,38 @@ function comparePlaybackFrames(left, right) {
   return leftSeq - rightSeq || String(left.id).localeCompare(String(right.id));
 }
 
+/** @description Partition persisted snapshots into manual/round marks and current-branch board revisions. */
+function partitionSnapshots(rows, archiveBySeq) {
+  const manual = [], revisionsBySeq = new Map(), extraRevisions = [];
+  let boardRevisions = 0;
+  for (const row of rows) {
+    const branch = snapshotBranch(row, archiveBySeq);
+    if (!isBoardRevisionLabel(row.label)) {
+      manual.push({ row, branch });
+      continue;
+    }
+    if (branch !== 'current') continue;
+    boardRevisions++;
+    const cursor = Number(row.archive_seq);
+    if (archiveBySeq.has(cursor) && !revisionsBySeq.has(cursor)) revisionsBySeq.set(cursor, row);
+    else extraRevisions.push(row);
+  }
+  return { manual, revisionsBySeq, extraRevisions, boardRevisions };
+}
+
+/** @description Build archive frames with correlated exact board revisions and cutaway links. */
+function buildArchiveFrames(archiveRows, revisionsBySeq, isOwner) {
+  const frames = [], cutaways = [];
+  let lastStoryBeat = null;
+  for (const row of archiveRows) {
+    const cutaway = cutawayFromArchiveRow(row, lastStoryBeat);
+    if (cutaway) cutaways.push(cutaway);
+    else lastStoryBeat = row;
+    frames.push(archivePlaybackFrame(row, revisionsBySeq.get(Number(row.seq)) || null, isOwner, cutaway));
+  }
+  return { frames, cutaways };
+}
+
 /** @description Return the highest-fidelity read-only timeline available from persisted facts. */
 async function playback(deps, sub, campaignId) {
   if (!campaignId) return { ok: false, code: 'CAMPAIGN_REQUIRED', error: 'Choose a campaign to play back.' };
@@ -118,16 +206,22 @@ async function playback(deps, sub, campaignId) {
     deps.pool.query('SELECT seq, kind, content, payload, created_at FROM dnd_archive WHERE campaign_id=$1 ORDER BY seq ASC', [campaignId]),
   ]);
   const archiveBySeq = new Map(archive.rows.map((row) => [Number(row.seq), row]));
-  const frames = archive.rows.map(archivePlaybackFrame);
-  snapshots.rows.forEach((row) => frames.push(snapshotPlaybackFrame(row, snapshotBranch(row, archiveBySeq), campaign.is_owner)));
-  const live = encounter.rows[0], state = live && parsedJson(live.state, {}), maxSeq = archive.rows.reduce((max, row) => Math.max(max, Number(row.seq) || 0), 0);
+  const { manual, revisionsBySeq, extraRevisions, boardRevisions } = partitionSnapshots(snapshots.rows, archiveBySeq);
+  const { frames, cutaways } = buildArchiveFrames(archive.rows, revisionsBySeq, campaign.is_owner);
+  manual.forEach(({ row, branch }) => frames.push(snapshotPlaybackFrame(row, branch, campaign.is_owner)));
+  extraRevisions.forEach((row) => frames.push(revisionPlaybackFrame(row, campaign.is_owner)));
+  const live = encounter.rows[0], state = live && parsedJson(live.state, {});
+  const maxSeq = archive.rows.reduce((max, row) => Math.max(max, Number(row.seq) || 0), 0);
   if (live) frames.push({ id: 'current-board', type: 'current', archiveSeq: maxSeq, label: ['complete', 'defeat'].includes(state.mode) ? 'Final saved board' : 'Current saved board', createdAt: live.updated_at, fidelity: 'exact-board', fidelityNote: 'Exact current persisted board at playback load time.', restorable: false, board: playbackBoard(live.state, campaign.is_owner) });
   frames.sort(comparePlaybackFrames);
+  const exactBoards = frames.filter((frame) => frame.fidelity === 'exact-board').length;
+  const archiveOnlyEntries = frames.filter((frame) => frame.type === 'archive' && frame.fidelity !== 'exact-board').length;
   return {
     ok: true, readOnly: true, campaign: campaignDto(campaign), mode: state && state.mode || null,
     ended: campaign.status === 'archived' || ['complete', 'defeat'].includes(state && state.mode),
-    rev: live ? Number(live.rev) : 0, frames,
-    coverage: { archiveEntries: archive.rows.length, exactBoards: snapshots.rows.length + (live ? 1 : 0), archiveOnlyEntries: archive.rows.length },
+    rev: live ? Number(live.rev) : 0, frames, cutaways,
+    cutawayBudget: buildCutawayBudget(cutaways.length, DEFAULT_CUTAWAY_CAP),
+    coverage: { archiveEntries: archive.rows.length, exactBoards, archiveOnlyEntries, boardRevisions, cutaways: cutaways.length },
   };
 }
 
@@ -253,21 +347,15 @@ async function restoreSnapshot(deps, sub, body) {
   return { ...restored, sheets: bundle.sheets, sheetsRev: bundle.sheetsRev };
 }
 
-/** @description Apply the supported level delta to a copied character sheet. */
-function applyLevelUp(deps, sheet, newLevel) {
-  const delta = (deps.leveling.level2 || {})[sheet.class];
-  const next = JSON.parse(JSON.stringify(sheet));
-  next.level = newLevel;
-  if (!delta) return { sheet: next, note: `${sheet.name} reaches level ${newLevel}.` };
-  next.maxHp = (next.maxHp || 0) + (delta.hpGain || 0);
-  if (delta.newSlots) next.slots = JSON.parse(JSON.stringify(delta.newSlots));
-  if (delta.newActions) next.actions = (next.actions || []).concat(delta.newActions);
-  if (delta.newFeatures) next.features = (next.features || []).concat(delta.newFeatures);
-  const gains = [`+${delta.hpGain || 0} HP`]
-    .concat(delta.newSlots ? [`spell slots now L1x${delta.newSlots['1']}`] : [])
-    .concat((delta.newActions || []).map((action) => action.name))
-    .concat((delta.newFeatures || []).map((feature) => feature.split(':')[0]));
-  return { sheet: next, note: `${sheet.name} reaches level ${newLevel}: ${gains.join(', ')}.` };
+/** @description Apply all crossed SRD 5.1 level deltas (Levels 2-5) via shared engine rules. */
+function applyLevelUp(deps, sheet, targetOrOptions) {
+  const result = ENG.applyLevelUp(sheet, deps.leveling || {}, targetOrOptions);
+  return {
+    sheet: result.sheet,
+    levelUps: result.levelUps,
+    notes: result.notes,
+    note: result.notes.join(' '),
+  };
 }
 
 /** @description Recognize an already committed advancement from its durable marker. */
@@ -281,6 +369,7 @@ function replayedAdvance(deps, state, rev) {
   return {
     ok: true, alreadyAdvanced: true, done: !!marker.done, state, rev: Number(rev) || 0,
     notes: Array.isArray(marker.notes) ? marker.notes : [],
+    levelUps: Array.isArray(marker.levelUps) ? marker.levelUps : [],
     sceneId: marker.done ? undefined : marker.toSceneId,
     afterword: marker.done ? finished.afterword : undefined,
   };
@@ -289,22 +378,23 @@ function replayedAdvance(deps, state, rev) {
 /** @description Award XP and persist every character sheet under the encounter lock. */
 async function awardParty(deps, db, campaignId, scene, rows) {
   const perPc = Math.round(((scene.xpReward || 0) + (scene.storyAward || 0)) / rows.length);
-  const notes = [], sheets = [];
+  const notes = [], sheets = [], levelUps = [];
   for (const row of rows) {
-    let xp = Number(row.xp) + perPc, level = Number(row.level);
+    const xp = (Number(row.xp) || 0) + perPc;
     let sheet = deps.hydratedSheet(row.slug, row.sheet);
-    const target = level + 1, threshold = (deps.leveling.thresholds || {})[String(target)];
-    if (threshold && xp >= threshold && target === 2) {
-      const leveled = applyLevelUp(deps, sheet, target);
-      sheet = leveled.sheet; level = target; notes.push(leveled.note);
-    }
+    sheet = { ...sheet, level: Math.max(1, Number(row.level) || Number(sheet.level) || 1), xp };
+    const leveled = applyLevelUp(deps, sheet, { xp });
+    sheet = { ...leveled.sheet, xp };
+    const level = Math.max(1, Number(sheet.level) || 1);
+    leveled.notes.forEach((n) => notes.push(n));
+    leveled.levelUps.forEach((entry) => levelUps.push({ slug: row.slug, name: sheet.name, ...entry }));
     await db.query(
       'UPDATE dnd_characters SET xp=$1, level=$2, sheet=$3, updated_at=now() WHERE character_id=$4',
       [xp, level, JSON.stringify(sheet), row.character_id]
     );
     sheets.push(sheet);
   }
-  return { perPc, notes, sheets };
+  return { perPc, notes, levelUps, sheets };
 }
 
 /** @description Build the durable progression marker for the completed scene. */
@@ -315,7 +405,7 @@ function progressionFor(state, scene, award) {
   ));
   const lastAdvance = {
     fromSceneId: scene.id, toSceneId: scene.next || null, done: !scene.next,
-    perPc: award.perPc, notes: award.notes,
+    perPc: award.perPc, notes: award.notes, levelUps: award.levelUps || [],
   };
   return { ...previous, awardedScenes, lastAdvance };
 }
@@ -330,7 +420,8 @@ async function persistAdvance(deps, db, campaignId, current, scene, award) {
       [JSON.stringify(state), Number(current.round) || 0, campaignId]
     );
     await db.query("UPDATE dnd_campaigns SET updated_at=now(), status='archived' WHERE campaign_id=$1", [campaignId]);
-    return { ok: true, done: true, alreadyAdvanced: false, state, rev: Number(saved.rows[0].rev), afterword: scene.afterword, notes: award.notes };
+    await captureBoardRevision(db, deps.sub, campaignId, state, 'complete');
+    return { ok: true, done: true, alreadyAdvanced: false, state, rev: Number(saved.rows[0].rev), afterword: scene.afterword, notes: award.notes, levelUps: award.levelUps || [] };
   }
   const nextScene = deps.sceneById(scene.next);
   const state = {
@@ -341,8 +432,9 @@ async function persistAdvance(deps, db, campaignId, current, scene, award) {
     'UPDATE dnd_encounters SET state=$1, round=0, rev=rev+1, updated_at=now() WHERE campaign_id=$2 RETURNING rev',
     [JSON.stringify(state), campaignId]
   );
-  await deps.campaign.appendArchive(db, deps.sub, campaignId, 'milestone', `The party presses on: ${nextScene.title}.`, deps.transactional);
-  return { ok: true, done: false, alreadyAdvanced: false, state, rev: Number(saved.rows[0].rev), notes: award.notes, sceneId: nextScene.id };
+  const entry = await deps.campaign.appendArchive(db, deps.sub, campaignId, 'milestone', `The party presses on: ${nextScene.title}.`, deps.transactional);
+  await captureBoardRevision(db, deps.sub, campaignId, state, 'advance', entry && entry.seq);
+  return { ok: true, done: false, alreadyAdvanced: false, state, rev: Number(saved.rows[0].rev), notes: award.notes, levelUps: award.levelUps || [], sceneId: nextScene.id };
 }
 
 /** @description Resolve one locked advancement attempt. */
@@ -397,4 +489,7 @@ function createTimelineService(deps) {
   };
 }
 
-module.exports = { createTimelineService };
+module.exports = {
+  createTimelineService,
+  _test: { applyLevelUp, awardParty, levelDeltaFor: ENG.levelDeltaFor },
+};

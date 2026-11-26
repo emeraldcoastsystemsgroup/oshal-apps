@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-21 18:42:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Force concurrent archive and quest-advance requests through transaction-aware locks, proving unique story sequence numbers and exactly-once scene XP.
  * 2026-07-22 01:16:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove final advancement archives the retained campaign exactly with its terminal board.
+ * 2026-11-25 14:25:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept lightweight board-revision snapshot reads and inserts alongside archive and scene-advance transactions.
  */
 
 'use strict';
@@ -90,6 +91,9 @@ class DurableClient {
       if (/FOR UPDATE/.test(sql) && !this.releaseEncounter) this.releaseEncounter = await this.pool.encounterLock.acquire();
       return this.rows([{ state: clone(this.pool.state), rev: this.pool.rev }]);
     }
+    if (/SELECT state FROM dnd_encounters/.test(sql)) return this.rows([{ state: clone(this.pool.state) }]);
+    if (/SELECT COALESCE\(MAX\(seq\),0\) AS seq FROM dnd_archive/.test(sql)) return this.rows([{ seq: this.pool.archiveRows.length }]);
+    if (/FROM dnd_snapshots|INTO dnd_snapshots/.test(sql)) return this.rows([]);
     if (/SELECT \* FROM dnd_characters/.test(sql)) {
       return this.rows(this.pool.characters.map(clone));
     }

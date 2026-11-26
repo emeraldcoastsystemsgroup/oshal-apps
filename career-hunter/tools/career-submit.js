@@ -8,13 +8,14 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native writer-busy refusals while retaining explicit submission recovery and every other error.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: approveAndStart(postingId, packetDigest) is the approve, bind and start that reviewAndSubmit always made, now named so My jobs' bulk Send runs the same three writes after the person confirmed the list. reviewAndSubmit is unchanged in what it asks and sends.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: workers() accepts the person's chosen Open Swarm Orbit computer from GET /api/apply-operator/workers alongside bound browser workers, never falls back silently when an explicit choice is offline, and reviewDialog names the chosen computer.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25): request(path, body, {batch:true}) sends batch work (careerBatch) that keeps its own waiting, as Fill in several's advance does; every other submission change is the person's own and waits to save while a résumé is written (tools/career-pending-writes.js). Guard: tests/career-concurrent-writes.test.mjs.
  */
 (()=>{
   'use strict';const BASE='/api/career-hunter',BOT='cb000000-0000-0000-0000-000000000004';
-  async function request(path,body){
+  async function request(path,body,options){
     let response;
     try{response=await fetch(BASE+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},
-      body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});}
+      body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',...(options&&options.batch?{careerBatch:true}:{})});}
     catch{throw Error('Submission connection interrupted. Check application status before trying again.');}
     let result;try{result=await response.json();}catch{throw Error('Could not read the submission response (HTTP '+response.status+'). Check application status before trying again.');}
     if(!response.ok){

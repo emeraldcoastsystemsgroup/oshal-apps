@@ -5,6 +5,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Campaign and content handlers for the marketing-engine API, moved verbatim out of marketing-routes.ts at the 800-line decomposition threshold: the board overview, campaign create/sanitized-import/patch with its applied budget-ledger rows, the three inline-bot surfaces (draft, ICP research, launch checklist), the content list, and the publish handler that runs the consent→cap→confirm→rail→run-ledger chain. Every query, gate order, status code and payload is unchanged.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: render email drafts through built-in HTML/plain-text templates (announcement, newsletter, launch) with mandatory compliance footer and persist template_id/html_body/text_body; record skipped_compliance ledger outcomes on compliance-refused email publishes.
  *
  * @module marketing-campaigns
  */
@@ -19,6 +20,8 @@ exports.runLaunchChecklist = runLaunchChecklist;
 exports.listContent = listContent;
 exports.publishContent = publishContent;
 const marketing_model_1 = require("./marketing-model");
+const marketing_templates_1 = require("./marketing-templates");
+const marketing_compliance_1 = require("./marketing-compliance");
 const marketing_support_1 = require("./marketing-support");
 const marketing_bots_1 = require("./marketing-bots");
 const marketing_publish_1 = require("./marketing-publish");
@@ -252,13 +255,40 @@ async function patchCampaign(ctx, sub, req, res) {
     }
     res.json({ campaign: updated });
 }
-/** Insert one content item as a reviewable draft. */
+/** Insert one content item as a reviewable draft (with optional multipart email template columns). */
 async function insertContent(pool, sub, c) {
+    if (c.templateId !== undefined || c.htmlBody !== undefined || c.textBody !== undefined) {
+        return (await (0, marketing_support_1.rows)(pool, `INSERT INTO oshal_marketing_content (user_sub, campaign_id, channel, title, body, status, template_id, html_body, text_body)
+       VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8) RETURNING *`, [sub, c.campaignId, c.channel, c.title, c.body, c.templateId ?? null, c.htmlBody ?? null, c.textBody ?? null]))[0];
+    }
     return (await (0, marketing_support_1.rows)(pool, `INSERT INTO oshal_marketing_content (user_sub, campaign_id, channel, title, body, status)
      VALUES ($1,$2,$3,$4,$5,'draft') RETURNING *`, [sub, c.campaignId, c.channel, c.title, c.body]))[0];
 }
+/** Validate optional email template id (defaults to 'announcement'). */
+function resolveEmailTemplateId(raw) {
+    if (raw === undefined || raw === null || raw === '')
+        return 'announcement';
+    const id = String(raw).trim();
+    return marketing_templates_1.MARKETING_TEMPLATE_IDS.includes(id) ? id : null;
+}
+/** Persist a rendered email draft using one of the built-in compliance templates. */
+async function saveTemplatedEmailDraft(pool, sub, campaignId, templateId, input, rawBody) {
+    const { settings } = await (0, marketing_compliance_1.loadComplianceSettings)(pool, sub);
+    const rendered = (0, marketing_templates_1.renderMarketingTemplate)({ ...input, templateId }, settings);
+    const item = await insertContent(pool, sub, {
+        campaignId,
+        channel: 'email',
+        title: rendered.subject.slice(0, 200),
+        body: rawBody,
+        templateId: rendered.templateId,
+        htmlBody: rendered.html,
+        textBody: rendered.text,
+    });
+    return { item, compliance: rendered.compliance, canApprove: rendered.canApprove };
+}
 /**
- * @description POST /drafts — campaign-director writes one channel draft; stored for human review.
+ * @description POST /drafts — campaign-director writes one channel draft (or stores an operator-authored
+ * templated email draft); email drafts always render through a built-in compliance template.
  * @param ctx - Framework app context.
  * @param sub - The caller's OIDC subject.
  * @param req - The Express request.
@@ -272,9 +302,9 @@ async function createDraft(ctx, sub, req, res) {
         res.status(400).json({ error: 'unknown_channel' });
         return;
     }
-    const brief = typeof b.brief === 'string' ? b.brief.trim().slice(0, 2000) : '';
-    if (!brief) {
-        res.status(400).json({ error: 'brief_required' });
+    const templateId = channel === 'email' ? resolveEmailTemplateId(b.templateId) : null;
+    if (channel === 'email' && !templateId) {
+        res.status(400).json({ error: 'invalid_template_id' });
         return;
     }
     const campaign = await (0, marketing_support_1.loadCampaign)(ctx.pool, sub, String(b.campaignId || ''));
@@ -282,8 +312,44 @@ async function createDraft(ctx, sub, req, res) {
         res.status(404).json({ error: 'campaign_not_found' });
         return;
     }
+    const directBody = typeof b.body === 'string' ? b.body.trim().slice(0, 8000) : '';
+    if (channel === 'email' && directBody) {
+        try {
+            const saved = await saveTemplatedEmailDraft(ctx.pool, sub, String(campaign.campaign_id), templateId, {
+                subject: b.subject ?? b.title ?? b.brief,
+                headline: b.headline ?? b.subject ?? b.title,
+                intro: b.intro,
+                body: directBody,
+                sections: b.sections,
+                highlights: b.highlights,
+                ctaLabel: b.ctaLabel,
+                ctaUrl: b.ctaUrl,
+                unsubscribeUrl: b.unsubscribeUrl,
+            }, directBody);
+            res.status(201).json(saved);
+        }
+        catch (err) {
+            const e = err;
+            res.status(400).json({ error: e.code || 'invalid_template_input', message: e.message });
+        }
+        return;
+    }
+    const brief = typeof b.brief === 'string' ? b.brief.trim().slice(0, 2000) : '';
+    if (!brief) {
+        res.status(400).json({ error: 'brief_required' });
+        return;
+    }
     await (0, marketing_bots_1.respondWithBot)(res, async () => {
-        const text = await (0, marketing_bots_1.runMarketingBot)(ctx, marketing_support_1.CAMPAIGN_DIRECTOR_ID, 'draft', String(campaign.slug), sub, (0, marketing_bots_1.draftPrompt)(campaign, channel, brief));
+        const text = await (0, marketing_bots_1.runMarketingBot)(ctx, marketing_support_1.CAMPAIGN_DIRECTOR_ID, 'draft', String(campaign.slug), sub, (0, marketing_bots_1.draftPrompt)(campaign, channel, brief, templateId ?? undefined));
+        if (channel === 'email' && templateId) {
+            const parsed = (0, marketing_templates_1.parseEmailDraftCopy)(text, brief.slice(0, 120));
+            const saved = await saveTemplatedEmailDraft(ctx.pool, sub, String(campaign.campaign_id), templateId, {
+                subject: parsed.subject, headline: parsed.headline, intro: parsed.intro, body: parsed.body,
+                ctaLabel: b.ctaLabel, ctaUrl: b.ctaUrl, unsubscribeUrl: b.unsubscribeUrl,
+            }, text);
+            res.status(201).json(saved);
+            return;
+        }
         const item = await insertContent(ctx.pool, sub, {
             campaignId: String(campaign.campaign_id), channel, title: brief.slice(0, 120), body: text,
         });
@@ -401,8 +467,17 @@ async function publishContent(ctx, sub, req, res) {
     }
     const rail = await (0, marketing_publish_1.runPublishRail)(ctx, sub, item, (req.body ?? {}));
     if (!rail.ok) {
-        await (0, marketing_support_1.recordRun)(ctx.pool, sub, channel, 'publish', 'error', { ...detailBase, error: rail.error ?? 'unknown' });
-        res.status(rail.status).json({ error: rail.error, ...(rail.hint ? { hint: rail.hint } : {}) });
+        const outcome = rail.outcome || 'error';
+        await (0, marketing_support_1.recordRun)(ctx.pool, sub, channel, 'publish', outcome, {
+            ...detailBase,
+            error: rail.error ?? 'unknown',
+            ...(rail.hint ? { reason: rail.hint } : {}),
+        });
+        res.status(rail.status).json({
+            error: rail.error,
+            ...(rail.hint ? { hint: rail.hint } : {}),
+            ...(rail.reasons ? { reasons: rail.reasons } : {}),
+        });
         return;
     }
     const updated = (await (0, marketing_support_1.rows)(ctx.pool, `UPDATE oshal_marketing_content SET status = 'published', published_ref = $1, updated_at = now()

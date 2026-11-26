@@ -23,6 +23,9 @@
 @media(max-width:760px){.split{display:flex;flex-direction:column;overflow:visible}.pane.left,.pane.right{width:100%;max-height:none;position:static}.pane.left{border-right:0}.office-page{padding:22px;min-height:420px}.office-page textarea{min-height:320px}#paneGuide{min-height:300px}.office-workspace{min-height:320px}}
 
 .office-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.office-format-label{display:flex;align-items:center;gap:6px;margin:0}.office-format-label select{width:auto;padding:7px 9px}
+.office-title-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.office-slack-confirm{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px;cursor:pointer;white-space:nowrap}
+.office-slack-confirm input{width:auto;margin:0}
 #paneGuide{flex:none!important;min-height:0!important}
 #paneDecks{flex:none;margin-top:20px;padding-top:12px;border-top:1px solid var(--line)}
 #chatIn{min-height:64px;max-height:180px}
@@ -54,6 +57,9 @@
   .office-format-label{flex:0 0 auto;white-space:nowrap;font-size:12px}
   .office-file-actions{position:static;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding:6px}
   .office-file-actions .btn,.office-file-actions .destchip{flex:0 0 auto;white-space:nowrap;padding:9px 11px;font-size:12.5px;width:auto}
+  .office-title-row{grid-template-columns:1fr}
+  #slackRow,#emailRow{flex-direction:column;align-items:stretch}
+  #slackRow input[type="text"],#emailRow input{min-width:0!important;width:100%}
   /* .office-workspace raises specificity over slide-workspace.css, which loads after this file. */
   .office-workspace .office-slide-toolbar,.office-workspace .office-slide-design{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .office-workspace .office-slide-button,.office-workspace .office-slide-design-item{flex:0 0 auto;white-space:nowrap}

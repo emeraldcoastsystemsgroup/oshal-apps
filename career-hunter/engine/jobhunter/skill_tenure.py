@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: deterministic per-skill and total-career experience tenure calculator (non-overlapping date interval union from recorded roles, engagements, and dated additional experience), prompt truth table generator, and cross-section year-contradiction / skill-tenure-inflation detector.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: preserve capitalized skills at start of role titles/lines (e.g. "Java Developer", "Java microservices...") and structured tech/skills lists on engagements and additional experience so multi-role skill tenure is never undercounted.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Overlay candidate-confirmed skill and total-career year figures (years_truth) onto compute_tenure, render exact person figures and confirmation block in prompt_block, and scope multi-token person figures in find_year_contradictions.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (Roger, 2026-11-25: "Machine Learning (4 years)", "SAP HANA (5 years)", "over 25 years" on his résumés, none his figures): prompt_block for a person who stated years of their own lists only those figures, says to state no years for anything else, and gives a total only when they stated one; a person with no figures keeps the counted table.
 """Deterministic per-skill and total-career experience tenure calculator."""
 from __future__ import annotations
 
@@ -272,8 +273,30 @@ def compact_summary(tenure: dict, limit: int = 24) -> dict:
     }
 
 
+def _stated_block(tenure: dict) -> str | None:
+    """@description The tenure block for a person who stated years of their own: their figures only, no count from the
+    roles' dates for any other skill, and a total only when they stated one. @param tenure - compute_tenure() output
+    with years_truth.overlay applied. @returns The block, or None when the person stated no figure."""
+    person = [item for item in (tenure.get("skills") or {}).values() if isinstance(item, dict) and item.get("source") == "person"]
+    has_total = tenure.get("career_source") == "person"
+    if not person and not has_total:
+        return None
+    lines = ["\n\nYEARS OF EXPERIENCE (the person stated these; they are the only year counts this document may state):"]
+    if not has_total:
+        lines.append("- The person has stated no total. State no total number of years of experience anywhere; describe the "
+                     "career without a year count (never 'over N years', 'N years of experience', 'N-year career').")
+    lines.append("- State a year count ONLY for a skill listed in the block below, exactly as listed. For every other skill, "
+                 "tool, platform, field or role, write no number of years at all (no '(N years)' after it).")
+    from . import years_truth
+    return "\n".join(lines) + years_truth.prompt_lines(tenure) + "\n"
+
+
 def prompt_block(tenure: dict, posting_terms=frozenset(), max_skills: int = 18) -> str:
-    """@description Render the VERIFIED EXPERIENCE TENURE TABLE block for Resume Writer & Reviewer prompts."""
+    """@description Render the tenure block for Resume Writer & Reviewer prompts: the person's own figures when they
+    stated any (_stated_block), else the VERIFIED EXPERIENCE TENURE TABLE counted from the roles' dates."""
+    stated = _stated_block(tenure or {})
+    if stated is not None:
+        return stated
     total = int(tenure.get("total_career_years") or 0)
     skills = tenure.get("skills") or {}
     if total <= 0 and not skills:

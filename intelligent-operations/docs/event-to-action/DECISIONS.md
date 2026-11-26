@@ -38,7 +38,7 @@ see EXPORT-STATUS.md. Full unattended pipeline acceptance remains open.
 
 | Item | State and next action |
 |---|---|
-| Hackathon date and provider accounts | Three-week improvement horizon supplied; exact submission date and provider accounts remain unconfirmed. Priorities are in THREE-WEEK-PLAN.md. |
+| Hackathon date and provider accounts | Closed 2026-11-25 (owner), with ADR 0006: no submission date was recorded and the three-week horizon ended around 10 November. Earlier: three-week improvement horizon supplied; exact submission date and provider accounts remain unconfirmed. Priorities are in THREE-WEEK-PLAN.md. |
 | First live ticket-sync provider | Select after native connector capability and disposable-account acceptance; all four remain target coverage. |
 | Production-grade source identity and app store | Native person-scoped store and imports verified; transactional delivery ledger accepted; background source authentication remains required. |
 | Exact native approval/runner coverage | Verify admitted artifact, target, principal and expiry binding before execution. |

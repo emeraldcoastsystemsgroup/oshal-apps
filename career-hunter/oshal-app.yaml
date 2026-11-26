@@ -2,6 +2,17 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 207 | maintainer@emeraldcoastsystemsgroup.com | Unreleased (lane CAREER-LOCATION): career_resume_patch sets a job's location
+# 206 | maintainer@emeraldcoastsystemsgroup.com | Unreleased (lane CAREER-CONCURRENT): staticFiles lists tools/career-pending-writes.js, the door every Career page's changes go through, so a change made while a résumé is written waits and saves by itself
+# 212 | maintainer@emeraldcoastsystemsgroup.com | 1.76.5 (CHANGELOG.md 212)
+# 213 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6 (CHANGELOG.md 213)
+# 211 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4 (CHANGELOG.md 211)
+# 210 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3 (CHANGELOG.md 210)
+# 209 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2 (CHANGELOG.md 209)
+# 208 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (CHANGELOG.md 208)
+# 207 | maintainer@emeraldcoastsystemsgroup.com | 1.76.0 (CHANGELOG.md 207)
+# 206 | maintainer@emeraldcoastsystemsgroup.com | 1.75.2 (CHANGELOG.md 206)
+# 205 | maintainer@emeraldcoastsystemsgroup.com | 1.75.1 (CHANGELOG.md 205)
 # 204 | maintainer@emeraldcoastsystemsgroup.com | 1.75.0: Generate again for many jobs, with Select all with older documents (CHANGELOG.md 204)
 # 203 | maintainer@emeraldcoastsystemsgroup.com | 1.74.0: fill in several in a row; Go on fills in again from memory (CHANGELOG.md 203)
 # 202 | maintainer@emeraldcoastsystemsgroup.com | 1.73.0: how Career fills in a form, and Submit after approval (CHANGELOG.md 202)
@@ -28,7 +39,7 @@
 # 181 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: explicitly group client engagements under one employer with revision-checked links, preserved independent records and consistent document indentation.
 # 180 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11: declare `approvals:` (`/api/career-hunter/applications`, `/approvals`, with pinned `/approve` and `/deny` action templates) so applications in `approval_required` state appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`).
 # 179 | maintainer@emeraldcoastsystemsgroup.com | 1.68.10: Career's apply action reads the person's chosen Job Apply connected device from GET /api/apply-operator/workers (including Open Swarm Orbit computers alongside browser workers), names the chosen device on Step 3 · Send ("Applies from: <Device> · Change device"), the exact-packet approval screen, and My jobs' bulk Send dialog, and surfaces plain-words offline/control-off refusals from Job Apply device routing. Guards: tests/career-job-apply-device.test.mjs.
-# 178 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9 (Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying): My résumé no longer draws a chat of its own. A job's tailored résumé (and the main résumé where AI Office is not available) had the page's own résumé editor, a transcript, text box and Send whose turns went to POST /resume/guide, and Career's Concierge was hidden there. Now Career's concierge, the kernel's one chat window, is that résumé's chat: Career's Concierge in the bar on a computer, Edit with AI on a phone (mounting the concierge first where Career's frame did not). The page declares the open résumé (html data-career-record), so the window opens its own conversation (doc:career-hunter:<posting id>); the registered handoff saves an edit not yet saved before each turn and reads the résumé again after the turn and after an approved card; the context names career_documents and career_resume_save, the concierge's existing tools that read a job's saved résumé and cover letter and change them on a card. After the save before a turn, Save follows what is still unsaved. No route, tool, permission, binding, schedule, cap, migration or staticFiles change; POST /resume/guide stays served and declared, and nothing on the page calls it. Guard: tests/career-hunter-one-chat-window.test.mjs.
+# 178 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9 (CHANGELOG.md 178)
 # 177 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z, at 412 right after a restart: "Career's Concierge did not show the chat window"; the same class Roger reported, a concierge button that does nothing). The bar draws Concierge before Career's concierge has mounted (career-concierge.mjs and the shared assistant still on their way, seconds on a busy or just-started installation), and a press then reached no handler. A press before the concierge is ready is now kept and the concierge opens as soon as it mounts; the button says it is busy meanwhile (tools/career-frame.js, tools/career-concierge.mjs). No route, role, tool or persona change.
 # 176 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7: saved portfolio (`oss_portfolio`) Edit form with revision-checked main-résumé save and Undo (full notes in CHANGELOG.md).
 # 175 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: My jobs posting sheet reads missing descriptions (`POST /jobs/:id/details`) and one-employer backfill script (full notes in CHANGELOG.md).
@@ -105,7 +116,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.75.0
+version: 1.76.6
 
 localEditing:
   itemId: master
@@ -486,7 +497,7 @@ tools:
               roleIndex: {type: integer, minimum: 0}
               roleTitle: {type: string, description: 'the job, by its exact title as read'}
               roleOrg: {type: string, description: 'its employer as read'}
-              key: {type: string, enum: [title, org, start, end, parent_role_id, engagements_heading]}
+              key: {type: string, enum: [title, org, start, end, location, parent_role_id, engagements_heading]}
               to: {type: integer, minimum: 0}
               before: {type: string, description: "the exact current text it changes or goes before; '' for an add at the end or a new job"}
               value: {type: string, description: "the new text; several lines become one bullet per line; a start or end month is YYYY-MM (2025-01), end '' is present"}
@@ -506,7 +517,7 @@ tools:
       when before is empty; set replaces the bullet in before; remove takes it out; move takes to, its new position;
       split, with before and no value, turns a bullet holding several lines (a pasted draft) into one bullet per line.
       A value of several lines also becomes one bullet per line. field role changes a job: set with key (title, org,
-      start or end) and before its exact current value (end '' is present); add with index (its position in the work
+      start, end or location) and before its exact current value (end '' is present, location '' is none); add with index (its position in the work
       history as the card's earlier edits leave it, 0 is first) and value the title, then set its org and start (and
       end) in the same card; remove or move (to) with before the job's exact title, no index. Text fields accept set
       only. To group a client engagement, first read a fresh overview. Set field role, key parent_role_id, before its
@@ -1960,6 +1971,7 @@ staticFiles:
       - career-frame.js
       - career-hunter.css
       - career-job-actions.js
+      - career-pending-writes.js
       - career-job-feedback.js
       - career-job-lists.js
       - career-job-place.js

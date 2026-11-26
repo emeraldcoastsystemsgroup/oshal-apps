@@ -62,6 +62,8 @@
 # 30 | maintainer@emeraldcoastsystemsgroup.com | Export current visible saved Word revisions as genuine bounded Unicode RTF, using the existing original-person export authority and immutable revision routes.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 2.20.11: support optional Word paragraph bottom border (`borderBottom`), right tab stop (`tabRight`), and native OOXML `<w:tab/>` runs across DOCX, PDF, and RTF exports without altering existing documents.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): add on-screen Speaker notes under each presentation slide in AI Office and the slide workspace, export/import `.pptx` notes pages, preserve notes across save/reopen/open and Edit & regenerate, and accept `notes` in `page` patch and Guide `update_slide` operations.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 2.20.13 (CREATE-TOOL-PRESENTATIONS-04, -15, -20): add presentations-create-workbook (POST /api/presentations/sections/xlsx) and approval-gated presentations-send-slack (POST /api/presentations/sections/slack) tools, add cover subtitle field (#subtitleInput) with save/reopen and Guide set_subtitle parity, and add Send to Slack studio delivery controls.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 2.20.14: implement Meeting Recap (docs/meeting-recap-spec.md) — 7-stage local recording pipeline (intake/chunked upload, 16 kHz mono WAV extraction, local-only STT/transcript parsing, RGB colour-space scene detection with privacy camera-strip crop, timeline.md, text-only end-to-end summary.md with verbatim timestamped quotes, image+text review.pptx with zero charts, explicit ADR-108 Save to Files), owner-scoped oshal_presentation_recaps forced-RLS migration, and Recap a meeting surface bound under existing permissions.
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -79,9 +81,14 @@ rating:
       tier: T2
       generation: none
       degrade: disable
+    - id: meeting-recap-summary
+      unit: meeting recap summary notes
+      tier: T2
+      generation: none
+      degrade: template
 displayName: AI Office
 description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
-version: 2.20.12
+version: 2.20.14
 chatBot: deck-builder
 lastingStorage: true
 testing:
@@ -304,6 +311,101 @@ tools:
       never say a file was made unless this returned ok. Then offer to open it in AI Office with the returned
       openUrl as a link ("Open it in AI Office").
     tags: [presentations, route-backed]
+
+  - name: presentations-create-workbook
+    displayName: Make an Excel workbook
+    type: api
+    category: productivity
+    description: Make a separate Excel workbook (.xlsx) from a title and sheets when no current office-editor document is being edited. In an open Office editor, use office-apply-edits to populate or change that same document instead.
+    executor: { executorType: api, apiEndpoint: "POST /api/presentations/sections/xlsx" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        subtitle: { type: string, maxLength: 200 }
+        theme: { type: string }
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              content: { type: string }
+            required: [title]
+      required: [title, sections]
+    usageInstructions: >-
+      Write the whole Excel workbook yourself and call this once with {title, sections}: each section is one
+      sheet with a title and content (pipe-table rows "| Col A | Col B |" become live typed worksheets, "Label: 120"
+      lines become a Label/Value sheet with a live SUM total, and "value :: caption" pairs pool on Metrics).
+      Use only facts the person or an earlier tool gave you; a number you do not have is a TBD line, never invented.
+      The answer names where it saved and its link; tell the person that, and never say a file was made unless this
+      returned ok. Then offer to open it in AI Office with the returned openUrl as a link ("Open it in AI Office").
+    tags: [presentations, route-backed]
+
+  - name: presentations-send-slack
+    displayName: Send Office file to Slack
+    type: api
+    category: productivity
+    description: Render and upload a PowerPoint deck, Word document, or Excel workbook to a Slack channel using the caller's own connected Slack account. Requires explicit approval and confirmation before anything is uploaded.
+    cardText: Renders this Office file and uploads it to the chosen Slack channel using your connected Slack account. Nothing is sent to Slack until you approve.
+    executor: { executorType: api, apiEndpoint: "POST /api/presentations/sections/slack" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        confirm:
+          type: boolean
+          const: true
+          description: Explicit confirmation flag; must be true to upload to Slack.
+        channelId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Target Slack channel ID (for example C0123456789).
+        format:
+          type: string
+          enum: [pptx, docx, xlsx]
+          description: Office format to render and upload (defaults to pptx).
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        subtitle:
+          type: string
+          maxLength: 200
+        byline:
+          type: string
+          maxLength: 120
+        theme:
+          type: string
+        comment:
+          type: string
+          maxLength: 4000
+          description: Optional initial comment posted with the uploaded file.
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              content: { type: string }
+              notes: { type: string }
+            required: [title]
+      required: [confirm, channelId, title, sections]
+    usageInstructions: >-
+      Ask for or confirm the exact Slack channelId before proposing this upload. Pass confirm: true, channelId,
+      format (pptx, docx, or xlsx), title, optional subtitle/theme/comment, and sections[]. Because this sends a file
+      externally, the approval card must complete before reporting delivery; if Slack is not connected (409) or
+      confirmation is refused (428), report that plainly.
+    tags: [presentations, route-backed, delivery]
 
   - name: office-editing-contract
     displayName: Office editing contract
@@ -781,6 +883,14 @@ routes:
     requiresAuth: true
     requiresContext: true
 
+  - module: routes/meeting-recap-routes.mjs
+    factory: createMeetingRecapRoutes
+    mountPath: /api/presentations/recap
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
 # The "My decks" record table is declared so the native kernel provisions it; on PostgreSQL the
 # packaged ensurePresentationsSchema still adds its owner-RLS at the chokepoint.
 migrations:
@@ -789,6 +899,8 @@ migrations:
   - migrations/native/002-office-editor.sql
   - migrations/003-office-sharing.sql
   - migrations/native/003-office-sharing.sql
+  - migrations/004-meeting-recap.sql
+  - migrations/native/004-meeting-recap.sql
 nativeMigrations:
   - id: migrations/002-office-editor.sql
     native: skip
@@ -796,6 +908,9 @@ nativeMigrations:
   - id: migrations/003-office-sharing.sql
     native: skip
     reason: Native schema stores shares and immutable access audit entries in physically isolated SQLite; PostgreSQL enforces two-arm forced RLS policies.
+  - id: migrations/004-meeting-recap.sql
+    native: skip
+    reason: Native schema stores owner-scoped Meeting Recap jobs in physically isolated SQLite; PostgreSQL enforces two-arm forced RLS policies.
 
 # Trim the ribbon to: the Presentations surface, the ticket queue (your decks),
 # settings, and logs. Hide everything else.

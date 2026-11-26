@@ -9,6 +9,9 @@
  * 2026-11-06 08:10:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): End Turn and Move are hidden while no campaign runs on this screen (renderDock toggles #turnctl.idle).
  * 2026-11-06 09:35:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-tv): the TV lobby card names the campaign once and shows the join code as a large badge instead of a second line repeating the status strip (the strip keeps naming the campaign before the scene, K4); TV Mode gets an auto-hiding corner bar with Full screen and Sound on/off (wireTvBar).
  * 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-tv): showTvLobby displays the direct phone join address under the 48px+ join code badge so players can join from the couch without guessing the URL.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Render concentration, condition, temp-AC, and reaction badges in the active dock and format sphere/buff/reaction spell cards cleanly.
+ * 2026-11-25 15:15:00 | maintainer@emeraldcoastsystemsgroup.com     | Display character level in dock identity, sort multi-tier spell slot summaries numerically, and format sphere healing spells.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Render the live per-campaign cutaway art budget badge inside the initiative bar whenever a campaign is open.
  */
 
 'use strict';
@@ -36,14 +39,62 @@ function configureTurnButtons(active) {
   $('stayBtn').disabled = !canAttackHere;
   $('stayBtn').textContent = 'Attack From Here';
 }
+function spellStatusPillsHtml(t, includeReaction) {
+  if (!t || t.dead || t.fled) return '';
+  const pills = [];
+  if (t.concentration && t.concentration.spellName) {
+    pills.push(`<span class="status-pill conc-pill" data-concentration="${esc(t.concentration.spellId || '')}" title="Concentrating on ${esc(t.concentration.spellName)}">✦ Conc: ${esc(t.concentration.spellName)}</span>`);
+  }
+  if (Number(t.tempAcBonus) > 0) {
+    pills.push(`<span class="status-pill ac-pill" data-temp-ac="${Number(t.tempAcBonus)}">🛡 +${Number(t.tempAcBonus)} AC</span>`);
+  }
+  const conds = Array.isArray(t.conditions) ? t.conditions : [];
+  conds.forEach((entry) => {
+    const id = typeof entry === 'string' ? entry : (entry && entry.id);
+    if (!id) return;
+    const label = id.charAt(0).toUpperCase() + id.slice(1);
+    pills.push(`<span class="status-pill cond-pill" data-condition="${esc(id)}">${esc(label)}</span>`);
+  });
+  if (includeReaction && isConscious(t)) {
+    const used = !!t.reactionUsed;
+    pills.push(`<span class="status-pill react-pill ${used ? 'used' : 'ready'}" data-reaction="${used ? 'used' : 'ready'}">${used ? '⚡ Reaction used' : '⚡ Reaction ready'}</span>`);
+  }
+  return pills.join('');
+}
+function actionEffectSummary(a) {
+  if (!a) return '';
+  if (a.mode === 'reaction') {
+    if (a.acBonus) return `reaction · +${a.acBonus} AC`;
+    return 'reaction · counter spell';
+  }
+  if (a.mode === 'buff') {
+    const cond = a.applyCondition && (typeof a.applyCondition === 'string' ? a.applyCondition : a.applyCondition.id);
+    return `${a.concentration ? 'conc · ' : ''}buff ${cond || 'ally'}${a.maxTargets > 1 ? ` (×${a.maxTargets})` : ''}`;
+  }
+  if (a.mode === 'save' && !a.damage && a.applyCondition) {
+    const cond = typeof a.applyCondition === 'string' ? a.applyCondition : a.applyCondition.id;
+    return `${a.aoeShape ? a.aoeSize + 'ft ' + a.aoeShape + ' · ' : ''}${cond} · ${a.save.ability} save`;
+  }
+  if (a.aoeShape === 'sphere' && a.mode === 'heal' && a.heal) {
+    return `${a.aoeSize || 20}ft sphere · heal ${a.heal.dice}${a.heal.bonus ? '+' + a.heal.bonus : ''}`;
+  }
+  if (a.aoeShape === 'sphere' && a.damage) {
+    return `${a.aoeSize || 20}ft sphere · ${a.damage.dice} ${a.damage.type} · ${a.save.ability} save`;
+  }
+  return effectStr(a);
+}
 function renderDockIdentity(t, isActiveMine) {
   const sheet = boardSheets[t.slug] || sheetOf(t) || {};
   const role = t.kind === 'pc' ? roleOf(sheet) : tokenRoleLabel(t);
   const inv = inventoryOf(sheet), controller = t.kind === 'pc' ? controllerLabel(t) : '';
   const condition = isDowned(t) ? (t.stable ? ' · STABLE' : ' · DOWN — death save due') : t.kind === 'pc' && t.dead ? ' · FALLEN' : '';
+  const shownAc = typeof ENG.effectiveAc === 'function' ? ENG.effectiveAc(t) : t.ac;
+  const acText = t.tempAcBonus ? `${shownAc} (+${t.tempAcBonus})` : String(shownAc);
+  const statusPills = spellStatusPillsHtml(t, !!(board && board.mode === 'combat'));
+  const pcSub = sheet.race ? `${sheet.race} ${sheet.class} · Lv ${Number(sheet.level) || 1}` : '';
   $('who').innerHTML = `<div class="who-top"><div><div class="name">${esc(tokenDisplayName(t))}${esc(condition)}</div>${controller ? `<span class="controller-badge ${isAICompanion(t) ? 'ai' : 'human'}">${esc(controller)}</span>` : ''}</div>${t.kind === 'pc' ? `<button id="sheetBtn" class="sheet-btn" title="Open character sheet and inventory">🎒 ${inv.items.length}</button>` : ''}</div>
-    <div class="sub">${sheet.race ? esc(sheet.race + ' ' + sheet.class) : esc((content.monsters[t.ref] || {}).type || '')}</div>${role ? `<div class="role">${esc(role)}</div>` : ''}
-    <div class="bars">❤ ${t.hp}/${t.maxHp} &nbsp; 🛡 ${t.ac} &nbsp; 👟 ${t.kind === 'pc' && isActiveMine ? movementLeft(t) + '/' : ''}${t.speed}ft${slotStr(t)}</div>`;
+    <div class="sub">${pcSub ? esc(pcSub) : esc((content.monsters[t.ref] || {}).type || '')}</div>${role ? `<div class="role">${esc(role)}</div>` : ''}
+    <div class="bars">❤ ${t.hp}/${t.maxHp} &nbsp; 🛡 ${esc(acText)} &nbsp; 👟 ${t.kind === 'pc' && isActiveMine ? movementLeft(t) + '/' : ''}${t.speed}ft${slotStr(t)}</div>${statusPills ? `<div class="status-pills">${statusPills}</div>` : ''}`;
   if ($('sheetBtn')) $('sheetBtn').onclick = () => showCharacterSheet(t);
 }
 function renderDownedDock(t, acts) {
@@ -65,10 +116,10 @@ function dockLockMessage(t, isActiveMine) {
 function appendDockAction(acts, action, live, isActiveMine, t) {
   const resource = actionResourceStatus(t, action), usable = live && resource.available;
   const button = document.createElement('button'); button.className = 'act' + (selectedAction === action ? ' sel' : '') + (usable ? '' : ' disabled') + (resource.available ? '' : ' resource-spent'); button.disabled = !usable;
-  const icon = action.type === 'spell' ? '✦' : action.type === 'feature' ? '★' : '⚔';
+  const icon = action.mode === 'reaction' ? '⚡' : action.type === 'spell' ? '✦' : action.type === 'feature' ? '★' : '⚔';
   const range = action.delivery === 'melee' ? 'melee' : action.delivery === 'self' ? 'self' : (action.range + 'ft');
   button.title = !resource.available ? resource.detail : (action.text || '');
-  button.innerHTML = `<div class="an">${icon} ${esc(action.name)}</div><div class="ax">${esc(effectStr(action))}</div><div class="ar">${esc(range)}${action.type === 'spell' && action.slot ? ' · L' + action.slot : ''}</div><div class="resource-label ${resource.available ? 'ready' : 'spent'}">${esc(resource.detail)}</div>`;
+  button.innerHTML = `<div class="an">${icon} ${esc(action.name)}</div><div class="ax">${esc(actionEffectSummary(action))}</div><div class="ar">${esc(range)}${action.type === 'spell' && action.slot ? ' · L' + action.slot : ''}${action.concentration ? ' · Conc' : ''}</div><div class="resource-label ${resource.available ? 'ready' : 'spent'}">${esc(resource.detail)}</div>`;
   if (usable) button.onclick = () => selectAction(action); acts.appendChild(button);
 }
 function renderHeroDock(t, isActiveMine, acts) {
@@ -113,7 +164,7 @@ function renderDock() {
   if (active.kind !== 'pc') { renderAutomatedDock(active, acts); return; }
   renderHeroDock(active, isActiveMine, acts);
 }
-function slotStr(t) { if (!t.slots) return ''; const k = Object.keys(t.slots); return k.length ? ' &nbsp; ✦ ' + k.map((l) => `L${l}:${t.slots[l]}`).join(' ') : ''; }
+function slotStr(t) { if (!t.slots) return ''; const k = Object.keys(t.slots).sort((a, b) => Number(a) - Number(b)); return k.length ? ' &nbsp; ✦ ' + k.map((l) => `L${l}:${t.slots[l]}`).join(' ') : ''; }
 function selectAction(a) {
   if (presentationGateBlocksInput()) return;
   const t = activeToken(); if (!controls(t)) return;
@@ -122,12 +173,15 @@ function selectAction(a) {
   if (t.acted) { banner('Already acted this turn — End Turn.'); return; }
   const resource = actionResourceStatus(t, a);
   if (!resource.available) { banner(resource.detail); return; }
+  if (a.mode === 'reaction') { banner(`${a.name} is a reaction spell — it triggers off-turn when ${a.reactionTrigger === 'attack-hit' ? 'an incoming hit can be blocked (+5 AC)' : 'an enemy casts a spell'}.`); return; }
   selected = t;
   if (a.mode === 'heal' && a.delivery === 'self') { doAction(t); return; }
   selectedAction = selectedAction === a ? null : a;
   const tg = selectedAction ? validTargets(t, a) : [];
-  if (selectedAction && !tg.length) { banner('No targets in range — move closer or pick another action.'); selectedAction = null; }
-  else if (selectedAction) banner(a.aoeShape ? `Aim ${a.name} — tap an enemy to sweep the ${a.aoeShape} toward them` : `Aim ${a.name} — tap a highlighted target`);
+  if (selectedAction && a.aoeShape === 'sphere') {
+    banner(`Aim ${a.name} (${a.aoeSize || 20}-ft sphere) — tap any target or square in range to cast`);
+  } else if (selectedAction && !tg.length) { banner('No targets in range — move closer or pick another action.'); selectedAction = null; }
+  else if (selectedAction) banner(a.aoeShape ? `Aim ${a.name} — tap an enemy to sweep the ${a.aoeShape} toward them` : a.mode === 'buff' ? `Aim ${a.name} — tap an ally to bless` : `Aim ${a.name} — tap a highlighted target`);
   renderDock();
 }
 /** @description The TV lobby, naming the campaign the screen joined as My Games lists it, with its join code and URL. */
@@ -189,7 +243,9 @@ function updateInitiativeBar() {
   const phase = board.mode === 'setup' ? 'Party lobby' : board.mode === 'exploration' ? 'Investigation'
     : board.mode === 'resolved' ? (SC().kind === 'exploration' ? 'Chapter complete' : 'Battle complete')
       : board.mode === 'complete' ? 'Campaign complete' : board.mode === 'defeat' ? 'Party defeated' : `Round ${board.round || 1}`;
-  bar.innerHTML = `<span class="round">${phase}${scene}<small>${status}</small>${code}</span>`;
+  const budgetHtml = typeof cutawayBudgetBadgeHtml === 'function' ? cutawayBudgetBadgeHtml() : '';
+  bar.innerHTML = `<span class="round">${phase}${scene}<small>${status}</small>${code}</span>${budgetHtml}`;
+  if (typeof renderCutawayBudget === 'function') renderCutawayBudget();
   board.order.forEach((id) => {
     const t = board.tokens.find((x) => x.id === id); if (!t) return;
     const frac = t.hp / t.maxHp, cls = frac > 0.5 ? '' : frac > 0.25 ? 'hurt' : 'low', img = tokenImg(t);

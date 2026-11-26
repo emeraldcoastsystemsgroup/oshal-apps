@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): the bulk queue's own writes are batch work (careerBatch, and CareerJobActions.batch for promote and prepare), and it is told how many of the person's changes are waiting to save (tools/career-pending-writes.js), so it starts no preparation until they have. Guard: tests/career-concurrent-writes.test.mjs.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday; his open jobs need new documents): Generate again (N), a bulk action of Saved and Getting ready in the Table and the List, where N counts the selected jobs that have documents and are not applied or removed; it hands them to tools/career-regenerate.js, which asks once and queues them in his store. The List's rows of those stages can now always be selected (Generate again needs no computer); its bar offers Fill in several on my Chrome (while offered) and Generate again. Guard: tests/career-regenerate-browser.test.mjs.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH (Roger, 2026-11-21: "i really need to be able to post 200 resumes by monday"): Fill in several on my Chrome, the bulk action of Saved and Getting ready when his Job Apply computer reports browser-apply (the filled button of Getting ready). It hands every selected job to tools/career-apply-batch.js, whose approval sheet says which still need documents and offers Prepare them (this table's own Prepare applications for those jobs). The List can select too: while the action is offered, each List row of those stages has the same checkbox (the page draws it, CareerJobsTable.picks), the selection is this module's, and the List's bar offers only Fill in several on my Chrome.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Bulk Send names the person's chosen Job Apply connected device when asking to send approved applications.
@@ -693,8 +694,11 @@
    */
   function attach(deps) {
     S.deps = deps;
-    S.queue = root.CareerBulkQueue.create({ owner: deps.owner || '', storage: localStore(), fetch: (url, init) => root.fetch(url, init),
-      actions: root.CareerJobActions, send: (id, digest) => root.CareerSubmit.approveAndStart(id, digest), onChange: queueChanged });
+    // The queue's own writes are batch work: it waits on its own while Career is busy, and starts no preparation while a
+    // change the person made is waiting to save (tools/career-pending-writes.js), so that change goes first.
+    S.queue = root.CareerBulkQueue.create({ owner: deps.owner || '', storage: localStore(), fetch: (url, init) => root.fetch(url, { ...(init || {}), careerBatch: true }),
+      actions: { ...root.CareerJobActions, ...(root.CareerJobActions.batch || {}) }, send: (id, digest) => root.CareerSubmit.approveAndStart(id, digest), onChange: queueChanged,
+      pendingWrites: () => (root.CareerPendingWrites ? root.CareerPendingWrites.waiting(deps.owner || '') : 0) });
     for (const item of S.queue.items()) if (['done', 'failed', 'skipped', 'cancelled'].includes(item.state)) S.ended.add(item.key);
     const begun = S.queue.summary().prepare;
     S.busy = begun.queued + begun.running > 0;

@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: deterministic resume typography normalizer (strips inline <b>/<strong>/** bold and numeric '+' suffixes while preserving C++, Security+, A+, etc.), deterministic post-checks/auditor, and thin Career worker rail client invoking the dynamically-loaded career-resume-reviewer Swarm bot (personas/career-resume-reviewer.yaml, cb000000-0000-0000-0000-000000000006) with 1-shot targeted repair and structured application.json receipt.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (Roger, 2026-11-25: the job page said "Conflicting year claims for Java (summary: '2 years')" on a résumé whose final summary said 11 years): the review receipt records which remaining items its own checks found (deterministic_remaining), and settle() judges those again on the final packet after the years and term passes, so the page names only what the sent résumé still holds.
 """Deterministic resume normalizer, auditor, and rail client for the career-resume-reviewer Swarm bot."""
 from __future__ import annotations
 
@@ -386,9 +387,37 @@ def review_resume(data: dict, prof_doc: dict, selected, posting: dict, roles: li
     notes = notes or ("Resume passed automated executive and ATS quality review."
                       if status == "passed" else "Resume has unresolved quality items that need review.")
     receipt = {
+        "deterministic_remaining": [msg for msg in remaining if msg in _dedup_messages(audit_resume(out["resume"], tenure, rec))][:20],
         "version": VERSION, "bot": REVIEWER_BOT, "rubric_version": rubric_version(), "status": status,
         "attempts": attempts, "llm_reviewed": bot_reviewed, "issues_found": issues_found[:30],
         "issues_fixed": fixed[:30], "remaining_issues": remaining[:20],
         "skill_tenure": skill_tenure.compact_summary(tenure), "reviewer_notes": notes,
     }
     return out, receipt
+
+
+def settle(receipt: dict, data: dict, prof_doc: dict, selected, posting: dict, today=None) -> dict:
+    """@description Judge the review's own checks again on the final packet. The years pass (years_truth.enforce) and
+    the term pass run after review_resume, so an item the review found in the draft ("Conflicting year claims for
+    Java") may be gone from what is sent; an item the reviewer bot raised stays, and a check that now fails is added.
+    @param receipt - review_resume()'s receipt. @param data - The final packet. @param prof_doc - The person's profile.
+    @param selected - Additional experience chosen for the packet. @param posting - {title, company, description}.
+    @param today - Date override for tests. @returns The receipt, judged on the final packet."""
+    if not isinstance(receipt, dict) or not isinstance((data or {}).get("resume"), dict):
+        return receipt
+    job_terms = claims_check.posting_terms(posting.get("title") or "", posting.get("description") or "")
+    rec = claims_check.records(prof_doc, selected, job_terms, today)
+    tenure = skill_tenure.compute_tenure(prof_doc, selected, today)
+    final = _dedup_messages(audit_resume(data["resume"], tenure, rec))
+    ours = set(receipt.get("deterministic_remaining") or [])
+    before = list(receipt.get("remaining_issues") or [])
+    remaining = [msg for msg in before if msg not in ours or msg in final] + [msg for msg in final if msg not in before]
+    out = dict(receipt)
+    out["remaining_issues"] = remaining[:20]
+    out["deterministic_remaining"] = [msg for msg in final][:20]
+    out["issues_fixed"] = (list(receipt.get("issues_fixed") or []) + [msg for msg in before if msg not in remaining])[:30]
+    out["status"] = "passed" if not remaining else "needs_review"
+    if out["status"] != receipt.get("status"):
+        out["reviewer_notes"] = ("Resume passed automated executive and ATS quality review." if out["status"] == "passed"
+                                 else "Resume has unresolved quality items that need review.")
+    return out

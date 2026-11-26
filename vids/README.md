@@ -1,5 +1,7 @@
 # Vids Studio (vids) — OSHAL app package
 
+1.6.8 delivers tool parity across the Vids Studio page and `vids-operator` concierge (`CREATE-TOOL-VIDS-03`, `-05`, `-07`, `-08`): case-insensitive orientation normalization (`Landscape`, `Portrait`, `Square`) with declared schema enums on clip and story dispatch, `insertMode` on `vids-generate-clip`, on-page Brand intro / Brand graphic / Story controls paired with approval-held `vids-generate-story`, finished-export concierge tools (`vids-export-status`, `vids-publish-export`, `vids-revoke-export`, `vids-remove-export`), and owner-scoped job `POST /api/vids/jobs/:id/cancel` and `POST /api/vids/jobs/:id/retry` routes with UI Cancel/Retry controls and approval-held `vids-cancel-job` / `vids-retry-job` tools.
+
 1.6.4 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
 

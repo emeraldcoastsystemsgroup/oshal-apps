@@ -33,6 +33,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id, GET /ventures/:id/runs and GET /runs/:runId answer a native run whose request was abandoned as interrupted (presentRun, no write on a read), so a page closed mid-run is not shown "running" for ever.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/inversion also answers plannedRunUnits (the model's run quantity), so the console can compare the smallest break-even run with the planned run; the stored snapshot carries no run figure.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/assumptions and the history answer each row's `grade`, the engine's confidence ladder (quoted .. guessed) for that row (engineConfidence, the same mapping the model computes with). The console tallied the ledger in that ladder while rows carried the store's low/medium/high, so its banner read "0 of 36 registered assumptions are an estimate or an outright placeholder" with 34 model guesses.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped LLM-free GET /ventures/:id/scenarios/compare route delegating to pure venture-compare.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Mount owner-scoped LLM-free Saved-quote inbox routes via registerQuoteInboxRoutes (1.5.7).
  *
  * @module venture-routes
  */
@@ -77,6 +79,7 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const agent_management_1 = require("@/features/agent-management");
 const logger_1 = require("@/shared/logger");
+const venture_compare_1 = require("./venture-compare");
 const venture_sensitivity_1 = require("./venture-sensitivity");
 const venture_model_1 = require("./venture-model");
 const venture_store_compose_1 = require("./venture-store-compose");
@@ -85,6 +88,7 @@ const venture_bot_contracts_1 = require("./venture-bot-contracts");
 const venture_schema_1 = require("./venture-schema");
 const venture_http_1 = require("./venture-http");
 const venture_routes_docs_1 = require("./venture-routes-docs");
+const venture_routes_quote_inbox_1 = require("./venture-routes-quote-inbox");
 const venture_run_1 = require("./venture-run");
 const venture_store_1 = require("./venture-store");
 const venture_store_supply_1 = require("./venture-store-supply");
@@ -120,6 +124,19 @@ function replyRebaselineError(res, err) {
         return false;
     res.status(400).json({ error: err.code, detail: err.message });
     return true;
+}
+/** Answer a scenario-compare validation or ownership refusal without leaking 500s. */
+function replyCompareError(res, err) {
+    if (!(err instanceof venture_compare_1.ScenarioCompareError))
+        return false;
+    const status = err.code === 'compare_scenario_not_found' ? 404 : 400;
+    res.status(status).json({ error: err.code, detail: err.message });
+    return true;
+}
+/** Parse comma-separated scenario ids from a query parameter. */
+function parseCompareIds(raw) {
+    const parts = Array.isArray(raw) ? raw.map(String) : (typeof raw === 'string' ? [raw] : []);
+    return parts.flatMap((chunk) => chunk.split(',')).map((s) => s.trim()).filter(Boolean);
 }
 /**
  * @description Resolve the bundled surface directory, captured at FACTORY time.
@@ -659,6 +676,40 @@ function handleScenarios(pool) {
             }
             res.json({ scenario: s });
         }),
+        scenarioCompare: (0, venture_http_1.guarded)('GET /ventures/:id/scenarios/compare', async (req, res) => {
+            const sub = (0, venture_http_1.requireSub)(req, res);
+            if (!sub)
+                return;
+            const id = String(req.params.id);
+            const venture = await (0, venture_store_1.getVenture)(pool, sub, id);
+            if (!venture) {
+                res.status(404).json({ error: 'not found' });
+                return;
+            }
+            const onDate = onDateOf(req);
+            const [allScenarios, assumptions, bomLines, vendors, headcount] = await Promise.all([
+                (0, venture_store_1.listScenarios)(pool, sub, id), (0, venture_store_1.liveAssumptions)(pool, sub, id), (0, venture_store_supply_1.listBom)(pool, sub, id),
+                (0, venture_store_supply_1.listVendors)(pool, sub, id), (0, venture_store_supply_1.listHeadcount)(pool, sub, id),
+            ]);
+            const requestedIds = parseCompareIds(req.query.ids);
+            const baselineParam = typeof req.query.baseline === 'string' && req.query.baseline.trim()
+                ? req.query.baseline.trim() : null;
+            try {
+                const { selected, baselineId } = (0, venture_compare_1.selectScenariosForCompare)(allScenarios, requestedIds, baselineParam);
+                const entries = selected.map((scenario) => ({
+                    scenarioId: scenario.id,
+                    name: scenario.name,
+                    isBase: scenario.isBase,
+                    input: (0, venture_store_compose_1.composeModelInput)({ venture, assumptions, bomLines, vendors, headcount, scenario, onDate }).input,
+                }));
+                const comparison = (0, venture_compare_1.compareScenarios)(entries, baselineId);
+                res.json({ ventureId: venture.id, currency: venture.currency, onDate, ...comparison });
+            }
+            catch (err) {
+                if (!replyCompareError(res, err))
+                    throw err;
+            }
+        }),
     };
 }
 /**
@@ -1031,6 +1082,7 @@ function createVentureRoutes(ctx) {
     router.get('/ventures/:id/quotes', quotes.quoteList);
     router.post('/ventures/:id/quotes', quotes.quoteCreate);
     router.get('/ventures/:id/scenarios', scenarios.scenarioList);
+    router.get('/ventures/:id/scenarios/compare', scenarios.scenarioCompare);
     router.post('/ventures/:id/scenarios', scenarios.scenarioCreate);
     router.patch('/ventures/:id/scenarios/:scenarioId', scenarios.scenarioPatch);
     router.post('/ventures/:id/model', compute.compute);
@@ -1040,7 +1092,7 @@ function createVentureRoutes(ctx) {
     router.get('/ventures/:id/inversion', compute.inversion);
     router.post('/chat', handleChat(ctx, pool));
     (0, venture_routes_docs_1.registerDocumentRoutes)(router, ctx, pool);
+    (0, venture_routes_quote_inbox_1.registerQuoteInboxRoutes)(router, pool);
     log.info({ surfaceDir: dir, documents: venture_doc_catalog_1.DOC_CATALOG.length }, 'venture-plan routes mounted');
     return router;
 }
-//# sourceMappingURL=venture-routes.js.map

@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise native writer-busy feedback on actual Career pages with synthetic same-origin responses, preserved inputs and explicit retries; no live jobs, runs or submissions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain every busy/refusal control under Save-only behavior, with separate explicit fit-refusal checks and unchanged acknowledged favorites.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): a change the kernel refuses with its exact run-in-progress answer (409 career_run_in_progress, nothing ran) now waits and saves by itself (tools/career-pending-writes.js): Save on Find jobs, New matches and the phone Cards, a draft on the job page, a fit check and a submission request say they are waiting, never "try again", and land once Career takes changes again, once. Every other answer keeps its own words and path, unchanged: a 503, a conflict, an unrelated 409 that only borrows the code, an unknown result.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: the two phone Cards cases of a Save whose result is unknown wait for what the deck now says ("Could not confirm the save: … Press Undo to check it.", a 503's text in plain words) instead of the bare error. What they guard is unchanged and checked as before: the card stays away, the result is not called a busy refusal, and nothing is retried. Added: Undo reads the job, finds it was not saved and brings the card back without a write.
  */
 import {test,before,after} from 'node:test';
@@ -8,6 +9,10 @@ import assert from 'node:assert/strict';
 import {openScreen,playwright,PHONE,DESKTOP} from './helpers/ux-page.mjs';
 const BUSY='career_run_in_progress',NOTICE='Career is working on your account.';
 const RUN='12345678-1234-4234-8234-123456789012';let browser;
+const WAITING=/^Saving — waiting for the résumé being written now\./;
+const pendingLine=f=>f.page.locator('.career-pending-writes');
+/** Whether a press is still waiting for Career's answer (it was started on the page as window[name]). */
+const stillWaiting=(f,name)=>f.page.evaluate(name=>Promise.race([window[name],new Promise(r=>setTimeout(()=>r('waiting'),50))]),name);
 const entries=[['home','home'],['board','board-native'],['search','search-ui'],['resume-studio','resume-studio']]
  .map(([view,file])=>({id:'tool-career-'+view,label:view,toolUi:{iframeUrl:'/api/career-hunter/'+file,visibilityToolName:'career-'+view}}));
 function state(patch={}){
@@ -33,6 +38,7 @@ function answers(s){return ({method,url,body})=>{
  if(url.pathname.includes('/search-memory'))return {json:{stored:true}};
  if(!s.accepted&&!(s.preparationOnly&&url.pathname.endsWith('/status')))
   return {status:s.status,json:{error:s.error,code:s.code,runId:RUN}};
+ (s.took||=[]).push(url.pathname);
  if(body?.draft){s.job.application.draft={...body.draft,revision:body.draft.revision+1};return {json:{application:s.job.application}};}
  if(body?.favorite)s.job.favorite=true;
  return {json:{ok:true,requestId:'synthetic-fit-receipt'}};
@@ -48,37 +54,46 @@ async function noAutomatic(f,s,n){await f.page.waitForTimeout(750);assert.equal(
 before(async()=>{browser=await playwright().chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
 for(const kind of ['search','matches']){
- test(kind+': refused Save stays available, explains busy and retries only on another press',async()=>{
+ test(kind+': a Save Career refused while it writes waits, says so, and saves by itself once Career takes it',async()=>{
   const s=state(),f=await screen(kind,s);try{
    await f.page.getByText(s.job.title,{exact:true}).first().waitFor();await f.page.getByRole('button',{name:'Save',exact:true}).first().click();
-   const notice=f.page.locator(kind==='search'?'#searchStatus':'#actionState');await notice.getByText(NOTICE,{exact:false}).waitFor({timeout:1200});
-   assert.doesNotMatch(await notice.innerText(),/career_run_in_progress/);assert.equal(await f.page.getByText(s.job.title,{exact:true}).count()>0,true);
-   const retry=f.page.getByRole('button',{name:kind==='search'?'Try saving again':'Save',exact:true}).first();assert.equal(await retry.isEnabled(),true);
-   await noAutomatic(f,s,1);s.accepted=true;await retry.click();await f.page.getByRole('button',{name:'Saved',exact:true}).first().waitFor();
-   assert.deepEqual(changes(s).map(w=>w.path),['/api/career-hunter/jobs/17/status','/api/career-hunter/jobs/17/status']);
+   await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});
+   const notice=f.page.locator(kind==='search'?'#searchStatus':'#actionState');
+   assert.doesNotMatch(await notice.innerText(),/Career is working on your account|career_run_in_progress|Try/);
+   await f.page.waitForTimeout(3000);assert.ok(changes(s).length>=2,'sent again by itself');assert.equal(s.job.favorite,false);
+   s.accepted=true;await f.page.getByRole('button',{name:'Saved',exact:true}).first().waitFor({timeout:6000});
+   await pendingLine(f).getByText('Saved.',{exact:true}).waitFor({timeout:4000});
+   assert.equal(s.job.favorite,true);await f.page.waitForTimeout(3000);
+   assert.deepEqual(s.took,['/api/career-hunter/jobs/17/status'],'Career took it once');
+   assert.ok(changes(s).every(w=>w.path==='/api/career-hunter/jobs/17/status'));assert.deepEqual(f.errors,[]);
   }finally{await f.context.close();}
  });
- test(kind+': a separate explicit fit refusal cannot undo an acknowledged Save',async()=>{
+ test(kind+': a fit check pressed while Career writes waits for it and never undoes an acknowledged Save',async()=>{
   const s=state({preparationOnly:true}),f=await screen(kind,s);try{
    await f.page.getByRole('button',{name:'Save',exact:true}).first().click();await f.page.getByRole('button',{name:'Saved',exact:true}).first().waitFor();
    assert.equal(changes(s).length,1);
-   const text=await f.page.evaluate(async()=>{try{await CareerJobActions.prepare(17,false);return 'unexpected';}catch(error){return error.message;}});
-   assert.match(text,new RegExp(NOTICE));assert.doesNotMatch(text,/career_run_in_progress/);assert.equal(s.job.favorite,true);
-   assert.equal(await f.page.getByRole('button',{name:'Saved',exact:true}).first().count(),1);await noAutomatic(f,s,2);
+   await f.page.evaluate(()=>{window.__fit=CareerJobActions.prepare(17,false).then(()=>'landed',error=>'refused: '+error.message);});
+   await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});
+   await f.page.waitForTimeout(1500);assert.equal(await stillWaiting(f,'__fit'),'waiting','the fit check waits, it is not refused');
+   assert.equal(s.job.favorite,true);assert.equal(await f.page.getByRole('button',{name:'Saved',exact:true}).first().count(),1);
+   s.accepted=true;assert.equal(await f.page.evaluate(()=>window.__fit),'landed');
+   assert.equal(s.job.favorite,true);assert.deepEqual(s.took,['/api/career-hunter/jobs/17/status','/api/career-hunter/jobs/17/generate']);
   }finally{await f.context.close();}
  });
 }
-for(const size of [PHONE,DESKTOP])test(size===PHONE?'phone: busy draft keeps input and manual retry saves it':'desktop: busy draft keeps input and manual retry saves it',async()=>{
+for(const size of [PHONE,DESKTOP])test((size===PHONE?'phone':'desktop')+': a draft Career refused while it writes keeps the input, waits and saves by itself',async()=>{
  const s=state(),f=await screen('application',s,size);try{
   const field=f.page.locator('#guidance');await field.waitFor();await field.fill('Synthetic unsaved guidance');
-  await f.page.locator('#message').getByText(NOTICE,{exact:false}).waitFor({timeout:2000});
-  assert.equal(await field.inputValue(),'Synthetic unsaved guidance');assert.equal(await f.page.getByRole('button',{name:'Reload saved draft',exact:true}).count(),0);
-  assert.match(await f.page.locator('#draftState').innerText(),/not saved/i);await noAutomatic(f,s,1);
-  s.accepted=true;await f.page.getByRole('button',{name:'Retry saving draft',exact:true}).click();
-  await f.page.locator('#message').getByText('Draft saved to your account.',{exact:true}).waitFor({timeout:1200});
-  assert.equal(await field.inputValue(),'Synthetic unsaved guidance');assert.equal(changes(s).length,2);
-  assert.equal(changes(s)[1].body.draft.guidance,'Synthetic unsaved guidance');assert.equal(changes(s)[1].body.draft.revision,1);
-  assert.equal(await f.page.locator('#draftState').innerText(),'Draft saved to your account');
+  await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});
+  assert.equal(await field.inputValue(),'Synthetic unsaved guidance');
+  assert.equal(await f.page.locator('#draftState').innerText(),'Saving draft…');
+  assert.equal(await f.page.getByRole('button',{name:'Retry saving draft',exact:true}).count(),0);
+  assert.doesNotMatch(await f.page.locator('#message').innerText(),/Career is working on your account/);
+  s.accepted=true;
+  await f.page.locator('#draftState').getByText('Draft saved to your account',{exact:true}).waitFor({timeout:6000});
+  assert.equal(await field.inputValue(),'Synthetic unsaved guidance');
+  assert.deepEqual(s.took,['/api/career-hunter/jobs/17/status'],'Career took it once');
+  const kept=changes(s).at(-1);assert.equal(kept.body.draft.guidance,'Synthetic unsaved guidance');assert.equal(kept.body.draft.revision,1);
  }finally{await f.context.close();}
 });
 test('a real draft revision conflict retains its explicit reload path without writing again',async()=>{
@@ -101,11 +116,17 @@ test('unknown draft failure keeps its message and retry behavior',async()=>{
 for(const [status,error,busy] of [[409,BUSY,true],[503,BUSY,false],[409,'draft_conflict',false],[409,'Synthetic refusal',false]]){
  test('submission request preserves exact classification '+status+' '+error,async()=>{
   const s=state({status,error}),f=await screen('application',s);try{
-   const result=await f.page.evaluate(async()=>{try{await CareerSubmit.request('/submission-queue',{postingId:17});return {unexpected:true};}
-    catch(e){return {message:e.message,code:e.code,status:e.status};}});
-   if(busy){assert.match(result.message,new RegExp(NOTICE));assert.doesNotMatch(result.message,/career_run_in_progress/);assert.equal(result.code,BUSY);assert.equal(result.status,409);}
-   else assert.equal(result.message,error);
-   await noAutomatic(f,s,1);
+   if(busy){
+    // Nothing ran, so the request waits and goes through once Career takes changes again.
+    await f.page.evaluate(()=>{window.__sent=CareerSubmit.request('/submission-queue',{postingId:17}).then(result=>({ok:true,result}),e=>({message:e.message}));});
+    await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});assert.equal(await stillWaiting(f,'__sent'),'waiting');
+    s.accepted=true;assert.equal((await f.page.evaluate(()=>window.__sent)).ok,true);assert.deepEqual(s.took,['/api/career-hunter/submission-queue']);
+   }else{
+    const result=await f.page.evaluate(async()=>{try{await CareerSubmit.request('/submission-queue',{postingId:17});return {unexpected:true};}
+     catch(e){return {message:e.message,code:e.code,status:e.status};}});
+    assert.equal(result.message,error);
+    await noAutomatic(f,s,1);
+   }
   }finally{await f.context.close();}
  });
 }
@@ -115,15 +136,14 @@ test('a non409 busy-looking Save error remains an ordinary error',async()=>{
  }finally{await f.context.close();}
 });
 
-test('default phone Cards retain a job after native busy rejection so Save can be retried',async()=>{
+test('default phone Cards: a Save Career refused while it writes waits and saves by itself; the card stays away',async()=>{
  const s=state(),f=await screen('cards',s);try{
   await f.page.getByText(s.job.title,{exact:true}).first().waitFor();await f.page.getByRole('button',{name:'Save',exact:true}).click();
-  await f.page.locator('#actionState').getByText(NOTICE,{exact:false}).waitFor({timeout:1200});
-  await f.page.getByText(s.job.title,{exact:true}).first().waitFor({timeout:1200});
-  assert.equal(await f.page.getByRole('button',{name:'Save',exact:true}).isEnabled(),true);await noAutomatic(f,s,1);
-  s.accepted=true;await f.page.getByRole('button',{name:'Save',exact:true}).click();
-  await f.page.waitForFunction(()=>document.getElementById('actionState')?.textContent.includes('Saved'));
-  assert.equal(await f.page.locator('[data-deck-id="17"]').count(),0);assert.equal(s.job.favorite,true);assert.equal(changes(s).length,2);
+  await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});
+  assert.doesNotMatch(await f.page.locator('#actionState').innerText(),/Career is working on your account|Not saved/);
+  assert.equal(await f.page.locator('[data-deck-id="17"]').count(),0,'the card stays away while it saves');
+  s.accepted=true;await f.page.waitForFunction(()=>document.getElementById('actionState')?.textContent.includes('Saved'),null,{timeout:6000});
+  assert.equal(s.job.favorite,true);assert.deepEqual(s.took,['/api/career-hunter/jobs/17/status']);
  }finally{await f.context.close();}
 });
 
@@ -139,14 +159,15 @@ test('an unrelated409 with a reserved code still uses the ordinary conflict path
 function twoCards(patch={}){
  const s=state(patch);s.jobs=[s.job,{...s.job,id:18,title:'Second synthetic role',favorite:false}];return s;
 }
-test('phone Cards preserve an acknowledged favorite after a separate explicit scoring refusal',async()=>{
+test('phone Cards: a fit check pressed while Career writes waits and never undoes an acknowledged favorite',async()=>{
  const s=twoCards({preparationOnly:true}),f=await screen('cards',s);try{
   await f.page.getByRole('button',{name:'Save',exact:true}).click();
   await f.page.waitForFunction(()=>document.getElementById('actionState')?.textContent.includes('Saved'));
-  const text=await f.page.evaluate(async()=>{try{await CareerJobActions.prepare(17,false);return 'unexpected';}catch(error){return error.message;}});
-  assert.match(text,new RegExp(NOTICE));
+  await f.page.evaluate(()=>{window.__fit=CareerJobActions.prepare(17,false).then(()=>'landed',error=>'refused: '+error.message);});
+  await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});assert.equal(await stillWaiting(f,'__fit'),'waiting');
   assert.equal(await f.page.locator('[data-deck-id="17"]').count(),0);assert.equal(s.job.favorite,true);
-  assert.equal(await f.page.locator('[data-deck-id="18"]').count(),1);await noAutomatic(f,s,2);
+  assert.equal(await f.page.locator('[data-deck-id="18"]').count(),1);
+  s.accepted=true;assert.equal(await f.page.evaluate(()=>window.__fit),'landed');
  }finally{await f.context.close();}
 });
 for(const patch of [{status:503,error:'Synthetic uncertain refusal',said:'Career could not do that just now.'},{error:'Synthetic other conflict',code:BUSY,said:'Synthetic other conflict.'}]){
@@ -163,18 +184,19 @@ for(const patch of [{status:503,error:'Synthetic uncertain refusal',said:'Career
   }finally{await f.context.close();}
  });
 }
-test('a busy card removes only its own optimistic history entry; earlier Undo still works',async()=>{
+test('a card whose Save waits stays away and the earlier card stays saved; both land once, in order',async()=>{
  const s=twoCards({accepted:true}),f=await screen('cards',s);try{
   await f.page.getByRole('button',{name:'Save',exact:true}).click();await f.page.waitForFunction(()=>!document.querySelector('[data-deck-id="17"]'));
   await f.page.waitForFunction(()=>document.getElementById('actionState')?.textContent.includes('Saved'));
-  s.accepted=false;await f.page.getByRole('button',{name:'Save',exact:true}).click();await f.page.locator('#actionState').getByText(NOTICE,{exact:false}).waitFor();
-  assert.equal(await f.page.locator('[data-deck-id="18"]').count(),1);await noAutomatic(f,s,2);
-  s.accepted=true;await f.page.getByRole('button',{name:'Undo',exact:true}).click();await f.page.locator('[data-deck-id="17"]').waitFor();
-  assert.equal(changes(s).length,3);assert.deepEqual(changes(s).at(-1),{path:'/api/career-hunter/jobs/17/status',body:{favorite:false}});
+  s.accepted=false;await f.page.getByRole('button',{name:'Save',exact:true}).click();await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});
+  assert.equal(await f.page.locator('[data-deck-id="18"]').count(),0,'the waiting card is not brought back');
+  assert.doesNotMatch(await f.page.locator('#actionState').innerText(),/Not saved|Career is working on your account/);
+  s.accepted=true;await pendingLine(f).getByText('Saved.',{exact:true}).waitFor({timeout:6000});
+  assert.deepEqual(s.took,['/api/career-hunter/jobs/17/status','/api/career-hunter/jobs/18/status']);
  }finally{await f.context.close();}
 });
 
-test('a late busy card response cannot reinsert a job into a freshly filtered view',async()=>{
+test('a late busy card answer cannot reinsert a job into a freshly filtered view; the Save then lands',async()=>{
  const s=twoCards(),f=await screen('cards',s);let release;
  const held=new Promise(resolve=>{release=resolve;});
  try{
@@ -188,8 +210,10 @@ test('a late busy card response cannot reinsert a job into a freshly filtered vi
   await f.page.getByRole('button',{name:'Filters',exact:true}).click();await f.page.locator('#q').fill('fresh');
   await f.page.locator('#keywordSearch button[type="submit"]').click();await f.page.getByRole('button',{name:'Done',exact:true}).click();
   await f.page.locator('[data-deck-id="99"]').waitFor();release();
-  await f.page.locator('#actionState').getByText(NOTICE,{exact:false}).waitFor();
+  await pendingLine(f).getByText(WAITING).waitFor({timeout:5000});
   assert.equal(await f.page.locator('[data-deck-id="17"]').count(),0);assert.equal(await f.page.locator('[data-deck-id="99"]').count(),1);
-  await noAutomatic(f,s,1);
+  await f.page.unroute('**/api/career-hunter/jobs/17/status');s.accepted=true;
+  await pendingLine(f).getByText('Saved.',{exact:true}).waitFor({timeout:6000});
+  assert.equal(await f.page.locator('[data-deck-id="17"]').count(),0,'the saved job is not put into the new list');assert.equal(s.job.favorite,true);
  }finally{release();await f.context.close();}
 });

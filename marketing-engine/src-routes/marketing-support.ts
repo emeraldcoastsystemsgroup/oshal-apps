@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Shared marketing-engine route support, moved verbatim out of marketing-routes.ts when that module crossed the 800-line decomposition threshold: the pool type, the shared child logger (still named marketing-routes so no log line changes), the manifest inline-bot ids, the channel/status/regex/transition/constraint constants, the lazy-DDL mirror of migrations/001-marketing-core.sql with ensureSchema, the RailResult shape, and the auth/query/prompt-bounding/spec-loading/campaign-loading helpers every marketing route module uses. Logic, SQL, gate order, status codes, log lines and messages are unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.9: HONESTY_RULES names the product Open Swarm.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2: extend RailResult with optional outcome/reasons for skipped_compliance ledger entries and update email draft constraints for built-in templates.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.8: include channel_allocations in JSONB_COLS for campaign updates.
  *
  * @module marketing-support
  */
@@ -63,7 +65,7 @@ export const CHANNEL_CONSTRAINTS: Record<string, string> = {
   linkedin: 'LinkedIn member post: professional tone, 700-1200 characters, at most 3 hashtags.',
   mastodon: 'Mastodon status: at most 500 characters, conversational, at most 2 hashtags.',
   bluesky: 'Bluesky post: at most 300 characters, plain text, no hashtag spam.',
-  email: 'Email: first line is the subject, then a blank line, then a short plain-text body under 200 words.',
+  email: 'Email: draft into the selected built-in template (announcement, newsletter, or launch) — first line "Subject: …", blank line, then concise plain copy under 200 words (never raw HTML; the template injects the HTML layout, plain-text alternative, postal footer, and unsubscribe link).',
 };
 
 /** @description The honesty rules appended to every bot prompt. */
@@ -71,7 +73,7 @@ export const HONESTY_RULES = 'Rules: use ONLY the data provided above — never 
   + 'No competitive absolutes ("only", "no one else", "unique"). The product name is "Open Swarm".';
 
 /** @description JSONB campaign columns (patched values are stringified + cast). */
-export const JSONB_COLS = new Set(['icp', 'message_map', 'channels']);
+export const JSONB_COLS = new Set(['icp', 'message_map', 'channels', 'channel_allocations']);
 
 /** Lazy-DDL mirror of migrations/001-marketing-core.sql (the ops module mirrors 002). */
 const CORE_TABLE_DDL: string[] = [
@@ -162,13 +164,15 @@ const CORE_RLS_TABLES = [
   'oshal_marketing_budget_ledger',
 ];
 
-/** @description Unified publish-rail result (honest degradation: 409 not_connected, 503 unavailable). */
+/** @description Unified publish-rail result (honest degradation: 409 not_connected, 422 compliance, 503 unavailable). */
 export interface RailResult {
   ok: boolean;
   status: number;
   ref?: string;
   error?: string;
   hint?: string;
+  outcome?: string;
+  reasons?: Array<{ code: string; message: string }>;
 }
 
 // ---------------------------------------------------------------------------

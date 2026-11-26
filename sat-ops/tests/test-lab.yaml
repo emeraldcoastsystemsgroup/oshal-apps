@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | chat-screen also proves the prompt names the current UTC day and labels each pass today / tomorrow / its date.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register sat-register-form: the new-satellite id field starts empty under a label of its own, so the screen does not read a default as a satellite id (sweep 13).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: register one-chat-window (the Sat operator is the kernel's one chat window as Sat Ops' concierge, at 1440 and 412, with the screen on every turn and a command as its approval card); chat-screen expects the page's own lines to equal the route's on every window turn; audience-view expects the main script without a chat of its own and the gated mount module.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Quote the case sat-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -159,7 +160,7 @@ cases:
 
   - id: sat-bot-tools-contract
     name: Inline concierge posture, tool schemas, plain-prose rule, and tool_call fence
-    purpose: Verify sat-operator declares explicit inline posture, chatBot binding, object inputSchemas on all eight tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.
+    purpose: 'Verify sat-operator declares explicit inline posture, chatBot binding, object inputSchemas on all eight tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.'
     level: unit
     runner:
       kind: node-test

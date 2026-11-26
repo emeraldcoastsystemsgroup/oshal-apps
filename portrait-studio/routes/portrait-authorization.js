@@ -11,6 +11,7 @@ exports.createPortraitAuthorizationRoutes = createPortraitAuthorizationRoutes;
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bind Portrait permissions to verified identities and issuer-qualified ownership.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Expose portrait.source.create in /permissions so narrow source-editor roles can create and save photo sources without paid generation authority.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.17.10: allow matching path id in PATCH /portraits/:id tool payloads while still rejecting mismatched ids or any other extra keys.
  */
 const express_1 = require("express");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -81,7 +82,9 @@ function createPortraitAuthorizationRoutes(ctx) {
             const actor = portraitActor(ctx);
             await requirePortraitPermission(ctx, 'change', req.params.id);
             const title = req.body?.title;
-            if (typeof title !== 'string' || title.trim().length > 120 || Object.keys(req.body).some(key => key !== 'title')) {
+            const bodyId = req.body?.id;
+            const extraKeys = Object.keys(req.body || {}).filter(key => key !== 'title' && key !== 'id');
+            if (typeof title !== 'string' || title.trim().length > 120 || extraKeys.length > 0 || (bodyId !== undefined && String(bodyId) !== req.params.id)) {
                 res.status(400).json({ error: 'Only a title of at most 120 characters may be changed' });
                 return;
             }

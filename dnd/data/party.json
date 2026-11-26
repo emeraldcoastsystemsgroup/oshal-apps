@@ -232,6 +232,24 @@
           "text": "Touch heal (1d8 + 3 Wis + 3 Disciple of Life)."
         },
         {
+          "id": "bless",
+          "name": "Bless",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "buff",
+          "delivery": "ranged",
+          "range": 30,
+          "concentration": true,
+          "maxTargets": 3,
+          "targetTeam": "ally",
+          "applyCondition": {
+            "id": "blessed",
+            "concentration": true
+          },
+          "text": "Concentration. Up to three allies within 30 ft add 1d4 to attack rolls and saving throws."
+        },
+        {
           "id": "mace",
           "name": "Mace",
           "type": "weapon",
@@ -394,6 +412,43 @@
           "text": "A cone of roaring flame sweeps everyone in the arc; half damage on a save.",
           "aoeShape": "cone",
           "aoeSize": 15
+        },
+        {
+          "id": "shield",
+          "name": "Shield",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "reaction",
+          "delivery": "self",
+          "reactionTrigger": "attack-hit",
+          "acBonus": 5,
+          "text": "Reaction when hit by an attack: +5 AC until the start of your next turn."
+        },
+        {
+          "id": "ray-of-sickness",
+          "name": "Ray of Sickness",
+          "type": "spell",
+          "level": 1,
+          "slot": 1,
+          "mode": "save",
+          "delivery": "ranged",
+          "range": 60,
+          "save": {
+            "ability": "CON",
+            "dc": 13,
+            "half": false
+          },
+          "damage": {
+            "dice": "2d8",
+            "bonus": 0,
+            "type": "poison"
+          },
+          "applyCondition": {
+            "id": "poisoned",
+            "duration": "until-next-turn"
+          },
+          "text": "Sickening green ray: 2d8 poison and poisoned until next turn on a failed CON save."
         },
         {
           "id": "dagger",

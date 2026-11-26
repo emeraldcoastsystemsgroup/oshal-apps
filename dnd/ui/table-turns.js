@@ -20,6 +20,8 @@
  * 2026-07-23 00:49:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Replace the false linear Move-to-Result checklist with live movement, action, spell-slot, and health budgets that support move-action-move.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Recover completed player actions into remaining movement and honor the selected NPC presentation pace.
  * 2026-07-23 11:36:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Explain death-save failures already recorded before the current d20 so accumulated results cannot look like duplicate rolls.
+ * 2026-11-25 14:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Tick start-of-turn conditions and per-round reactions on fresh turns, and add in-page reaction prompt controls (Shield, Opportunity Attack, Counterspell) without browser dialogs.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Trigger one deduplicated boss-reveal cutaway beat when combat begins with a boss adversary present.
  */
 
 'use strict';
@@ -304,7 +306,8 @@ function resumeCompletedDeathSave(token) {
 function initializeDrivenTurn(token) {
   const drives = (token.kind === 'pc' && (controls(token) || (isOwner() && isAICompanion(token)))) || (token.kind === 'monster' && isOwner());
   if (!drives || Number(token.turnSerial) === Number(board.turnSerial)) return;
-  token.turnSerial = Number(board.turnSerial); token.moveRemaining = Number(token.speed) || 0;
+  if (typeof ENG.tickTurnConditions === 'function') ENG.tickTurnConditions(W(), token);
+  token.turnSerial = Number(board.turnSerial); token.moveRemaining = typeof ENG.effectiveSpeed === 'function' ? ENG.effectiveSpeed(token) : (Number(token.speed) || 0);
   token.moved = false; token.positionSet = false; token.acted = false;
   delete token.turnResult; delete token.movementResult;
 }
@@ -393,6 +396,7 @@ function beginTurn() {
   selectedAction = null; inspect = null;
   if (!Number.isFinite(Number(board.turnSerial))) board.turnSerial = 1;
   initializeDrivenTurn(token);
+  if (typeof checkBossRevealBeat === 'function') checkBossRevealBeat();
   const turnSpeech = announceTurn(token);
   if (TV) { clearTurnSelection(); banner(`${shortTokenLabel(token)}'s turn`); return; }
   if (isDowned(token)) beginDownedTurn(token, turnSpeech);
@@ -514,3 +518,49 @@ async function doAction(target) {
 // Unclaimed heroes are explicitly AI companions. Only the host drives them;
 // every delayed phase is tied to both token id and turn serial so a sync, skip,
 // defeat, or turn change can never make an old callback act for somebody else.
+
+/** @description Render an accessible in-page reaction choice without native alert/confirm dialogs. */
+function promptReactionChoice(reactor, reaction, summary) {
+  return new Promise((resolve) => {
+    const stage = $('stage');
+    if (!stage || TV) { resolve(false); return; }
+    stage.querySelectorAll('.reaction-prompt').forEach((el) => el.remove());
+    const box = document.createElement('div');
+    box.className = 'reaction-prompt';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-label', `${reactor.name} reaction opportunity`);
+    const acceptLabel = reaction.id === 'shield' ? `Use ${reaction.actionName} (+${reaction.acBonus || 5} AC)`
+      : reaction.id === 'counterspell' ? `Use ${reaction.actionName} (L${reaction.slot || 3})`
+        : `Take ${reaction.actionName || 'Opportunity Attack'}`;
+    box.innerHTML = `<div class="reaction-prompt-copy"><strong>⚡ Reaction · ${esc(shortTokenLabel(reactor))}</strong><span>${esc(summary || `${shortTokenLabel(reactor)} can react now.`)}</span></div>
+      <div class="reaction-prompt-actions"><button type="button" class="big" id="reactionAccept">${esc(acceptLabel)}</button><button type="button" class="big ghost" id="reactionDecline">Decline</button></div>`;
+    stage.appendChild(box);
+    const finish = (choice) => { if (box.isConnected) box.remove(); resolve(choice); };
+    box.querySelector('#reactionAccept').onclick = () => finish(true);
+    box.querySelector('#reactionDecline').onclick = () => finish(false);
+  });
+}
+
+/** @description Offer eligible reactions to a local human player without stalling AI turns. */
+async function offerHumanReactions(trigger, context) {
+  if (TV || !board || typeof ENG.eligibleReactions !== 'function') return null;
+  const options = ENG.eligibleReactions(W(), trigger, context);
+  for (const reaction of options) {
+    const reactor = board.tokens.find((t) => t.id === reaction.actorId);
+    if (!reactor || !controls(reactor)) continue;
+    const summary = reaction.id === 'shield'
+      ? `Incoming attack hits AC ${ENG.effectiveAc(reactor)}. Cast ${reaction.actionName} (+${reaction.acBonus || 5} AC) to turn it into a miss?`
+      : reaction.id === 'counterspell'
+        ? `An enemy casts a spell within 60 ft. Spend a level-${reaction.slot || 3} slot for ${reaction.actionName}?`
+        : `A foe leaves melee reach. Use your reaction for an opportunity attack with ${reaction.actionName}?`;
+    const accepted = await promptReactionChoice(reactor, reaction, summary);
+    if (!accepted) continue;
+    const outcome = ENG.resolveReaction(W(), reactor, reaction, context);
+    if (!outcome.blocked) {
+      banner(outcome.text);
+      persist(); renderDock();
+      return outcome;
+    }
+  }
+  return null;
+}

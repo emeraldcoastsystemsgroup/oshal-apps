@@ -14,6 +14,7 @@
  * 2026-10-12 09:50:00 | maintainer@emeraldcoastsystemsgroup.com   | Native runtime: the cutaway directory fell back to <cwd>/workspace-shared when CLINE_WORKSPACE_ROOT was unset; the native package's cwd is the read-only /package, so every quest start journaled ENOENT mkdir '/package/workspace-shared/dnd-cutaways/...'. The fallback is now the process's temporary directory (os.tmpdir(), the sandbox's writable /tmp), never the package folder. An image provider that reports itself not configured (the native runtime's, configured:false) answers the plain 'not available on this swarm' before any directory is made, instead of reaching a blocked render.
  * 2026-07-23 00:41:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Direct Cedar as a slower, grave folk storyteller while preserving natural server-only failover.
  * 2026-07-23 02:35:01 | roger.murphy@emeraldcoastsystemsgroup.com   | Make the configured gravelly Algenib narrator primary and remove the unwanted bright Kore voice from every fallback.
+ * 2026-11-25 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Enforce a per-campaign cutaway cap (default 20, bounded 1..50) checked after deduplication and before image generation, and expose read-only campaign cutaway budget queries.
  */
 
 'use strict';
@@ -23,6 +24,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { CharacterImportError } = require('./character-import');
+const { DEFAULT_CUTAWAY_CAP, buildCutawayBudget, normalizeCutawayCap } = require('./dnd-cutaway-beats');
 
 const DM_AGENT_ID = 'dd000000-0000-0000-0000-000000000001';
 const DM_LANGUAGE = 'en-US';
@@ -219,6 +221,12 @@ function cutawayRoot(env = process.env) {
   return configured ? path.resolve(configured) : path.join(os.tmpdir(), 'workspace-shared');
 }
 
+/** @description Resolve the expected cutaway file path without creating directories. */
+function cutawayFilePath(campaignId, id) {
+  const safeId = String(campaignId || '').replace(/[^a-f0-9-]/gi, '');
+  return path.join(cutawayRoot(), 'dnd-cutaways', safeId, `${id}.png`);
+}
+
 /** @description Resolve and create the campaign-scoped cutaway directory. */
 function cutawayDir(campaignId) {
   const base = cutawayRoot();
@@ -226,6 +234,59 @@ function cutawayDir(campaignId) {
   const directory = path.join(base, 'dnd-cutaways', safeId);
   fs.mkdirSync(directory, { recursive: true });
   return directory;
+}
+
+/** @description Extract the caller's deduplication key from body.eventKey or body.key. */
+function cutawayEventKey(body) {
+  return String((body && (body.eventKey || body.key)) || '').trim().slice(0, 180);
+}
+
+/** @description Normalize one persisted archive cutaway reference into a unique key. */
+function archiveCutawayKey(content) {
+  const clean = String(content || '').trim().split(/[?#]/)[0];
+  if (!clean) return '';
+  const match = /\/cutaway\/[^/]+\/([^/]+)\.png$/i.exec(clean);
+  return match ? match[1] : clean;
+}
+
+/** @description Collect unique generated, in-flight, and persisted cutaway keys for a campaign. */
+async function collectUsedCutawayIds(deps, campaignId) {
+  const ids = new Set();
+  const key = String(campaignId || '');
+  const generated = deps.generatedCutaways && deps.generatedCutaways.get(key);
+  if (generated) generated.forEach((id) => ids.add(id));
+  const inflight = deps.inflightCutaways && deps.inflightCutaways.get(key);
+  if (inflight) inflight.forEach((id) => ids.add(id));
+  if (deps.pool && typeof deps.pool.query === 'function' && key) {
+    const rows = await deps.pool.query(
+      "SELECT content FROM dnd_archive WHERE campaign_id=$1 AND kind='cutaway'",
+      [key],
+    );
+    for (const row of (rows && rows.rows) || []) {
+      const normalized = archiveCutawayKey(row && row.content);
+      if (normalized) ids.add(normalized);
+    }
+  }
+  return ids;
+}
+
+/** @description Read unique cutaway ids fail-soft so budget lookups never break fail-soft replies. */
+async function safeUsedCutawayIds(deps, campaignId) {
+  try { return await collectUsedCutawayIds(deps, campaignId); }
+  catch (_error) { return new Set(); }
+}
+
+/** @description Record one campaign cutaway id inside an in-memory set map. */
+function addCampaignId(map, campaignId, id) {
+  const key = String(campaignId || '');
+  if (!map.has(key)) map.set(key, new Set());
+  map.get(key).add(id);
+}
+
+/** @description Remove one campaign cutaway id from an in-memory set map. */
+function removeCampaignId(map, campaignId, id) {
+  const set = map.get(String(campaignId || ''));
+  if (set) set.delete(id);
 }
 
 /** @description Generate one provider image and normalize its metadata. */
@@ -249,13 +310,13 @@ async function recordCost(deps, recorder, provider, meta, sub, id) {
 
 /** @description Derive a repeatable file identity for one authoritative story event. */
 function cutawayIdentity(body) {
-  const eventKey = String(body && body.eventKey || '').trim().slice(0, 180);
+  const eventKey = cutawayEventKey(body);
   if (!eventKey) return crypto.randomUUID();
   return crypto.createHash('sha256').update(`${body.campaignId}:${eventKey}`).digest('hex').slice(0, 32);
 }
 
 /** @description Render, store, archive, and cost one new cinematic cutaway. */
-async function createCutaway(deps, framework, provider, sub, body, id, file) {
+async function createCutaway(deps, framework, provider, sub, body, id, file, usedBefore, cap) {
   const scene = String(body.prompt || '').slice(0, 700);
   const prompt = `Cinematic dark-fantasy illustration, painterly, dramatic torchlight, no text, no UI. Scene: ${scene}`;
   const meta = await renderCutaway(provider, prompt);
@@ -263,7 +324,14 @@ async function createCutaway(deps, framework, provider, sub, body, id, file) {
   const url = `/api/dnd/cutaway/${body.campaignId}/${id}.png`;
   await deps.campaign.archive(sub, body.campaignId, 'cutaway', url);
   await recordCost(deps, framework.recordCost, provider, meta, sub, id);
-  return { ok: true, url, eventKey: String(body.eventKey || '') || null };
+  addCampaignId(deps.generatedCutaways, body.campaignId, id);
+  const eventKey = cutawayEventKey(body) || null;
+  const beatKind = String(body.beatKind || '').trim().slice(0, 48) || null;
+  const cutawayBudget = buildCutawayBudget(usedBefore + 1, cap);
+  return {
+    ok: true, url, eventKey, key: eventKey,
+    ...(beatKind ? { beatKind } : {}), cutawayBudget,
+  };
 }
 
 /**
@@ -289,45 +357,105 @@ function logCutawayFailure(deps, stage, error, campaignId) {
   try { logger.error({ err: error, code: error && error.code, stage, campaignId }, 'D&D cutaway failed (answered fail-soft)'); } catch (_error) { /* a logger failure never changes the answer */ }
 }
 
-/** @description The seat check, the illustrator and the campaign's art directory; any failure is fail-soft. */
+/** @description Build one fail-soft response when the per-campaign cutaway cap is reached. */
+function cappedCutawayAnswer(used, cap, beatKind, eventKey) {
+  const cutawayBudget = buildCutawayBudget(used, cap);
+  const message = `Campaign cutaway art limit reached (${cutawayBudget.used}/${cutawayBudget.cap}); using local transition.`;
+  return {
+    ok: false, soft: true, capped: true, beatKind: beatKind || null, key: eventKey || null,
+    cutawayBudget, error: message, message,
+  };
+}
+
+/** @description Build one deduplicated cutaway response without recounting against the cap. */
+function cachedCutawayAnswer(url, eventKey, beatKind, used, cap) {
+  return {
+    ok: true, url, deduplicated: true, eventKey: eventKey || null, key: eventKey || null,
+    ...(beatKind ? { beatKind } : {}), cutawayBudget: buildCutawayBudget(used, cap),
+  };
+}
+
+/** @description Validate seat access, deduplication, cap, provider, and writable storage in order. */
 async function prepareCutaway(deps, sub, body) {
+  const eventKey = cutawayEventKey(body);
+  const beatKind = String(body.beatKind || '').trim().slice(0, 48) || null;
+  const cap = normalizeCutawayCap(body.cap);
   try {
-    if (!(await deps.campaign.access(sub, body.campaignId))) return { answer: { ok: false, error: 'No seat at this table.' } };
+    if (!(await deps.campaign.access(sub, body.campaignId))) {
+      return { answer: { ok: false, soft: true, error: 'No seat at this table.' } };
+    }
+    const id = cutawayIdentity(body);
+    const url = `/api/dnd/cutaway/${body.campaignId}/${id}.png`;
+    if (deps.pendingCutaways.has(id)) {
+      return { answer: await deps.pendingCutaways.get(id).then((r) => ({ ...r, deduplicated: true })) };
+    }
+    const usedIds = await safeUsedCutawayIds(deps, body.campaignId);
+    const existingFile = cutawayFilePath(body.campaignId, id);
+    if (fs.existsSync(existingFile)) {
+      usedIds.add(id);
+      return { answer: cachedCutawayAnswer(url, eventKey, beatKind, usedIds.size, cap) };
+    }
+    if (usedIds.size >= cap) {
+      return { answer: cappedCutawayAnswer(usedIds.size, cap, beatKind, eventKey) };
+    }
     const framework = deps.imageFramework || imageFramework();
     if (!framework.resolve) return { answer: { ok: false, soft: true, error: 'Cutaway art is not available on this swarm.' } };
     const provider = await framework.resolve();
     if (!provider || provider.configured === false) return { answer: { ok: false, soft: true, error: 'Cutaway art is not available on this swarm.' } };
-    const id = cutawayIdentity(body);
-    return { framework, provider, id, file: path.join(cutawayDir(body.campaignId), `${id}.png`) };
+    return { framework, provider, id, url, file: path.join(cutawayDir(body.campaignId), `${id}.png`), usedBefore: usedIds.size, cap, eventKey, beatKind };
   } catch (error) {
     logCutawayFailure(deps, 'prepare', error, body && body.campaignId);
     return { answer: { ok: false, soft: true, error: 'Cutaway art is not available right now.' } };
   }
 }
 
-/** @description Generate and archive a fail-soft cinematic story cutaway. */
-async function generateCutaway(deps, sub, body) {
-  const prepared = await prepareCutaway(deps, sub, body || {});
+/** @description Generate and archive a fail-soft cinematic story cutaway under the campaign cap. */
+async function generateCutaway(deps, sub, rawBody) {
+  const body = rawBody || {};
+  const prepared = await prepareCutaway(deps, sub, body);
   if (prepared.answer) return prepared.answer;
-  const { framework, provider, id, file } = prepared;
-  const url = `/api/dnd/cutaway/${body.campaignId}/${id}.png`;
-  if (fs.existsSync(file)) return { ok: true, url, deduplicated: true, eventKey: String(body.eventKey || '') || null };
+  const { framework, provider, id, url, file, usedBefore, cap, eventKey, beatKind } = prepared;
+  if (fs.existsSync(file)) return cachedCutawayAnswer(url, eventKey, beatKind, Math.max(usedBefore, 1), cap);
   if (deps.pendingCutaways.has(id)) {
     return deps.pendingCutaways.get(id).then((result) => ({ ...result, deduplicated: true }));
   }
-  const task = createCutaway(deps, framework, provider, sub, body, id, file)
+  const inflight = deps.inflightCutaways.get(String(body.campaignId || ''));
+  const liveUsed = usedBefore + (inflight ? inflight.size : 0);
+  if (liveUsed >= cap) return cappedCutawayAnswer(liveUsed, cap, beatKind, eventKey);
+  addCampaignId(deps.inflightCutaways, body.campaignId, id);
+  const task = createCutaway(deps, framework, provider, sub, body, id, file, liveUsed, cap)
     .catch((error) => {
       logCutawayFailure(deps, 'render', error, body.campaignId);
       return { ok: false, soft: true, error: 'The illustrator is resting.' };
     })
-    .finally(() => deps.pendingCutaways.delete(id));
+    .finally(() => {
+      removeCampaignId(deps.inflightCutaways, body.campaignId, id);
+      deps.pendingCutaways.delete(id);
+    });
   deps.pendingCutaways.set(id, task);
-  try {
-    return await task;
-  } catch (error) {
+  try { return await task; }
+  catch (error) {
     logCutawayFailure(deps, 'render', error, body.campaignId);
     return { ok: false, soft: true, error: 'The illustrator is resting.' };
   }
+}
+
+/** @description Return a fail-soft read-only budget summary for an already-authorized campaign. */
+async function budgetSummary(deps, campaignId, requestedCap) {
+  const usedIds = await safeUsedCutawayIds(deps, campaignId);
+  return buildCutawayBudget(usedIds.size, requestedCap);
+}
+
+/** @description Read one seat-checked campaign's cutaway budget with zero database writes. */
+async function readCutawayBudget(deps, sub, campaignId, requestedCap) {
+  const id = String(campaignId || '').trim();
+  if (!id) return { ok: false, code: 'CAMPAIGN_REQUIRED', error: 'Choose a campaign first.' };
+  if (!(await deps.campaign.access(sub, id))) {
+    return { ok: false, code: 'NO_ACCESS', error: 'No seat at this table.' };
+  }
+  const usedIds = await collectUsedCutawayIds(deps, id);
+  const cutawayBudget = buildCutawayBudget(usedIds.size, requestedCap);
+  return { ok: true, campaignId: id, ...cutawayBudget, cutawayBudget };
 }
 
 /**
@@ -338,12 +466,23 @@ async function generateCutaway(deps, sub, body) {
 function createMediaService(deps) {
   const narrationCache = new Map();
   const pendingNarration = new Map();
-  const runtime = { ...deps, pendingCutaways: new Map() };
+  const runtime = {
+    ...deps,
+    pendingCutaways: new Map(),
+    generatedCutaways: new Map(),
+    inflightCutaways: new Map(),
+  };
   return {
     cutawayDir,
+    budgetSummary: (campaignId, cap) => budgetSummary(runtime, campaignId, cap),
+    readCutawayBudget: (sub, campaignId, cap) => readCutawayBudget(runtime, sub, campaignId, cap),
     generateCutaway: (sub, body) => generateCutaway(runtime, sub, body),
     synthesizeNarration: (body) => synthesizeShared(deps, narrationCache, pendingNarration, body),
   };
 }
 
-module.exports = { createMediaService, _test: { cutawayIdentity, cutawayRoot } };
+module.exports = {
+  createMediaService,
+  DEFAULT_CUTAWAY_CAP,
+  _test: { cutawayIdentity, cutawayRoot, cutawayEventKey, archiveCutawayKey, normalizeCutawayCap },
+};

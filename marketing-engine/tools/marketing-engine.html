@@ -44,6 +44,55 @@
       step aside; the Board's controls are two rows: search, Import (its icon) and + New, then the four status
       chips; "Imports never arm spend." is the desktop's note. The list starts at 176 px (19%).
       The desktop is unchanged. Presentation only (CSS in the 760 px phone block).
+  8 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.2 (P1 HTML email templates & Compliance pane):
+      add Compliance tab (in More menu on phone so the bottom bar stays 5 tabs wide) with sender
+      identity, physical postal address, unsubscribe URL, and SMS quiet hours settings, HTML +
+      plain-text template preview studio (sandboxed iframe), suppression management, and contacts
+      consent export / export-first deletion; add email template selector in Draft modal and email
+      Approve action on Board content cards.
+  9 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.3 (P1 double opt-in sign-up forms):
+      add Sign-up forms & double opt-in card inside the Compliance pane with form creation
+      (name, slug, consent disclosure, optional target list, per-IP and per-form hourly caps),
+      embeddable static-site snippet preview/copy, live owner test-submit + confirm link flow
+      (watching pending -> confirmed), and in-page delete confirmation.
+  10 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.4 (NAV-02): keep phone (<=760px)
+      navigation and filter strips (.tabs, .chips, .stages) strictly single-row with horizontal
+      overflow scrolling, 44px+/48px+ nowrap touch targets, zero internal label/badge wrapping,
+      and active-item reveal without page-level horizontal overflow.
+  11 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.5 (P1 broadcasts & one-click unsubscribe):
+      add Broadcasts & One-Click Unsubscribe card inside the Compliance pane with broadcast draft
+      creation, dry-run send gate audit ledger (eligible/dry-run vs skipped_unconfirmed vs
+      skipped_suppressed vs skipped_cap), ledger inspection, and one-click unsubscribe test flow.
+  12 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.6 (P3 sequences & standing authorization):
+      add Sequences & Standing Authorization card inside the Compliance pane with sequence
+      creation, inline step creation, Armed vs OFF (disarmed) status badges, in-page confirmed
+      standing authorization arming, one-click emergency Disarm, dry-run tick execution, and
+      enrollment status summary.
+  13 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.7 (P3 launch plans, grounded retros &
+      unified marketing calendar): add Launch Plans & Grounded Retros card plus Unified
+      Marketing Calendar card inside #pane-experiments (leaving Board, .tabs, and phone
+      first-screen untouched): campaign launch plan form, interactive milestone status toggles,
+      asset checklist checkboxes, recorded-numbers-only retro generator with NO DATA badges,
+      and chronological deduplicated calendar timeline across engine content, launch milestones,
+      broadcasts, and optional Switchboard posts.
+  14 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.8 (P2 campaign-to-finance-project link
+      and channel allocation proposals): add Budget & Finance project panel inside expanded
+      campaign detail cards with Create budget in Finance hand-off (POST /api/finance/projects +
+      POST /api/marketing/campaigns/:id/finance-project), live Finance summary (Budget, Committed,
+      Actual, Variance, channel lines, Open in Finance link), honest fallback when Finance is
+      absent, and clean human-readable formatting for channel_allocation proposals in Approvals.
+  15 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.9 (P5 attribution & per-campaign
+      engagement): add Campaign Attribution & Engagement Funnel card inside #pane-scorecard
+      showing per-campaign attributed visits, first-touch sign-ups, purchases, revenue, and
+      delivered/clicked/unsubscribed/bounced/complained counts with honest NO DATA badges
+      (omitting opens as unreliable), plus an inline Record conversion form. Board, .tabs, and
+      phone first-screen are unchanged.
+  16 | maintainer@emeraldcoastsystemsgroup.com  | 0.6.10 (P4 SMS TCPA/CTIA consent & quiet
+      hours): add SMS Consent & Quiet Hours card inside #pane-compliance with TCPA/CTIA opt-in
+      form (E.164 phone, explicit or area-code-inferred timezone badge, generated opt-in
+      confirmation message), clock-controlled quiet-hours send checker (8 a.m.-9 p.m. local),
+      STOP/HELP keyword tester, and SMS queue list (Held until 08:00 vs Ready vs Refused).
+      Board, .tabs, and phone first-screen are unchanged.
 -->
 <!-- Marketing Engine — the campaign cockpit. Bots draft and propose; the human on this
      surface approves, publishes, and spends. Nothing goes out without an explicit
@@ -249,7 +298,7 @@
   .tabs button {
     appearance:none; border:0; background:none; color:var(--muted); font:inherit; font-size:13.5px;
     font-weight:620; padding:10px 14px 12px; cursor:pointer; border-bottom:2px solid transparent;
-    margin-bottom:-1px; display:inline-flex; align-items:center; gap:7px; transition:color var(--ease) .15s;
+    margin-bottom:-1px; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; flex-shrink:0; transition:color var(--ease) .15s;
   }
   .tabs button:hover { color:var(--text); }
   .tabs button.on { color:var(--text); border-bottom-color:var(--accent); }
@@ -394,7 +443,7 @@
     padding:10px 13px; font-size:12.5px; white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto; margin-bottom:12px; }
   .chips { display:flex; gap:7px; flex-wrap:wrap; }
   .chip { appearance:none; border:1px solid var(--line); background:var(--card); color:var(--text2); font:inherit;
-    font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:var(--pill); cursor:pointer; transition:all var(--ease) .15s; }
+    font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:var(--pill); cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all var(--ease) .15s; }
   .chip.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb, var(--accent) 12%, transparent); }
 
   /* toast */
@@ -412,10 +461,13 @@
   .footnote svg { width:13px; height:13px; color:var(--accent); flex:none; }
 
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tpl-preview-frame { width:100%; height:320px; border:1px solid var(--line); border-radius:var(--r-sm); background:#ffffff; }
+  .tpl-text-pre { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:10px 12px; font-size:12px; white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; margin:0; }
+  .chk-list { list-style:none; margin:10px 0 12px; padding:0; display:flex; flex-wrap:wrap; gap:7px; }
   .tab-more-wrap { display:none; position:relative; }
   .more-popover { display:none; position:fixed; right:12px; bottom:62px; z-index:48; background:var(--bg); border:1px solid var(--line); border-radius:var(--r-md); padding:6px; min-width:170px; box-shadow:0 14px 36px rgba(0,0,0,.3); }
   .more-popover.show { display:flex; flex-direction:column; gap:4px; }
-  .more-popover button { appearance:none; border:0; background:none; color:var(--text); font:inherit; font-size:13.5px; font-weight:600; min-height:44px; padding:8px 12px; border-radius:var(--r-sm); text-align:left; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .more-popover button { appearance:none; border:0; background:none; color:var(--text); font:inherit; font-size:13.5px; font-weight:600; min-height:44px; padding:8px 12px; border-radius:var(--r-sm); text-align:left; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; white-space:nowrap; }
   .more-popover button:hover { background:var(--cardh); }
   .row-more-cue { display:none; font-weight:700; color:var(--muted); padding:4px 8px; border:1px solid var(--line); border-radius:var(--pill); font-size:13px; }
   @media (max-width:760px) {
@@ -426,14 +478,30 @@
     .btn, .chip, select, input[type=text], input[type=url], input[type=email], input[type=number], input[type=date] { min-height:44px; }
     .tabs {
       position:fixed; left:0; right:0; bottom:0; z-index:45; margin:0; padding:4px 6px env(safe-area-inset-bottom, 4px);
-      background:var(--bg); border-top:1px solid var(--line); border-bottom:0; flex-wrap:nowrap; justify-content:space-around; gap:2px;
+      background:var(--bg); border-top:1px solid var(--line); border-bottom:0;
+      flex-wrap:nowrap; justify-content:flex-start; gap:2px;
+      overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none;
     }
+    .tabs::-webkit-scrollbar { display:none; }
     .tabs > button, .tab-more-wrap > button {
-      min-height:48px; flex:1 1 0; justify-content:center; padding:6px 4px; font-size:12px; border-bottom:0; margin-bottom:0; border-radius:var(--r-sm); gap:4px;
+      min-height:48px; flex:1 0 auto; flex-shrink:0; white-space:nowrap;
+      justify-content:center; padding:6px 5px; font-size:12px; border-bottom:0; margin-bottom:0; border-radius:var(--r-sm); gap:4px;
     }
     .tabs > button.on, .tab-more-wrap > button.on { background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--text); }
-    #tab-experiments { display:none; }
-    .tab-more-wrap { display:flex; flex:1 1 0; }
+    #tab-experiments, #tab-compliance { display:none; }
+    .tab-more-wrap { display:flex; flex:1 0 auto; flex-shrink:0; }
+    .chips {
+      flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; min-width:0; max-width:100%;
+    }
+    .chips::-webkit-scrollbar { display:none; }
+    .chips .chip { flex:0 0 auto; white-space:nowrap; }
+    .stages {
+      flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+      overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; min-width:0; max-width:100%; flex:1 1 220px;
+    }
+    .stages::-webkit-scrollbar { display:none; }
+    .stg { flex:0 0 auto; white-space:nowrap; min-height:44px; padding:6px 12px; display:inline-flex; align-items:center; }
     table.board, table.board tbody.card { display:block; }
     table.board thead { display:none; }
     table.board tbody.card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:12px 14px; margin-bottom:10px; }
@@ -456,9 +524,7 @@
     #importBtn svg { width:18px; height:18px; }
     #newCampBtn { grid-area:new; font-size:0; gap:6px; }
     #newCampBtn::after { content:"New"; font-size:13px; }
-    #campStatusChips { grid-area:chips; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; min-width:0; }
-    #campStatusChips::-webkit-scrollbar { display:none; }
-    #campStatusChips .chip { flex:none; }
+    #campStatusChips { grid-area:chips; }
     #campList { grid-area:list; margin-top:4px; }
   }
   @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
@@ -498,10 +564,12 @@
     <button id="tab-channels" role="tab">Channels</button>
     <button id="tab-experiments" role="tab">Experiments <span class="cnt" id="cntExp">–</span></button>
     <button id="tab-approvals" role="tab">Approvals <span class="cnt" id="cntAppr">–</span></button>
+    <button id="tab-compliance" role="tab">Compliance</button>
     <span class="tab-more-wrap"><button type="button" id="tab-more" aria-haspopup="menu" aria-expanded="false">More</button></span>
   </nav>
   <div class="more-popover" id="morePopover" role="menu">
     <button type="button" id="moreExperiments" role="menuitem"><span>Experiments</span><span class="cnt" id="cntExpMore">–</span></button>
+    <button type="button" id="moreCompliance" role="menuitem"><span>Compliance</span></button>
   </div>
 
   <!-- ══ BOARD ══════════════════════════════════════════════════════════════════════════════ -->
@@ -534,6 +602,44 @@
     </div>
     <div class="inline-err" id="scErr"></div>
     <div id="scWrap"></div>
+
+    <div class="sechead">Campaign attribution &amp; engagement funnel</div>
+    <div class="card" id="attrFunnelCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>Campaign Attribution &amp; Engagement Funnel</h3>
+        <span class="badge acc" id="attrCampBadge">0 campaigns</span>
+        <span class="badge" id="attrTotalsBadge">NO DATA</span>
+      </div>
+      <p class="subline" id="attrOpensNote" style="margin:0 0 12px; font-size:12.5px">Attributed visits, first-touch sign-ups, purchases, revenue, and email/SMS delivery engagement per campaign. Campaigns with zero recorded broadcasts or traffic show <b>NO DATA</b>. Opens are omitted as unreliable.</p>
+      <div class="inline-err" id="attrErr" role="alert"></div>
+      <div id="attrFunnelWrap"></div>
+
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--line)">
+        <div class="sechead" style="margin:0 0 8px">Record conversion</div>
+        <form id="attrConvForm" novalidate>
+          <div class="grid2">
+            <div class="fld"><label class="f" for="attrConvKind">Conversion kind</label>
+              <select id="attrConvKind" style="width:100%">
+                <option value="signup">signup</option>
+                <option value="purchase" selected>purchase</option>
+                <option value="activation">activation</option>
+              </select>
+            </div>
+            <div class="fld"><label class="f" for="attrConvCampaign">Campaign (optional — inherits first-touch if blank)</label>
+              <select id="attrConvCampaign" style="width:100%"><option value="">— Inherit first-touch / unattributed —</option></select>
+            </div>
+            <div class="fld"><label class="f" for="attrConvMedium">Medium (optional)</label><input type="text" id="attrConvMedium" style="width:100%" placeholder="email, organic, social"/></div>
+            <div class="fld"><label class="f" for="attrConvSource">Source (optional)</label><input type="text" id="attrConvSource" style="width:100%" placeholder="newsletter, gsc, linkedin"/></div>
+            <div class="fld"><label class="f" for="attrConvAmount">Amount USD (optional)</label><input type="number" id="attrConvAmount" min="0" step="0.01" value="0" style="width:100%"/></div>
+            <div class="fld"><label class="f" for="attrConvRef">Reference ID (optional)</label><input type="text" id="attrConvRef" style="width:100%" placeholder="order-1001"/></div>
+          </div>
+          <div class="rowline">
+            <button type="submit" class="btn primary" id="attrConvSubmitBtn"><svg><use href="#i-plus"/></svg> Record conversion</button>
+          </div>
+          <div class="inline-err" id="attrConvErr" role="alert"></div>
+        </form>
+      </div>
+    </div>
   </section>
 
   <!-- ══ CHANNELS ═══════════════════════════════════════════════════════════════════════════ -->
@@ -576,6 +682,54 @@
       <div class="inline-err" id="exErr"></div>
     </div>
     <div id="expList"></div>
+
+    <div class="sechead">Launch plans &amp; grounded retros</div>
+    <div class="card" id="launchPlansCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>Launch plan with dated milestones &amp; asset checklist</h3>
+        <span class="badge acc" id="lpCountBadge">0 plans</span>
+      </div>
+      <p class="subline" style="margin:0 0 12px; font-size:12.5px">Every launch plan seeds the launch-coordinator asset checklist (human-posted community drafts, UTM verification, compliance footer, scorecard baseline) and pins dated milestones onto the unified calendar below. Generating a retro cites <b>only recorded database numbers</b> and marks unrecorded sources <b>NO DATA</b>.</p>
+      <form id="launchPlanForm" novalidate>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="lpCampaign">Campaign</label><select id="lpCampaign" style="width:100%"><option value="">— Select campaign —</option></select></div>
+          <div class="fld"><label class="f" for="lpTitle">Launch plan title</label><input type="text" id="lpTitle" style="width:100%" maxlength="120" placeholder="v1.0 Public Launch"/></div>
+          <div class="fld"><label class="f" for="lpDate">Launch date</label><input type="date" id="lpDate" style="width:100%"/></div>
+          <div class="fld"><label class="f" for="lpMsTitle">Milestone title</label><input type="text" id="lpMsTitle" style="width:100%" maxlength="140" placeholder="Publish Show HN + launch email"/></div>
+          <div class="fld"><label class="f" for="lpMsDate">Milestone due date</label><input type="date" id="lpMsDate" style="width:100%"/></div>
+          <div class="fld"><label class="f" for="lpMsOwner">Milestone owner</label>
+            <select id="lpMsOwner" style="width:100%">
+              <option value="human">human</option>
+              <option value="launch-coordinator">launch-coordinator</option>
+              <option value="campaign-director">campaign-director</option>
+              <option value="growth-analyst">growth-analyst</option>
+            </select>
+          </div>
+        </div>
+        <div class="rowline">
+          <button type="submit" class="btn primary" id="lpCreateBtn"><svg><use href="#i-plus"/></svg> Save launch plan</button>
+        </div>
+        <div class="inline-err" id="lpErr" role="alert"></div>
+      </form>
+      <div id="launchPlansList" style="margin-top:14px"></div>
+    </div>
+
+    <div class="sechead">Unified marketing calendar</div>
+    <div class="card" id="unifiedCalendarCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>One timeline: engine content, launch milestones, broadcasts &amp; Switchboard</h3>
+        <span class="badge acc" id="calCountBadge">0 items</span>
+        <span class="badge" id="calSwitchboardBadge">Switchboard: checking</span>
+      </div>
+      <div class="rowline" style="margin-bottom:12px">
+        <div class="fld" style="margin:0"><label class="f" for="calFrom">From</label><input type="date" id="calFrom"/></div>
+        <div class="fld" style="margin:0"><label class="f" for="calTo">To</label><input type="date" id="calTo"/></div>
+        <button type="button" class="btn sm" id="calFilterBtn" style="align-self:flex-end">Filter</button>
+        <button type="button" class="btn sm" id="calResetBtn" style="align-self:flex-end">Reset</button>
+      </div>
+      <div class="inline-err" id="calErr" role="alert"></div>
+      <div id="unifiedCalendarList"></div>
+    </div>
   </section>
 
   <!-- ══ APPROVALS ══════════════════════════════════════════════════════════════════════════ -->
@@ -586,6 +740,307 @@
       <a class="btn" href="/cockpit/?app=marketing-engine" target="_top">Review tickets in the cockpit</a>
     </div>
     <div id="apprList"></div>
+  </section>
+
+  <!-- ══ COMPLIANCE ═════════════════════════════════════════════════════════════════════════ -->
+  <section class="pane" id="pane-compliance" role="tabpanel">
+    <div class="card">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>Sender identity &amp; compliance settings</h3>
+        <span class="badge warn" id="compStatusBadge">Blocked: set sender identity &amp; postal address</span>
+        <span style="flex:1"></span>
+        <span class="metaline" style="margin:0" id="compCounts">0 contacts · 0 confirmed · 0 suppressed</span>
+      </div>
+      <p class="subline" style="margin:0 0 12px; font-size:12.5px">Email approvals and sends are refused until sender identity, a physical postal address, and an unsubscribe URL are configured. Every built-in email template injects these fields into both the HTML and plain-text footer.</p>
+      <form id="complianceForm" novalidate>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="compSenderName">Sender name</label><input type="text" id="compSenderName" style="width:100%" placeholder="Open Swarm Marketing"/></div>
+          <div class="fld"><label class="f" for="compSenderEmail">Sender email</label><input type="email" id="compSenderEmail" style="width:100%" placeholder="news@example.com"/></div>
+          <div class="fld"><label class="f" for="compReplyTo">Reply-to email (optional)</label><input type="email" id="compReplyTo" style="width:100%" placeholder="replies@example.com"/></div>
+          <div class="fld"><label class="f" for="compUnsubUrl">Unsubscribe URL</label><input type="url" id="compUnsubUrl" style="width:100%" placeholder="https://example.com/unsubscribe"/></div>
+        </div>
+        <div class="fld"><label class="f" for="compPostalAddress">Physical postal address</label><input type="text" id="compPostalAddress" style="width:100%" placeholder="123 Main St, Suite 400, Austin, TX 78701"/></div>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="compQuietStart">SMS quiet hours start (0–23)</label><input type="number" id="compQuietStart" min="0" max="23" step="1" value="21" style="width:100%"/></div>
+          <div class="fld"><label class="f" for="compQuietEnd">SMS quiet hours end (0–23)</label><input type="number" id="compQuietEnd" min="0" max="23" step="1" value="8" style="width:100%"/></div>
+        </div>
+        <div class="fld"><label class="f" for="compQuietTz">SMS default timezone (IANA)</label><input type="text" id="compQuietTz" value="America/New_York" style="width:100%" placeholder="America/New_York"/></div>
+        <div class="rowline">
+          <button type="submit" class="btn primary" id="compSaveBtn"><svg><use href="#i-check"/></svg> Save compliance settings</button>
+        </div>
+        <div class="inline-err" id="compErr" role="alert"></div>
+      </form>
+    </div>
+
+    <div class="card" id="templateStudioCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>HTML email template studio</h3>
+        <span class="badge" id="tplApproveBadge">Preview to verify</span>
+      </div>
+      <div class="grid2">
+        <div class="fld"><label class="f" for="tplSelect">Template</label>
+          <select id="tplSelect" style="width:100%">
+            <option value="announcement">Announcement</option>
+            <option value="newsletter">Newsletter</option>
+            <option value="launch">Launch</option>
+          </select>
+        </div>
+        <div class="fld"><label class="f" for="tplSubject">Subject</label><input type="text" id="tplSubject" style="width:100%" placeholder="Open Swarm milestone update"/></div>
+        <div class="fld"><label class="f" for="tplHeadline">Headline</label><input type="text" id="tplHeadline" style="width:100%" placeholder="What shipped this week"/></div>
+        <div class="fld"><label class="f" for="tplIntro">Intro</label><input type="text" id="tplIntro" style="width:100%" placeholder="Short summary of the update"/></div>
+        <div class="fld"><label class="f" for="tplCtaLabel">CTA label (optional)</label><input type="text" id="tplCtaLabel" style="width:100%" placeholder="Read the release notes"/></div>
+        <div class="fld"><label class="f" for="tplCtaUrl">CTA URL (optional, https://)</label><input type="url" id="tplCtaUrl" style="width:100%" placeholder="https://example.com/release"/></div>
+      </div>
+      <div class="fld"><label class="f" for="tplBody">Body / highlights (one item per line for Newsletter &amp; Launch)</label><textarea id="tplBody" placeholder="Write the email body or highlights…"></textarea></div>
+      <div class="rowline">
+        <button type="button" class="btn primary" id="tplPreviewBtn">Preview template</button>
+      </div>
+      <div class="inline-err" id="tplErr" role="alert"></div>
+      <ul class="chk-list" id="tplChecklist" aria-label="Email compliance checklist"></ul>
+      <div class="grid2">
+        <div>
+          <div class="sechead" style="margin-top:6px">Sandboxed HTML preview</div>
+          <iframe id="tplHtmlPreview" class="tpl-preview-frame" sandbox="" title="Rendered HTML email preview"></iframe>
+        </div>
+        <div>
+          <div class="sechead" style="margin-top:6px">Plain-text alternative</div>
+          <pre id="tplTextPreview" class="tpl-text-pre">Click Preview template to render HTML and plain-text parts.</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="signupFormsCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>Sign-up forms &amp; double opt-in</h3>
+        <span class="badge acc" id="optinFormsCount">0 forms</span>
+      </div>
+      <p class="subline" style="margin:0 0 12px; font-size:12.5px">Every submission starts as <b>pending</b> with captured consent disclosure, UTM tags, honeypot screening, and per-IP/per-form rate limits. Single-use signed confirmation tokens flip consent to <b>confirmed</b>; suppressed addresses are never re-subscribed.</p>
+      <form id="signupFormCreate" novalidate>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="optinName">Form name</label><input type="text" id="optinName" style="width:100%" placeholder="Product launch waitlist"/></div>
+          <div class="fld"><label class="f" for="optinSlug">Form slug</label><input type="text" id="optinSlug" style="width:100%" placeholder="launch-waitlist"/></div>
+          <div class="fld"><label class="f" for="optinList">Target list (optional)</label><select id="optinList" style="width:100%"><option value="">— No target list —</option></select></div>
+          <div class="fld"><label class="f" for="optinHoneypot">Honeypot field</label><input type="text" id="optinHoneypot" style="width:100%" value="company_website"/></div>
+          <div class="fld"><label class="f" for="optinIpLimit">Per-IP cap / hour (1–1000)</label><input type="number" id="optinIpLimit" min="1" max="1000" step="1" value="10" style="width:100%"/></div>
+          <div class="fld"><label class="f" for="optinFormLimit">Per-form cap / hour (1–10000)</label><input type="number" id="optinFormLimit" min="1" max="10000" step="1" value="200" style="width:100%"/></div>
+        </div>
+        <div class="fld"><label class="f" for="optinConsentText">Consent disclosure text (recorded verbatim)</label><textarea id="optinConsentText" style="min-height:64px" placeholder="Yes, send me Open Swarm release notes and launch updates. I can unsubscribe at any time."></textarea></div>
+        <div class="rowline">
+          <button type="submit" class="btn primary" id="optinCreateBtn"><svg><use href="#i-plus"/></svg> Create sign-up form</button>
+        </div>
+        <div class="inline-err" id="optinErr" role="alert"></div>
+      </form>
+      <div id="optinFormsList" style="margin-top:14px"></div>
+      <div id="optinSnippetWrap" style="display:none; margin-top:12px">
+        <div class="rowline" style="margin-bottom:6px">
+          <div class="sechead" style="margin:0" id="optinSnippetTitle">Embeddable static-site snippet</div>
+          <span style="flex:1"></span>
+          <button type="button" class="btn sm" id="optinSnippetCopy"><svg><use href="#i-copy"/></svg> Copy embed snippet</button>
+        </div>
+        <textarea id="optinSnippetOut" readonly style="min-height:140px; font-family:monospace; font-size:12px"></textarea>
+      </div>
+      <div id="optinTestWrap" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+        <div class="rowline" style="margin-bottom:8px">
+          <div class="sechead" style="margin:0" id="optinTestTitle">Test double opt-in</div>
+          <span class="badge" id="optinTestState">ready</span>
+        </div>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="optinTestEmail">Test subscriber email</label><input type="email" id="optinTestEmail" style="width:100%" placeholder="subscriber@example.com"/></div>
+          <div class="fld"><label class="f" for="optinTestCampaign">UTM campaign (optional)</label><input type="text" id="optinTestCampaign" style="width:100%" placeholder="launch-preview"/></div>
+        </div>
+        <div class="rowline" style="margin-bottom:8px">
+          <button type="button" class="btn" id="optinTestSubmitBtn">Submit test opt-in</button>
+          <button type="button" class="btn primary" id="optinTestConfirmBtn" style="display:none"><svg><use href="#i-check"/></svg> Confirm link</button>
+        </div>
+        <div class="inline-err" id="optinTestErr" role="alert"></div>
+        <pre id="optinTestOut" class="tpl-text-pre" style="display:none"></pre>
+      </div>
+    </div>
+
+    <div class="card" id="broadcastsCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>Broadcasts &amp; One-Click Unsubscribe</h3>
+        <span class="badge acc" id="bcCountBadge">0 broadcasts</span>
+      </div>
+      <p class="subline" style="margin:0 0 12px; font-size:12.5px">Every broadcast walks the full send gate chain: owner email channel consent &rarr; daily cap &rarr; compliance settings &amp; template lint &rarr; explicit confirmation &rarr; per-recipient suppression, confirmed consent, and cap checks. Dry-run evaluates every gate and writes a recipient-by-recipient ledger without sending email.</p>
+      <form id="broadcastForm" novalidate>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="bcList">Target list</label><select id="bcList" style="width:100%"><option value="">— Select target list —</option></select></div>
+          <div class="fld"><label class="f" for="bcTemplate">Template</label>
+            <select id="bcTemplate" style="width:100%">
+              <option value="announcement">Announcement</option>
+              <option value="newsletter">Newsletter</option>
+              <option value="launch">Launch</option>
+            </select>
+          </div>
+          <div class="fld"><label class="f" for="bcSubject">Subject</label><input type="text" id="bcSubject" style="width:100%" placeholder="Open Swarm release update"/></div>
+          <div class="fld"><label class="f" for="bcHeadline">Headline</label><input type="text" id="bcHeadline" style="width:100%" placeholder="What shipped this week"/></div>
+          <div class="fld"><label class="f" for="bcCtaLabel">CTA label (optional)</label><input type="text" id="bcCtaLabel" style="width:100%" placeholder="Read the update"/></div>
+          <div class="fld"><label class="f" for="bcCtaUrl">CTA URL (optional, https://)</label><input type="url" id="bcCtaUrl" style="width:100%" placeholder="https://example.com/update"/></div>
+        </div>
+        <div class="fld"><label class="f" for="bcBody">Body</label><textarea id="bcBody" style="min-height:64px" placeholder="Write the broadcast copy — footer, postal address, and per-recipient signed unsubscribe link are injected automatically."></textarea></div>
+        <div class="rowline">
+          <button type="submit" class="btn primary" id="bcCreateBtn"><svg><use href="#i-plus"/></svg> Create broadcast draft</button>
+        </div>
+        <div class="inline-err" id="bcErr" role="alert"></div>
+      </form>
+      <div id="broadcastsList" style="margin-top:14px"></div>
+      <div id="broadcastLedgerWrap" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+        <div class="rowline" style="margin-bottom:8px">
+          <div class="sechead" style="margin:0" id="bcLedgerTitle">Per-recipient decision ledger</div>
+          <span class="badge" id="bcLedgerStats"></span>
+        </div>
+        <div class="inline-err" id="bcLedgerErr" role="alert"></div>
+        <div id="bcLedgerTable"></div>
+      </div>
+    </div>
+
+    <div class="card" id="sequencesCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>Sequences &amp; Standing Authorization</h3>
+        <span class="badge acc" id="seqCountBadge">0 sequences</span>
+      </div>
+      <p class="subline" style="margin:0 0 12px; font-size:12.5px">Every sequence starts <b>OFF (disarmed)</b>. Arming per-sequence standing authorization requires an explicit confirmation and a daily cap &ge; 1; <b>Disarm</b> stops future sends in one click with no dialog. Every step re-checks recipient suppression and confirmed consent before sending.</p>
+      <form id="sequenceForm" novalidate>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="seqName">Sequence name</label><input type="text" id="seqName" style="width:100%" placeholder="Welcome onboarding"/></div>
+          <div class="fld"><label class="f" for="seqSlug">Sequence slug (optional)</label><input type="text" id="seqSlug" style="width:100%" placeholder="welcome-onboarding"/></div>
+          <div class="fld"><label class="f" for="seqTriggerForm">Welcome sign-up form slug (optional)</label><input type="text" id="seqTriggerForm" style="width:100%" placeholder="launch-waitlist"/></div>
+          <div class="fld"><label class="f" for="seqDailyCap">Daily cap (0–5000)</label><input type="number" id="seqDailyCap" min="0" max="5000" step="1" value="10" style="width:100%"/></div>
+        </div>
+        <div class="fld"><label class="f" for="seqDescription">Description (optional)</label><input type="text" id="seqDescription" style="width:100%" placeholder="Two-step onboarding sequence for confirmed subscribers"/></div>
+        <div class="rowline">
+          <button type="submit" class="btn primary" id="seqCreateBtn"><svg><use href="#i-plus"/></svg> Create sequence</button>
+        </div>
+        <div class="inline-err" id="seqErr" role="alert"></div>
+      </form>
+
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
+        <div class="sechead" style="margin:0 0 8px">Add sequence step</div>
+        <form id="sequenceStepForm" novalidate>
+          <div class="grid2">
+            <div class="fld"><label class="f" for="seqStepTarget">Target sequence</label><select id="seqStepTarget" style="width:100%"><option value="">— Select sequence —</option></select></div>
+            <div class="fld"><label class="f" for="seqStepOrder">Step order (1–50)</label><input type="number" id="seqStepOrder" min="1" max="50" step="1" value="1" style="width:100%"/></div>
+            <div class="fld"><label class="f" for="seqStepDelay">Delay hours (0–8760)</label><input type="number" id="seqStepDelay" min="0" max="8760" step="1" value="0" style="width:100%"/></div>
+            <div class="fld"><label class="f" for="seqStepTemplate">Template</label>
+              <select id="seqStepTemplate" style="width:100%">
+                <option value="announcement">Announcement</option>
+                <option value="newsletter">Newsletter</option>
+                <option value="launch">Launch</option>
+              </select>
+            </div>
+          </div>
+          <div class="fld"><label class="f" for="seqStepSubject">Step subject</label><input type="text" id="seqStepSubject" style="width:100%" placeholder="Welcome to Open Swarm"/></div>
+          <div class="fld"><label class="f" for="seqStepBody">Step body</label><textarea id="seqStepBody" style="min-height:56px" placeholder="Write the step copy — sender identity, postal address, and signed unsubscribe link are injected automatically."></textarea></div>
+          <div class="rowline">
+            <button type="submit" class="btn" id="seqStepAddBtn"><svg><use href="#i-plus"/></svg> Add step</button>
+          </div>
+          <div class="inline-err" id="seqStepErr" role="alert"></div>
+        </form>
+      </div>
+
+      <div id="sequencesList" style="margin-top:14px"></div>
+      <div id="seqTickWrap" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+        <div class="rowline" style="margin-bottom:8px">
+          <div class="sechead" style="margin:0" id="seqTickTitle">Sequence dry-run output</div>
+          <span class="badge" id="seqTickStats"></span>
+        </div>
+        <div class="inline-err" id="seqTickErr" role="alert"></div>
+        <div id="seqTickTable"></div>
+      </div>
+      <div id="seqDetailWrap" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--line)">
+        <div class="rowline" style="margin-bottom:8px">
+          <div class="sechead" style="margin:0" id="seqDetailTitle">Sequence steps &amp; enrollments</div>
+          <span class="badge" id="seqDetailBadge"></span>
+        </div>
+        <div id="seqDetailBody"></div>
+      </div>
+    </div>
+
+    <div class="card" id="smsConsentCard">
+      <div class="rowline" style="margin-bottom:10px">
+        <h3>SMS Consent &amp; Quiet Hours</h3>
+        <span class="badge acc" id="smsQueueCountBadge">0 queued</span>
+      </div>
+      <p class="subline" style="margin:0 0 12px; font-size:12.5px">Every SMS contact requires prior express written consent with all TCPA/CTIA evidence fields (program name, disclosure, frequency, HELP, STOP, fees, timestamp) and a recipient time zone (explicit or inferred from phone area code). Marketing texts scheduled outside 8 a.m.&ndash;9 p.m. recipient-local are held until 08:00 local. Live US 10DLC delivery and public Twilio inbound webhooks await the operator's Twilio business-account migration.</p>
+      <form id="smsOptInForm" novalidate>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="smsOptInEmail">Contact email</label><input type="email" id="smsOptInEmail" style="width:100%" placeholder="subscriber@example.com"/></div>
+          <div class="fld"><label class="f" for="smsOptInName">Display name (optional)</label><input type="text" id="smsOptInName" style="width:100%" placeholder="Alex Subscriber"/></div>
+          <div class="fld"><label class="f" for="smsOptInPhone">Phone (E.164)</label><input type="tel" id="smsOptInPhone" style="width:100%" placeholder="+14155550199"/></div>
+          <div class="fld"><label class="f" for="smsOptInTz">Timezone (blank to infer from phone)</label><input type="text" id="smsOptInTz" style="width:100%" placeholder="Infer from phone (or e.g. America/Chicago)"/></div>
+          <div class="fld"><label class="f" for="smsOptInProgram">Program name</label><input type="text" id="smsOptInProgram" style="width:100%" value="Open Swarm Alerts"/></div>
+          <div class="fld"><label class="f" for="smsOptInFrequency">Message frequency</label><input type="text" id="smsOptInFrequency" style="width:100%" value="Up to 4 msgs/month"/></div>
+          <div class="fld"><label class="f" for="smsOptInHelp">HELP instruction</label><input type="text" id="smsOptInHelp" style="width:100%" value="Reply HELP for help"/></div>
+          <div class="fld"><label class="f" for="smsOptInStop">STOP instruction</label><input type="text" id="smsOptInStop" style="width:100%" value="Reply STOP to opt out"/></div>
+        </div>
+        <div class="fld"><label class="f" for="smsOptInFees">Fee disclosure</label><input type="text" id="smsOptInFees" style="width:100%" value="Msg &amp; data rates may apply"/></div>
+        <div class="fld"><label class="f" for="smsOptInDisclosure">Prior express written consent disclosure</label><textarea id="smsOptInDisclosure" style="min-height:56px" placeholder="I agree to receive recurring marketing SMS messages from Open Swarm Alerts. Consent is not a condition of purchase."></textarea></div>
+        <div class="rowline">
+          <button type="submit" class="btn primary" id="smsOptInBtn"><svg><use href="#i-check"/></svg> Record SMS opt-in</button>
+        </div>
+        <div class="inline-err" id="smsOptInErr" role="alert"></div>
+      </form>
+      <div id="smsOptInResult" style="display:none; margin-top:12px; padding-top:10px; border-top:1px solid var(--line)">
+        <div class="rowline" style="margin-bottom:6px">
+          <div class="sechead" style="margin:0">Recorded SMS consent &amp; opt-in confirmation</div>
+          <span class="badge" id="smsOptInTzBadge"></span>
+        </div>
+        <pre id="smsOptInConfirmText" class="tpl-text-pre" style="margin:0"></pre>
+      </div>
+
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
+        <div class="sechead" style="margin:0 0 8px">Quiet-hours send gate &amp; STOP / HELP check</div>
+        <div class="grid2">
+          <div class="fld"><label class="f" for="smsScheduleContact">Contact</label><select id="smsScheduleContact" style="width:100%"><option value="">— Select contact —</option></select></div>
+          <div class="fld"><label class="f" for="smsScheduleNow">Clock instant (optional ISO-8601)</label><input type="text" id="smsScheduleNow" style="width:100%" placeholder="Now (or e.g. 2026-11-26T06:00:00Z)"/></div>
+        </div>
+        <div class="fld"><label class="f" for="smsScheduleBody">SMS message body</label><input type="text" id="smsScheduleBody" style="width:100%" placeholder="Open Swarm release update is now live."/></div>
+        <div class="rowline" style="margin-bottom:8px">
+          <button type="button" class="btn" id="smsScheduleBtn">Evaluate &amp; schedule SMS</button>
+          <input type="text" id="smsKeywordInput" style="max-width:140px" placeholder="STOP or HELP" value="STOP" aria-label="Inbound SMS keyword"/>
+          <button type="button" class="btn sm" id="smsKeywordBtn">Test keyword</button>
+        </div>
+        <div class="inline-err" id="smsScheduleErr" role="alert"></div>
+        <div id="smsScheduleOut" style="display:none; margin-bottom:10px"></div>
+      </div>
+
+      <div id="smsQueueList" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" id="suppressionCard">
+      <h3 style="margin-bottom:10px">Suppression management</h3>
+      <div class="grid2">
+        <div class="fld"><label class="f" for="suppEmail">Email address to suppress</label><input type="email" id="suppEmail" style="width:100%" placeholder="optout@example.com"/></div>
+        <div class="fld"><label class="f" for="suppReason">Reason</label>
+          <select id="suppReason" style="width:100%">
+            <option value="manual">manual</option>
+            <option value="unsubscribe">unsubscribe</option>
+            <option value="bounce">bounce</option>
+            <option value="complaint">complaint</option>
+          </select>
+        </div>
+      </div>
+      <div class="rowline" style="margin-bottom:10px">
+        <button type="button" class="btn" id="suppAddBtn">Add suppression</button>
+      </div>
+      <div class="inline-err" id="suppErr" role="alert"></div>
+      <div id="suppList"></div>
+    </div>
+
+    <div class="card" id="contactsComplianceCard">
+      <h3 style="margin-bottom:10px">Contacts consent export &amp; deletion</h3>
+      <div class="inline-err" id="compContactsErr" role="alert"></div>
+      <div id="compContactsList"></div>
+      <div id="compExportWrap" style="display:none; margin-top:12px">
+        <div class="rowline" style="margin-bottom:6px">
+          <div class="sechead" style="margin:0">Consent export (JSON)</div>
+          <span style="flex:1"></span>
+          <button type="button" class="btn sm" id="compExportCopy"><svg><use href="#i-copy"/></svg> Copy JSON</button>
+        </div>
+        <pre id="compExportOut" class="tpl-text-pre"></pre>
+      </div>
+    </div>
   </section>
 
   <div class="footnote"><svg><use href="#i-bot"/></svg> Drafting and analysis run on the app's inline bots via your own AI provider · publishing uses your own connected accounts · every outward attempt (including refusals) lands in the run ledger.</div>
@@ -637,6 +1092,13 @@
         <select id="dfChannel">
           <option value="linkedin">LinkedIn</option><option value="mastodon">Mastodon</option>
           <option value="bluesky">Bluesky</option><option value="email">Email</option>
+        </select>
+      </div>
+      <div class="fld" id="dfTemplateWrap" style="display:none"><label class="f" for="dfTemplate">Email template</label>
+        <select id="dfTemplate">
+          <option value="announcement">Announcement</option>
+          <option value="newsletter">Newsletter</option>
+          <option value="launch">Launch</option>
         </select>
       </div>
       <div class="fld"><label class="f" for="dfBrief">Brief</label><textarea id="dfBrief" placeholder="what this piece should say — the campaign's ICP and message map ride along automatically"></textarea></div>
@@ -699,6 +1161,7 @@
     content: [],            // content items: from GET /content when available, else session-created
     contentListed: false,   // true once GET /content succeeded (list survives reload)
     openCamp: null,         // expanded campaign id
+    budgetSummaries: {},    // campaignId -> { loading?, unavailable?, error?, summary? }
     tab: "board"
   };
 
@@ -721,7 +1184,10 @@
     if (j.error === "not_connected")            return "Connect " + chan + " in Connectors (/utilities) — this publish used no fallback and sent nothing.";
     if (j.error === "no_hosted_brain")          return "Add an AI provider in Settings — the app's bots run on your own hosted/BYO brain." + (j.hint ? " (" + j.hint + ")" : "");
     if (j.error === "channel_unavailable")      return (CHLABEL[ctx && ctx.channel] || "Channel") + " is unavailable: " + (j.hint || "the core connector spec is missing this action.");
-    if (j.error === "email_from_unconfigured")  return "Email sending isn't configured — the deployment needs MARKETING_EMAIL_FROM set.";
+    if (j.error === "email_from_unconfigured")  return "Email sending isn't configured — set MARKETING_EMAIL_FROM or a Compliance sender email.";
+    if (j.error === "compliance_incomplete" || j.error === "compliance_postal_address_required" || j.error === "compliance_identity_required" || j.error === "template_compliance_failed") {
+      return j.hint || (Array.isArray(j.reasons) && j.reasons.length ? j.reasons.map(function(r){ return r.message || r.code; }).join(" ") : "Email compliance requirements are incomplete.");
+    }
     if (j.error === "not_authenticated")        return "You're signed out — sign in and reload this page.";
     if (res.status === 428)                     return j.message || "This action requires confirm: true. No write was attempted.";
     return j.message || j.error || ("Request failed (HTTP " + res.status + ")");
@@ -848,7 +1314,7 @@
       renderApprovals();
     }).catch(function(){});
   }
-  function refresh(){ loadOverview().then(loadContent); }
+  function refresh(){ return loadOverview().then(loadContent); }
   document.addEventListener('marketing:selected-brief', function(event) {
     var campaign=state.campaigns.find(function(c){return c.campaign_id===state.openCamp;});
     if(campaign) event.detail.context={title:String(campaign.name).slice(0,2000),notes:handoffNotes(campaign,contentFor(campaign.campaign_id))};
@@ -911,21 +1377,31 @@
   // handoff-notes:end
 
   // ── tabs ──────────────────────────────────────────────────────────────────────────────────
-  var TABS = ["board","scorecard","channels","experiments","approvals"];
+  var TABS = ["board","scorecard","channels","experiments","approvals","compliance"];
+  function revealInStrip(strip, item){
+    if(!strip || !item || !strip.clientWidth) return;
+    var start=item.offsetLeft, end=start+item.offsetWidth;
+    if(start<strip.scrollLeft) strip.scrollLeft=start;
+    else if(end>strip.scrollLeft+strip.clientWidth) strip.scrollLeft=end-strip.clientWidth;
+  }
   function selectTab(t){
     state.tab=t;
     if($("morePopover")) $("morePopover").classList.remove("show");
     if($("tab-more")){
       $("tab-more").setAttribute("aria-expanded","false");
-      $("tab-more").classList.toggle("on", t==="experiments");
+      $("tab-more").classList.toggle("on", t==="experiments" || t==="compliance");
     }
     TABS.forEach(function(u){
       $("tab-"+u).classList.toggle("on", u===t);
       $("pane-"+u).classList.toggle("on", u===t);
     });
-    if(t==="scorecard") loadScorecard();
-    if(t==="experiments") loadExperiments();
+    var tabStrip = document.querySelector(".tabs");
+    var activeItem = (t==="experiments" || t==="compliance") ? ($("tab-more") && $("tab-more").parentElement) : $("tab-"+t);
+    revealInStrip(tabStrip, activeItem);
+    if(t==="scorecard") { loadScorecard(); loadAttributionFunnel(); }
+    if(t==="experiments") { loadExperiments(); loadLaunchPlans(); loadUnifiedCalendar(); }
     if(t==="approvals") loadProposals();
+    if(t==="compliance") loadCompliancePane();
   }
   TABS.forEach(function(t){
     $("tab-"+t).addEventListener("click", function(){ selectTab(t); });
@@ -937,6 +1413,7 @@
       $("tab-more").setAttribute("aria-expanded", open?"true":"false");
     });
     $("moreExperiments").addEventListener("click", function(){ selectTab("experiments"); });
+    if($("moreCompliance")) $("moreCompliance").addEventListener("click", function(){ selectTab("compliance"); });
     document.addEventListener("click", function(ev){
       if($("morePopover") && !ev.target.closest("#morePopover") && !ev.target.closest("#tab-more")){
         $("morePopover").classList.remove("show");
@@ -964,6 +1441,7 @@
     Array.prototype.forEach.call($("campStatusChips").querySelectorAll("[data-filter]"), function(b){
       b.classList.toggle("on", b.getAttribute("data-filter")===f);
     });
+    revealInStrip($("campStatusChips"), $("campStatusChips").querySelector(".chip.on"));
     renderCampaigns();
   }
   Array.prototype.forEach.call($("campStatusChips").querySelectorAll("[data-filter]"), function(b){
@@ -975,7 +1453,7 @@
   });
 
   function renderAll(){
-    renderCampaigns(); renderChannels(); renderScorecard(); renderExperiments(); renderApprovals(); renderLedger();
+    renderCampaigns(); renderChannels(); renderScorecard(); renderAttrCampaignSelect(); renderExperiments(); renderLaunchCampaignSelect(); renderApprovals(); renderLedger();
     var expCnt = state.experiments.filter(function(e){ return e.status!=="killed" && e.status!=="scaled"; }).length;
     $("cntExp").textContent = expCnt;
     if($("cntExpMore")) $("cntExpMore").textContent = expCnt;
@@ -990,6 +1468,169 @@
   function contentFor(campId){
     return state.content.filter(function(c){ return String(c.campaign_id||c.campaignId||"")===String(campId); });
   }
+  function fmtCentsUsd(cents){
+    var n = Number(cents);
+    if(!isFinite(n)) return "$0.00";
+    var sign = n < 0 ? "-" : "";
+    var abs = Math.abs(Math.round(n));
+    var dollars = Math.floor(abs / 100);
+    var rem = String(abs % 100).padStart(2, "0");
+    return sign + "$" + dollars.toLocaleString("en-US") + "." + rem;
+  }
+  function buildFinanceCreatePayload(camp){
+    var usd = Number(camp.budget_monthly_usd || 0);
+    var budgetCents = isFinite(usd) && usd > 0 ? Math.round(usd * 100) : 0;
+    var alloc = camp.channel_allocations && typeof camp.channel_allocations === "object" ? camp.channel_allocations : {};
+    var allocKeys = Object.keys(alloc).filter(function(k){ return Number.isInteger(Number(alloc[k])) && Number(alloc[k]) >= 0; }).sort();
+    var lines = [];
+    if(allocKeys.length){
+      var allocSum = 0;
+      allocKeys.forEach(function(ch){
+        var c = Math.round(Number(alloc[ch]));
+        allocSum += c;
+        lines.push({ name:(CHLABEL[ch] || ch) + " budget", channel:ch, budgetCents:c, committedCents:0, notes:"" });
+      });
+      if(allocSum > 0) budgetCents = allocSum;
+    } else if(Array.isArray(camp.channels) && camp.channels.length){
+      var base = Math.floor(budgetCents / camp.channels.length);
+      var rem = budgetCents - base * camp.channels.length;
+      camp.channels.forEach(function(ch, idx){
+        lines.push({ name:(CHLABEL[ch] || ch) + " budget", channel:String(ch).toLowerCase(), budgetCents:base + (idx === 0 ? rem : 0), committedCents:0, notes:"" });
+      });
+    } else if(budgetCents > 0){
+      lines.push({ name:"Campaign budget", channel:"general", budgetCents:budgetCents, committedCents:0, notes:"" });
+    }
+    return {
+      name: String(camp.name || "Campaign budget").slice(0, 120),
+      currency: "USD",
+      budgetCents: budgetCents,
+      externalRef: "marketing:campaign:" + String(camp.campaign_id),
+      notes: "Linked from Marketing Engine (" + String(camp.slug || camp.campaign_id) + ")",
+      lines: lines
+    };
+  }
+  function fetchFinanceSummary(camp){
+    var cid = String(camp.campaign_id);
+    var pid = camp.finance_project_id ? String(camp.finance_project_id) : "";
+    if(!pid) return;
+    state.budgetSummaries[cid] = { loading:true };
+    renderCampaigns();
+    fetch("/api/finance/projects/" + encodeURIComponent(pid) + "/summary", { credentials:"same-origin", headers:{ Accept:"application/json" } })
+      .then(parse).then(function(res){
+        if(res.ok && res.j && res.j.project){
+          state.budgetSummaries[cid] = { summary: res.j };
+          renderCampaigns();
+          return;
+        }
+        return api("/campaigns/" + encodeURIComponent(cid) + "/budget-summary").then(parse).then(function(fallback){
+          if(fallback.ok && fallback.j && fallback.j.linkedSummary){
+            state.budgetSummaries[cid] = { summary: fallback.j.linkedSummary };
+          } else {
+            state.budgetSummaries[cid] = { unavailable:true, error:"Finance summary is unavailable right now (HTTP " + res.status + ")." };
+          }
+          renderCampaigns();
+        });
+      }).catch(function(){
+        state.budgetSummaries[cid] = { unavailable:true, error:"Finance app could not be reached in this session." };
+        renderCampaigns();
+      });
+  }
+  function createFinanceBudgetForCampaign(camp, btn, errEl){
+    clearInlineErr(errEl);
+    var cid = String(camp.campaign_id);
+    var payload = buildFinanceCreatePayload(camp);
+    btn.disabled = true;
+    fetch("/api/finance/projects", {
+      method:"POST", credentials:"same-origin",
+      headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body: JSON.stringify(payload)
+    }).then(parse).then(function(res){
+      if(!res.ok){
+        btn.disabled = false;
+        var msg = res.status === 404
+          ? "Finance is not installed or unavailable on this instance — install Finance to create a linked budget project."
+          : ((res.j && (res.j.message || res.j.error)) || ("Finance project creation failed (HTTP " + res.status + ")"));
+        showInlineErr(errEl, msg);
+        return;
+      }
+      var created = res.j || {};
+      var pid = (created.project && created.project.projectId) || created.projectId;
+      if(!pid){
+        btn.disabled = false;
+        showInlineErr(errEl, "Finance created the project without returning a projectId.");
+        return;
+      }
+      return api("/campaigns/" + encodeURIComponent(cid) + "/finance-project", {
+        method:"POST", body:JSON.stringify({ financeProjectId: pid })
+      }).then(parse).then(function(linkRes){
+        btn.disabled = false;
+        if(!linkRes.ok){ showInlineErr(errEl, errText(linkRes, null)); return; }
+        camp.finance_project_id = pid;
+        state.budgetSummaries[cid] = { summary: created };
+        toast("Budget project created in Finance and linked");
+        renderCampaigns();
+      });
+    }).catch(function(e){
+      btn.disabled = false;
+      showInlineErr(errEl, "Could not reach Finance — " + ((e && e.message) || e));
+    });
+  }
+  function renderFinanceBudgetSection(c){
+    var cid = String(c.campaign_id);
+    var pid = c.finance_project_id ? String(c.finance_project_id) : "";
+    var entry = state.budgetSummaries[cid] || null;
+    var h = '<div class="citem" data-budget-box="'+escAttr(cid)+'" style="margin-top:12px">';
+    h += '<div class="rowline"><span class="sechead" style="margin:0">Budget &amp; Finance project</span>';
+    if(pid){
+      h += '<span class="badge ok">Finance linked</span>';
+      h += '<span style="flex:1"></span>';
+      h += '<a class="btn sm" href="/cockpit/?app=finance" target="_top">Open in Finance</a>';
+    } else {
+      h += '<span class="badge">Not linked</span>';
+      h += '<span style="flex:1"></span>';
+      h += '<button type="button" class="btn sm primary" data-create-budget="'+escAttr(cid)+'">Create budget in Finance</button>';
+    }
+    h += '</div>';
+    if(pid){
+      if(!entry || entry.loading){
+        h += '<div class="metaline">Loading live Finance summary…</div>';
+      } else if(entry.unavailable){
+        h += '<div class="metaline">'+esc(entry.error || "Finance summary unavailable.")+'</div>';
+      } else if(entry.summary){
+        var s = entry.summary;
+        var budgetC = s.totalBudgetCents != null ? s.totalBudgetCents : (s.totals && s.totals.totalBudgetCents) || 0;
+        var commC = s.totalCommittedCents != null ? s.totalCommittedCents : (s.totals && s.totals.totalCommittedCents) || 0;
+        var actC = s.totalActualCents != null ? s.totalActualCents : (s.totals && s.totals.totalActualCents) || 0;
+        var varC = s.totalVarianceCents != null ? s.totalVarianceCents : (budgetC - actC);
+        h += '<div class="metaline tnum" data-finance-totals="'+escAttr(cid)+'">'
+          + '<span>Budget <b>'+esc(fmtCentsUsd(budgetC))+'</b></span>'
+          + '<span>Committed <b>'+esc(fmtCentsUsd(commC))+'</b></span>'
+          + '<span>Actual <b>'+esc(fmtCentsUsd(actC))+'</b></span>'
+          + '<span>Variance <b style="color:'+(varC < 0 ? 'var(--err)' : 'var(--ok)')+'">'+esc(fmtCentsUsd(varC))+'</b></span>'
+          + (s.overBudget ? '<span class="badge err">Over budget</span>' : '')
+          + '</div>';
+        if(Array.isArray(s.lines) && s.lines.length){
+          h += '<div class="tblwrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Channel</th><th class="num">Budget</th><th class="num">Committed</th><th class="num">Actual</th><th class="num">Variance</th></tr></thead><tbody>';
+          s.lines.forEach(function(ln){
+            h += '<tr><td>'+esc(CHLABEL[ln.channel] || ln.channel || ln.name)+'</td>'
+              + '<td class="num">'+esc(fmtCentsUsd(ln.budgetCents))+'</td>'
+              + '<td class="num">'+esc(fmtCentsUsd(ln.committedCents))+'</td>'
+              + '<td class="num">'+esc(fmtCentsUsd(ln.actualCents))+'</td>'
+              + '<td class="num">'+esc(fmtCentsUsd(ln.varianceCents))+'</td></tr>';
+          });
+          h += '</tbody></table></div>';
+        }
+      }
+    } else {
+      var alloc = c.channel_allocations && typeof c.channel_allocations === "object" ? c.channel_allocations : {};
+      var allocText = Object.keys(alloc).sort().map(function(k){ return (CHLABEL[k] || k) + ": " + fmtCentsUsd(alloc[k]); }).join(" · ");
+      h += '<div class="metaline">'+(allocText ? 'Channel allocations: '+esc(allocText) : 'Create a Finance project to track budget lines, committed spend, actuals, and variance alongside this campaign.')+'</div>';
+    }
+    h += '<div class="inline-err" data-budget-err="'+escAttr(cid)+'"></div>';
+    h += '</div>';
+    return h;
+  }
+
   function renderCampaigns(){
     var host=$("campList");
     var shown = filteredCampaigns();
@@ -1043,6 +1684,7 @@
       h += '<div><div class="sechead" style="margin-top:4px">ICP card</div>'+(icp? '<div class="kv fields">'+icp+'</div>' : '<span class="badge nodata">NO DATA — run Research</span>')+'</div>';
       h += '<div><div class="sechead" style="margin-top:4px">Message map</div>'+(mm? '<div class="kv fields">'+mm+'</div>' : '<span class="badge nodata">NO DATA</span>')+'</div>';
       h += '</div>';
+      h += renderFinanceBudgetSection(c);
       // content items
       var items = contentFor(c.campaign_id);
       h += '<div class="sechead">Content ('+items.length+')'+(state.contentListed? '' : ' — this session only')+'</div>';
@@ -1057,6 +1699,7 @@
         if(it.channel==="launch"){
           h += '<span class="badge warn" title="HN / Reddit / Product Hunt posts are never bot-posted — copy the draft and post it yourself">human-posted only</span>';
         } else if(st==="draft" || st==="approved"){
+          if(it.channel==="email" && st==="draft") h += '<button class="btn sm" data-approve-content="1">Approve</button>';
           h += '<button class="btn sm primary" data-pub="1"><svg><use href="#i-send"/></svg> Publish…</button>';
         }
         if(st==="published" && it.published_ref) h += '<span class="metaline" style="margin:0">ref '+esc(it.published_ref)+'</span>';
@@ -1077,7 +1720,16 @@
       card.querySelector("[data-toggle]").addEventListener("click", function(){
         state.openCamp = (state.openCamp===id) ? null : id;
         renderCampaigns();
+        if(state.openCamp===id && camp.finance_project_id && !state.budgetSummaries[id]){
+          fetchFinanceSummary(camp);
+        }
       });
+      var createBudgetBtn = card.querySelector("[data-create-budget]");
+      if(createBudgetBtn){
+        createBudgetBtn.addEventListener("click", function(){
+          createFinanceBudgetForCampaign(camp, createBudgetBtn, card.querySelector("[data-budget-err]") || errEl);
+        });
+      }
       var errEl = card.querySelector("[data-err]");
       Array.prototype.forEach.call(card.querySelectorAll(".stg"), function(b){
         b.addEventListener("click", function(){
@@ -1100,6 +1752,22 @@
         var itemId = itemEl.getAttribute("data-item");
         var item = state.content.find(function(x){ return String(x.item_id||x.itemId)===itemId; });
         if(item) b.addEventListener("click", function(){ openPublishConfirm(item, itemEl.querySelector("[data-puberr]")); });
+      });
+      Array.prototype.forEach.call(card.querySelectorAll("[data-approve-content]"), function(b){
+        var itemEl = b.closest("[data-item]");
+        var itemId = itemEl.getAttribute("data-item");
+        var errBox = itemEl.querySelector("[data-puberr]");
+        b.addEventListener("click", function(){
+          clearInlineErr(errBox);
+          b.disabled = true;
+          api("/content/"+encodeURIComponent(itemId)+"/approve", { method:"POST", body:JSON.stringify({}) })
+            .then(parse).then(function(res){
+              b.disabled = false;
+              if(!res.ok){ showInlineErr(errBox, errText(res, { channel:"email" })); return; }
+              if(res.j && res.j.item) upsertContent(res.j.item);
+              toast("Email draft approved");
+            }).catch(function(e){ b.disabled = false; showInlineErr(errBox, "Request failed — "+((e&&e.message)||e)); });
+        });
       });
     });
   }
@@ -1139,11 +1807,16 @@
 
   // ── draft modal ───────────────────────────────────────────────────────────────────────────
   var draftCamp=null;
+  function syncDraftTemplateField(){
+    if($("dfTemplateWrap")) $("dfTemplateWrap").style.display = $("dfChannel").value === "email" ? "block" : "none";
+  }
+  $("dfChannel").addEventListener("change", syncDraftTemplateField);
   function openDraftModal(camp){
     draftCamp=camp;
     $("dfCamp").textContent=camp.name;
     // The campaign's own brief starts the dialog; the person edits it or writes another.
     $("dfBrief").value=campaignBrief(camp); clearInlineErr($("dfErr"));
+    syncDraftTemplateField();
     $("draftScrim").classList.add("show");
   }
   $("dfCancel").addEventListener("click", function(){ $("draftScrim").classList.remove("show"); });
@@ -1152,7 +1825,10 @@
     var brief=$("dfBrief").value.trim();
     if(!brief){ showInlineErr($("dfErr"), "Write a brief — the bot drafts from it, it does not invent one."); return; }
     var btn=$("dfGo"); btn.disabled=true;
-    api("/drafts", { method:"POST", body:JSON.stringify({ campaignId:draftCamp.campaign_id, channel:$("dfChannel").value, brief:brief }) })
+    var ch=$("dfChannel").value;
+    var payload={ campaignId:draftCamp.campaign_id, channel:ch, brief:brief };
+    if(ch==="email" && $("dfTemplate")) payload.templateId=$("dfTemplate").value;
+    api("/drafts", { method:"POST", body:JSON.stringify(payload) })
       .then(parse).then(function(res){
         btn.disabled=false;
         if(!res.ok){ showInlineErr($("dfErr"), errText(res, { channel:$("dfChannel").value })); return; }
@@ -1331,7 +2007,127 @@
         if(!res.ok){ showInlineErr($("scErr"), errText(res, null)); return; }
         toast("Current week rebuilt from your events");
         loadScorecard();
+        loadAttributionFunnel();
       }).catch(function(e){ btn.disabled=false; showInlineErr($("scErr"), "Request failed — "+((e&&e.message)||e)); });
+  });
+
+  // ── Campaign Attribution & Engagement Funnel (0.6.9 P5, DOM-API / textContent only) ──────
+  function renderAttrCampaignSelect(){
+    var sel=$("attrConvCampaign"); if(!sel) return;
+    var cur=sel.value;
+    sel.textContent="";
+    sel.appendChild(el("option", { value:"" }, "— Inherit first-touch / unattributed —"));
+    (state.campaigns || []).forEach(function(c){
+      if(c && c.slug) sel.appendChild(el("option", { value:c.slug }, (c.name || c.slug) + " (" + c.slug + ")"));
+    });
+    sel.value=cur;
+  }
+  function makeNoDataBadge(){
+    return el("span", { class:"badge nodata" }, "NO DATA");
+  }
+  function buildFunnelTableRow(row){
+    var tr=el("tr", { "data-funnel-campaign":row.campaignSlug || "" });
+    var nameTd=el("td");
+    nameTd.appendChild(el("b", null, row.campaignName || row.campaignSlug || "—"));
+    if(row.campaignSlug && row.campaignSlug !== row.campaignName){
+      nameTd.appendChild(el("div", { class:"metaline", style:"margin:2px 0 0" }, row.campaignSlug));
+    }
+    tr.appendChild(nameTd);
+
+    var trf = row.traffic || {};
+    var visitTd=el("td", { class:"num" });
+    if(trf.status === "ok"){ visitTd.appendChild(el("span", { class:"tnum" }, String(trf.visits || 0))); }
+    else { visitTd.appendChild(makeNoDataBadge()); }
+    tr.appendChild(visitTd);
+
+    var conv = row.conversions || {};
+    tr.appendChild(el("td", { class:"num tnum" }, String(conv.signups || 0)));
+    tr.appendChild(el("td", { class:"num tnum" }, String(conv.purchases || 0)));
+    tr.appendChild(el("td", { class:"num tnum" }, fmtCentsUsd(conv.revenueCents || 0)));
+
+    var eng = row.engagement || {};
+    if(eng.status === "ok"){
+      tr.appendChild(el("td", { class:"num tnum" }, String(eng.delivered || 0)));
+      tr.appendChild(el("td", { class:"num tnum" }, String(eng.clicked || 0)));
+      tr.appendChild(el("td", { class:"num tnum" }, String(eng.unsubscribed || 0)));
+      tr.appendChild(el("td", { class:"num tnum" }, String(eng.bounced || 0)));
+      tr.appendChild(el("td", { class:"num tnum" }, String(eng.complained || 0)));
+    } else {
+      var ndTd=el("td", { class:"num" }); ndTd.appendChild(makeNoDataBadge()); tr.appendChild(ndTd);
+      for(var i=0;i<4;i++) tr.appendChild(el("td", { class:"num", style:"color:var(--muted)" }, "—"));
+    }
+    return tr;
+  }
+  function renderAttributionFunnel(funnel){
+    var host=$("attrFunnelWrap"); if(!host) return;
+    host.textContent="";
+    var rows = (funnel && Array.isArray(funnel.campaigns)) ? funnel.campaigns : [];
+    var totals = (funnel && funnel.totals) || {};
+    if($("attrCampBadge")) $("attrCampBadge").textContent = rows.length + (rows.length === 1 ? " campaign" : " campaigns");
+    if($("attrTotalsBadge")){
+      var hasAny = (totals.attributedVisits || 0) > 0 || (totals.signups || 0) > 0 || (totals.purchases || 0) > 0 || (totals.delivered || 0) > 0;
+      $("attrTotalsBadge").className = "badge " + (hasAny ? "ok" : "nodata");
+      $("attrTotalsBadge").textContent = hasAny
+        ? (String(totals.signups || 0) + " sign-ups · " + String(totals.purchases || 0) + " purchases · " + fmtCentsUsd(totals.revenueCents || 0))
+        : "NO DATA";
+    }
+    if($("attrOpensNote") && funnel && funnel.opensNote){
+      $("attrOpensNote").textContent = "Attributed visits, first-touch sign-ups, purchases, revenue, and email/SMS delivery engagement per campaign. Campaigns with zero recorded broadcasts or traffic show NO DATA. " + funnel.opensNote + ".";
+    }
+    if(!rows.length){
+      host.appendChild(el("div", { class:"empty" }, "No campaigns or attributed events recorded yet — create a campaign or record a conversion below."));
+      return;
+    }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl", id:"attrFunnelTable" });
+    var thead=el("thead"), hr=el("tr");
+    ["Campaign","Attributed Visits","Sign-ups","Purchases","Revenue","Delivered","Clicked","Unsubscribed","Bounced","Complained"].forEach(function(h, idx){
+      hr.appendChild(el("th", idx > 0 ? { class:"num" } : null, h));
+    });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    rows.forEach(function(r){ tbody.appendChild(buildFunnelTableRow(r)); });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadAttributionFunnel(){
+    renderAttrCampaignSelect();
+    return api("/attribution/funnel").then(parse).then(function(res){
+      if(!res.ok){
+        if(res.status !== 404) showInlineErr($("attrErr"), errText(res, null));
+        renderAttributionFunnel({ campaigns:[], totals:{} });
+        return;
+      }
+      clearInlineErr($("attrErr"));
+      renderAttributionFunnel(res.j || { campaigns:[], totals:{} });
+    }).catch(function(e){
+      showInlineErr($("attrErr"), "Attribution funnel failed — "+((e&&e.message)||e));
+      renderAttributionFunnel({ campaigns:[], totals:{} });
+    });
+  }
+  if($("attrConvForm")) $("attrConvForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("attrConvErr"));
+    var kind = $("attrConvKind").value;
+    var campaignSlug = $("attrConvCampaign").value.trim();
+    var medium = $("attrConvMedium").value.trim();
+    var source = $("attrConvSource").value.trim();
+    var rawUsd = Number($("attrConvAmount").value || 0);
+    if(!isFinite(rawUsd) || rawUsd < 0){ showInlineErr($("attrConvErr"), "Enter a non-negative dollar amount."); return; }
+    var amountCents = Math.round(rawUsd * 100);
+    var referenceId = $("attrConvRef").value.trim();
+    var payload = { kind: kind, amountCents: amountCents };
+    if(campaignSlug) payload.campaignSlug = campaignSlug;
+    if(medium) payload.medium = medium;
+    if(source) payload.source = source;
+    if(referenceId) payload.referenceId = referenceId;
+    var btn=$("attrConvSubmitBtn"); btn.disabled=true;
+    api("/attribution/conversions", { method:"POST", body:JSON.stringify(payload) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("attrConvErr"), errText(res, null)); return; }
+        $("attrConvAmount").value="0"; $("attrConvRef").value="";
+        toast("Conversion recorded");
+        loadAttributionFunnel();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("attrConvErr"), "Record failed — "+((e&&e.message)||e)); });
   });
 
   // ══ CHANNELS ══════════════════════════════════════════════════════════════════════════════
@@ -1518,6 +2314,26 @@
   });
 
   // ══ APPROVALS ═════════════════════════════════════════════════════════════════════════════
+  function describeProposalChange(p){
+    if(p.field === "channel_allocation"){
+      try {
+        var parsed = JSON.parse(String(p.new_value || ""));
+        if(parsed && typeof parsed === "object"){
+          var parts = [];
+          if(parsed.fromChannel && parsed.toChannel && Number.isInteger(parsed.deltaCents)){
+            parts.push("Shift " + fmtCentsUsd(parsed.deltaCents) + " from " + parsed.fromChannel + " → " + parsed.toChannel);
+          }
+          if(parsed.allocations && typeof parsed.allocations === "object"){
+            parts.push(Object.keys(parsed.allocations).sort().map(function(k){
+              return k + ": " + fmtCentsUsd(parsed.allocations[k]);
+            }).join(", "));
+          }
+          if(parts.length) return { summary: parts.join(" · "), rationale: parsed.rationale || "" };
+        }
+      } catch(e) { /* render raw value below */ }
+    }
+    return { summary: (p.old_value==null?"—":String(p.old_value)) + " → " + String(p.new_value), rationale: "" };
+  }
   function renderApprovals(){
     var host=$("apprList");
     if(!state.proposals.length){ host.innerHTML='<div class="empty">No budget proposals — the campaign director writes them in the weekly review; they wait here for your decision.</div>'; return; }
@@ -1527,13 +2343,14 @@
     function row(p, withActions){
       var camp=state.campaigns.find(function(c){ return String(c.campaign_id)===String(p.campaign_id); });
       var stCls = p.status==="applied"||p.status==="approved"?"ok" : p.status==="rejected"?"err" : "warn";
+      var desc = describeProposalChange(p);
       var r='<div class="card" data-prop="'+escAttr(p.entry_id)+'">';
       r+='<div class="rowline"><span class="badge '+stCls+'">'+esc(p.status)+'</span>';
       if(camp) r+='<b style="font-size:13.5px">'+esc(camp.name)+'</b>';
       if(p.channel) r+='<span class="badge">'+esc(CHLABEL[p.channel]||p.channel)+'</span>';
       r+='<span style="flex:1"></span><span class="metaline" style="margin:0">by '+esc(p.proposed_by||"bot")+' · '+esc(ago(p.created_at))+'</span></div>';
-      r+='<div style="font-size:13.5px; margin-top:8px"><code>'+esc(p.field)+'</code>: '
-        +'<span style="color:var(--muted)">'+esc(p.old_value==null?"—":p.old_value)+'</span> → <b>'+esc(p.new_value)+'</b></div>';
+      r+='<div style="font-size:13.5px; margin-top:8px"><code>'+esc(p.field)+'</code>: <b>'+esc(desc.summary)+'</b></div>';
+      if(desc.rationale) r+='<div class="metaline">'+esc(desc.rationale)+'</div>';
       if(withActions){
         r+='<div class="actions" style="margin-bottom:0">'
           +'<button class="btn sm primary" data-approve="1"><svg><use href="#i-check"/></svg> Approve &amp; apply…</button>'
@@ -1559,7 +2376,7 @@
           .then(parse).then(function(res){
             if(!res.ok){ var m=errText(res, { channel:p.channel }); if(errEl) showInlineErr(errEl, m); return { error:m }; }
             toast(body.decision==="approve" ? "Approved and applied" : "Rejected");
-            loadProposals(); refresh();
+            refresh().then(loadProposals);
             return null;
           });
       }
@@ -1576,6 +2393,1163 @@
       if(rj) rj.addEventListener("click", function(){ if(errEl) clearInlineErr(errEl); decide({ decision:"reject" }); });
     });
   }
+
+  // ══ COMPLIANCE ════════════════════════════════════════════════════════════════════════════
+  function el(tag, attrs, text){
+    var n=document.createElement(tag);
+    if(attrs) Object.keys(attrs).forEach(function(k){ n.setAttribute(k, attrs[k]); });
+    if(text!==undefined && text!==null) n.textContent=String(text);
+    return n;
+  }
+  function updateComplianceBadge(readiness, counts){
+    var badge=$("compStatusBadge");
+    if(readiness && readiness.readyForEmailSend){
+      badge.className="badge ok";
+      badge.textContent="Ready for email";
+    } else {
+      badge.className="badge warn";
+      badge.textContent="Blocked: set sender identity & postal address";
+    }
+    if(counts && $("compCounts")){
+      $("compCounts").textContent = Number(counts.contactCount||0) + " contacts · "
+        + Number(counts.confirmedConsentCount||0) + " confirmed · "
+        + Number(counts.suppressionCount||0) + " suppressed";
+    }
+  }
+  function fillComplianceForm(s){
+    s = s || {};
+    $("compSenderName").value = s.senderName || "";
+    $("compSenderEmail").value = s.senderEmail || "";
+    $("compReplyTo").value = s.replyToEmail || "";
+    $("compPostalAddress").value = s.postalAddress || "";
+    $("compUnsubUrl").value = s.unsubscribeBaseUrl || "";
+    $("compQuietStart").value = s.smsQuietStartHour != null ? s.smsQuietStartHour : 21;
+    $("compQuietEnd").value = s.smsQuietEndHour != null ? s.smsQuietEndHour : 8;
+    $("compQuietTz").value = s.smsDefaultTimezone || "America/New_York";
+  }
+  function loadComplianceSettings(){
+    return api("/compliance").then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("compErr"), errText(res, null)); return; }
+      clearInlineErr($("compErr"));
+      fillComplianceForm(res.j && res.j.settings);
+      updateComplianceBadge(res.j && res.j.readiness, res.j && res.j.counts);
+    }).catch(function(e){ showInlineErr($("compErr"), "Compliance load failed — "+((e&&e.message)||e)); });
+  }
+  function renderSuppressions(list){
+    var host=$("suppList"); host.textContent="";
+    if(!list || !list.length){ host.appendChild(el("div", { class:"empty" }, "No suppressions recorded yet.")); return; }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Channel","Address hash","Reason","Source","Recorded"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    list.forEach(function(s){
+      var tr=el("tr");
+      tr.appendChild(el("td", null, s.channel || "email"));
+      tr.appendChild(el("td", { style:"font-family:monospace;font-size:11.5px;word-break:break-all" }, String(s.address_hash || "").slice(0, 16) + "…"));
+      tr.appendChild(el("td", null, s.reason || ""));
+      tr.appendChild(el("td", null, s.source || "manual"));
+      tr.appendChild(el("td", null, ago(s.created_at)));
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadSuppressions(){
+    return api("/audience/suppressions").then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("suppErr"), errText(res, null)); return; }
+      clearInlineErr($("suppErr"));
+      renderSuppressions((res.j && res.j.suppressions) || []);
+    }).catch(function(e){ showInlineErr($("suppErr"), "Suppressions load failed — "+((e&&e.message)||e)); });
+  }
+  function showConsentExport(payload){
+    $("compExportOut").textContent = JSON.stringify(payload, null, 2);
+    $("compExportWrap").style.display = "block";
+  }
+  function renderComplianceContacts(contacts){
+    var host=$("compContactsList"); host.textContent="";
+    if(!contacts || !contacts.length){ host.appendChild(el("div", { class:"empty" }, "No contacts in your audience store yet.")); return; }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Email","Name","Status","Actions"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    contacts.forEach(function(c){
+      var tr=el("tr");
+      tr.appendChild(el("td", null, c.email || ""));
+      tr.appendChild(el("td", null, c.display_name || "—"));
+      var stTd=el("td"); stTd.appendChild(el("span", { class:"badge "+(c.suppressed?"warn":"ok") }, c.suppressed ? "suppressed" : (c.status || "active")));
+      tr.appendChild(stTd);
+      var actTd=el("td"), row=el("div", { class:"rowline" });
+      var expBtn=el("button", { type:"button", class:"btn sm", "data-export-contact":c.contact_id }, "Export consent (JSON)");
+      expBtn.addEventListener("click", function(){
+        clearInlineErr($("compContactsErr"));
+        api("/audience/contacts/"+encodeURIComponent(c.contact_id)+"/consent-export").then(parse).then(function(res){
+          if(!res.ok){ showInlineErr($("compContactsErr"), errText(res, null)); return; }
+          showConsentExport(res.j && res.j.consentExport);
+          toast("Consent evidence exported");
+        }).catch(function(e){ showInlineErr($("compContactsErr"), "Export failed — "+((e&&e.message)||e)); });
+      });
+      var delBtn=el("button", { type:"button", class:"btn sm danger", "data-delete-contact":c.contact_id }, "Delete (export-first)");
+      delBtn.addEventListener("click", function(){
+        showConfirm({
+          title: "Delete contact (export-first)",
+          message: "This exports full consent evidence for " + (c.email || "this contact") + " first, then deletes the contact, consents, and list memberships.",
+          goLabel: "Export & delete",
+          onConfirm: function(){
+            return api("/audience/contacts/"+encodeURIComponent(c.contact_id), { method:"DELETE" }).then(parse).then(function(res){
+              if(!res.ok) return { error: errText(res, null) };
+              if(res.j && res.j.consentExport) showConsentExport(res.j.consentExport);
+              toast("Contact deleted after consent export");
+              loadCompliancePane();
+              return null;
+            });
+          }
+        });
+      });
+      row.appendChild(expBtn); row.appendChild(delBtn); actTd.appendChild(row); tr.appendChild(actTd);
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadComplianceContacts(){
+    return api("/audience/contacts").then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("compContactsErr"), errText(res, null)); return; }
+      clearInlineErr($("compContactsErr"));
+      var list=(res.j && res.j.contacts) || [];
+      renderComplianceContacts(list);
+      renderSmsContactSelect(list);
+    }).catch(function(e){ showInlineErr($("compContactsErr"), "Contacts load failed — "+((e&&e.message)||e)); });
+  }
+  function renderSmsContactSelect(contacts){
+    var sel=$("smsScheduleContact"); if(!sel) return;
+    var cur=sel.value;
+    sel.textContent="";
+    sel.appendChild(el("option", { value:"" }, "— Select contact —"));
+    (contacts || []).forEach(function(c){
+      var tzLabel = c.timezone ? (" · " + c.timezone + (c.timezone_inferred ? " (inferred)" : " (explicit)")) : "";
+      var phoneLabel = c.phone_e164 ? (" · " + c.phone_e164) : " · no phone";
+      sel.appendChild(el("option", { value:c.contact_id }, (c.email || c.display_name || c.contact_id) + phoneLabel + tzLabel));
+    });
+    if(cur) sel.value=cur;
+    else if(contacts && contacts.length === 1) sel.value=contacts[0].contact_id;
+  }
+  function formatSmsQueueBadge(item){
+    var st = String(item.status || "");
+    var tz = item.recipient_timezone || "UTC";
+    if(st === "held_quiet_hours") return { cls:"warn", label:"Held until 08:00 (" + tz + ")" };
+    if(st === "ready") return { cls:"ok", label:"Ready" };
+    if(st === "refused_consent") return { cls:"err", label:"Refused (no SMS consent)" };
+    if(st === "refused_suppressed") return { cls:"err", label:"Refused (suppressed)" };
+    if(st === "cancelled") return { cls:"", label:"Cancelled" };
+    return { cls:"ok", label:st || "recorded" };
+  }
+  function renderSmsQueue(items){
+    var list = items || [];
+    if($("smsQueueCountBadge")) $("smsQueueCountBadge").textContent = list.length + (list.length === 1 ? " item" : " items");
+    var host=$("smsQueueList"); if(!host) return;
+    host.textContent="";
+    if(!list.length){
+      host.appendChild(el("div", { class:"empty" }, "No SMS queue evaluations yet — record TCPA/CTIA opt-in above and evaluate a send."));
+      return;
+    }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Contact","Timezone","Decision","Release at","Message"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    list.forEach(function(it){
+      var tr=el("tr");
+      tr.appendChild(el("td", null, (it.email || it.contact_id || "") + (it.phone_e164 ? " (" + it.phone_e164 + ")" : "")));
+      var tzTd=el("td");
+      tzTd.appendChild(el("span", { class:"badge "+(it.timezone_inferred?"warn":"ok") }, (it.recipient_timezone || "") + (it.timezone_inferred ? " · inferred" : " · explicit")));
+      tr.appendChild(tzTd);
+      var b=formatSmsQueueBadge(it);
+      var stTd=el("td");
+      stTd.appendChild(el("span", { class:"badge "+b.cls }, b.label));
+      tr.appendChild(stTd);
+      tr.appendChild(el("td", { style:"font-family:monospace;font-size:12px" }, it.release_at ? String(it.release_at) : "—"));
+      tr.appendChild(el("td", null, String(it.body || "").slice(0, 80)));
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadSmsQueue(){
+    return api("/audience/sms/queue").then(parse).then(function(res){
+      if(!res.ok){ renderSmsQueue([]); return; }
+      renderSmsQueue((res.j && res.j.items) || []);
+    }).catch(function(){ renderSmsQueue([]); });
+  }
+  var optinState = { forms: [], lists: [], activeTestSlug: null, pendingToken: null };
+  function renderOptinListSelect(lists){
+    ["optinList", "bcList"].forEach(function(id){
+      var sel=$(id); if(!sel) return;
+      var cur=sel.value;
+      sel.textContent="";
+      sel.appendChild(el("option", { value:"" }, id==="bcList" ? "— Select target list —" : "— No target list —"));
+      (lists || []).forEach(function(l){
+        sel.appendChild(el("option", { value:l.list_id }, (l.name || l.slug) + " (" + l.slug + ")"));
+      });
+      sel.value=cur;
+    });
+  }
+  function showOptinSnippet(slug, html){
+    $("optinSnippetTitle").textContent = "Embeddable static-site snippet — " + slug;
+    $("optinSnippetOut").value = html || "";
+    $("optinSnippetWrap").style.display = "block";
+  }
+  function openOptinTest(form){
+    optinState.activeTestSlug = form.slug;
+    optinState.pendingToken = null;
+    $("optinTestTitle").textContent = "Test double opt-in — " + form.name + " (" + form.slug + ")";
+    $("optinTestState").className = "badge";
+    $("optinTestState").textContent = "ready";
+    $("optinTestConfirmBtn").style.display = "none";
+    $("optinTestOut").style.display = "none";
+    $("optinTestOut").textContent = "";
+    clearInlineErr($("optinTestErr"));
+    $("optinTestWrap").style.display = "block";
+  }
+  function renderSignupForms(forms){
+    optinState.forms = forms || [];
+    $("optinFormsCount").textContent = optinState.forms.length + (optinState.forms.length === 1 ? " form" : " forms");
+    var host=$("optinFormsList"); host.textContent="";
+    if(!optinState.forms.length){ host.appendChild(el("div", { class:"empty" }, "No sign-up forms yet — create one above to generate an embeddable double opt-in snippet.")); return; }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Form","Slug","Limits","Status","Actions"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    optinState.forms.forEach(function(f){
+      var tr=el("tr");
+      tr.appendChild(el("td", null, f.name || f.slug));
+      tr.appendChild(el("td", { style:"font-family:monospace;font-size:12px" }, f.slug || ""));
+      tr.appendChild(el("td", null, String(f.rate_limit_per_ip_hour || 10) + "/IP · " + String(f.rate_limit_per_form_hour || 200) + "/form"));
+      var stTd=el("td");
+      stTd.appendChild(el("span", { class:"badge "+(f.enabled?"ok":"warn") }, (f.enabled?"enabled":"disabled") + " · " + Number(f.pending_count||0) + " pending / " + Number(f.confirmed_count||0) + " confirmed"));
+      tr.appendChild(stTd);
+      var actTd=el("td"), row=el("div", { class:"rowline" });
+      var snipBtn=el("button", { type:"button", class:"btn sm", "data-optin-snippet":f.slug }, "Copy embed snippet");
+      snipBtn.addEventListener("click", function(){
+        clearInlineErr($("optinErr"));
+        api("/audience/signup-forms/"+encodeURIComponent(f.slug)+"/snippet").then(parse).then(function(res){
+          if(!res.ok){ showInlineErr($("optinErr"), errText(res, null)); return; }
+          showOptinSnippet(f.slug, res.j && res.j.html);
+          toast("Embed snippet ready");
+        }).catch(function(e){ showInlineErr($("optinErr"), "Snippet load failed — "+((e&&e.message)||e)); });
+      });
+      var testBtn=el("button", { type:"button", class:"btn sm", "data-optin-test":f.slug }, "Test double opt-in");
+      testBtn.addEventListener("click", function(){ openOptinTest(f); });
+      var delBtn=el("button", { type:"button", class:"btn sm danger", "data-optin-delete":f.slug }, "Delete form");
+      delBtn.addEventListener("click", function(){
+        showConfirm({
+          title: "Delete sign-up form",
+          message: "Delete sign-up form " + (f.name || f.slug) + " (" + f.slug + ") and its pending confirmation tokens?",
+          goLabel: "Delete form",
+          onConfirm: function(){
+            return api("/audience/signup-forms/"+encodeURIComponent(f.slug), { method:"DELETE" }).then(parse).then(function(res){
+              if(!res.ok) return { error: errText(res, null) };
+              if(optinState.activeTestSlug === f.slug) $("optinTestWrap").style.display = "none";
+              toast("Sign-up form deleted");
+              loadSignupForms();
+              return null;
+            });
+          }
+        });
+      });
+      row.appendChild(snipBtn); row.appendChild(testBtn); row.appendChild(delBtn);
+      actTd.appendChild(row); tr.appendChild(actTd); tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadSignupForms(){
+    return api("/audience/signup-forms").then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("optinErr"), errText(res, null)); return; }
+      clearInlineErr($("optinErr"));
+      renderSignupForms((res.j && res.j.forms) || []);
+    }).catch(function(e){ showInlineErr($("optinErr"), "Sign-up forms load failed — "+((e&&e.message)||e)); });
+  }
+  function loadOptinLists(){
+    return api("/audience/lists").then(parse).then(function(res){
+      if(!res.ok) return;
+      optinState.lists = (res.j && res.j.lists) || [];
+      renderOptinListSelect(optinState.lists);
+    }).catch(function(){});
+  }
+  var bcState = { broadcasts: [], activeId: null, previewTokensByContact: {} };
+  function formatBroadcastStats(st){
+    st = st || {};
+    var parts = [];
+    if(st.sent) parts.push(st.sent + " sent");
+    if(st.dryRun || st.eligible) parts.push(Number(st.dryRun || st.eligible || 0) + " dry-run eligible");
+    if(st.skippedUnconfirmed) parts.push(st.skippedUnconfirmed + " skipped unconfirmed");
+    if(st.skippedSuppressed) parts.push(st.skippedSuppressed + " skipped suppressed");
+    if(st.skippedCap) parts.push(st.skippedCap + " skipped cap");
+    if(st.skippedConsent) parts.push(st.skippedConsent + " skipped consent");
+    if(st.skippedCompliance) parts.push(st.skippedCompliance + " skipped compliance");
+    if(st.error) parts.push(st.error + " error");
+    return parts.length ? parts.join(" · ") : "not run yet";
+  }
+  function renderBroadcastLedger(title, stats, deliveries, previewTokens){
+    var wrap=$("broadcastLedgerWrap"); if(!wrap) return;
+    $("bcLedgerTitle").textContent = title || "Per-recipient decision ledger";
+    $("bcLedgerStats").textContent = formatBroadcastStats(stats);
+    $("bcLedgerStats").className = "badge " + ((stats && (stats.dryRun || stats.sent)) ? "ok" : "warn");
+    var tokMap = {};
+    (previewTokens || []).forEach(function(pt){
+      if(pt && pt.contactId && pt.unsubscribeToken) tokMap[pt.contactId] = pt;
+    });
+    bcState.previewTokensByContact = tokMap;
+    var host=$("bcLedgerTable"); host.textContent="";
+    if(!deliveries || !deliveries.length){
+      host.appendChild(el("div", { class:"empty" }, "No recipient delivery decisions recorded yet."));
+      wrap.style.display="block";
+      return;
+    }
+    var tblWrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Recipient hash","Decision","Gate reason","Action"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    deliveries.forEach(function(d){
+      var tr=el("tr");
+      var pt = d.contact_id ? tokMap[d.contact_id] : null;
+      tr.appendChild(el("td", { style:"font-family:monospace;font-size:11.5px;word-break:break-all" }, pt && pt.email ? pt.email : (d.email_hash ? String(d.email_hash).slice(0, 16) + "…" : "—")));
+      var stCls = (d.status==="sent" || d.status==="dry_run") ? "ok" : (d.status==="error" ? "err" : "warn");
+      var stTd=el("td"); stTd.appendChild(el("span", { class:"badge "+stCls }, d.status || ""));
+      tr.appendChild(stTd);
+      tr.appendChild(el("td", null, d.gate_reason || "—"));
+      var actTd=el("td");
+      if(pt && pt.unsubscribeToken){
+        var unsubBtn=el("button", { type:"button", class:"btn sm danger", "data-bc-unsub":d.contact_id }, "Test one-click unsubscribe");
+        unsubBtn.addEventListener("click", function(){
+          clearInlineErr($("bcLedgerErr"));
+          unsubBtn.disabled=true;
+          api("/audience/unsubscribe", { method:"POST", body:JSON.stringify({ token: pt.unsubscribeToken }) }).then(parse).then(function(res){
+            unsubBtn.disabled=false;
+            if(!res.ok){ showInlineErr($("bcLedgerErr"), errText(res, null)); return; }
+            toast("One-click unsubscribe applied — contact suppressed and consent revoked");
+            loadComplianceSettings(); loadSuppressions(); loadComplianceContacts();
+            if(bcState.activeId) runBroadcastDryRun(bcState.activeId);
+          }).catch(function(e){ unsubBtn.disabled=false; showInlineErr($("bcLedgerErr"), "Unsubscribe failed — "+((e&&e.message)||e)); });
+        });
+        actTd.appendChild(unsubBtn);
+      } else {
+        actTd.appendChild(el("span", { class:"metaline", style:"margin:0" }, d.provider_ref ? ("ref " + d.provider_ref) : "—"));
+      }
+      tr.appendChild(actTd);
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); tblWrap.appendChild(tbl); host.appendChild(tblWrap);
+    wrap.style.display="block";
+  }
+  function runBroadcastDryRun(messageId){
+    clearInlineErr($("bcErr")); clearInlineErr($("bcLedgerErr"));
+    bcState.activeId = messageId;
+    return api("/broadcasts/"+encodeURIComponent(messageId)+"/send", {
+      method:"POST", body:JSON.stringify({ dryRun:true, includeUnsubscribePreviewTokens:true })
+    }).then(parse).then(function(res){
+      var j = res.j || {};
+      if(!res.ok){
+        showInlineErr($("bcErr"), errText(res, { channel:"email" }));
+        if(j.deliveries) renderBroadcastLedger("Dry-run gate audit (blocked)", j.stats, j.deliveries, []);
+        loadBroadcasts();
+        return;
+      }
+      renderBroadcastLedger("Dry-run gate audit", j.stats, j.deliveries || [], j.previewTokens || []);
+      toast("Broadcast dry-run complete");
+      loadBroadcasts();
+    }).catch(function(e){ showInlineErr($("bcErr"), "Dry-run failed — "+((e&&e.message)||e)); });
+  }
+  function inspectBroadcastLedger(messageId){
+    clearInlineErr($("bcErr")); clearInlineErr($("bcLedgerErr"));
+    bcState.activeId = messageId;
+    return api("/broadcasts/"+encodeURIComponent(messageId)).then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("bcErr"), errText(res, null)); return; }
+      var j = res.j || {};
+      var b = j.broadcast || {};
+      renderBroadcastLedger("Stored delivery ledger — " + (b.subject || messageId), b.stats, j.deliveries || [], []);
+    }).catch(function(e){ showInlineErr($("bcErr"), "Ledger load failed — "+((e&&e.message)||e)); });
+  }
+  function renderBroadcasts(list){
+    bcState.broadcasts = list || [];
+    if($("bcCountBadge")) $("bcCountBadge").textContent = bcState.broadcasts.length + (bcState.broadcasts.length === 1 ? " broadcast" : " broadcasts");
+    var host=$("broadcastsList"); if(!host) return;
+    host.textContent="";
+    if(!bcState.broadcasts.length){
+      host.appendChild(el("div", { class:"empty" }, "No broadcasts yet — create a draft above, then dry-run the send gates."));
+      return;
+    }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Subject","Template","Status","Gate summary","Actions"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    bcState.broadcasts.forEach(function(b){
+      var tr=el("tr");
+      tr.appendChild(el("td", null, b.subject || ""));
+      tr.appendChild(el("td", null, b.template_id || "announcement"));
+      var stTd=el("td");
+      var stCls = b.status==="sent" ? "ok" : b.status==="blocked" ? "err" : b.status==="partial" ? "warn" : "";
+      stTd.appendChild(el("span", { class:"badge "+stCls }, b.status || "draft"));
+      tr.appendChild(stTd);
+      tr.appendChild(el("td", null, formatBroadcastStats(b.stats)));
+      var actTd=el("td"), row=el("div", { class:"rowline" });
+      var dryBtn=el("button", { type:"button", class:"btn sm primary", "data-bc-dryrun":b.message_id }, "Dry-run gates");
+      dryBtn.addEventListener("click", function(){ runBroadcastDryRun(b.message_id); });
+      var inspBtn=el("button", { type:"button", class:"btn sm", "data-bc-inspect":b.message_id }, "Inspect ledger");
+      inspBtn.addEventListener("click", function(){ inspectBroadcastLedger(b.message_id); });
+      row.appendChild(dryBtn); row.appendChild(inspBtn);
+      actTd.appendChild(row); tr.appendChild(actTd); tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadBroadcasts(){
+    return api("/broadcasts").then(parse).then(function(res){
+      if(!res.ok){ renderBroadcasts([]); return; }
+      clearInlineErr($("bcErr"));
+      renderBroadcasts((res.j && res.j.broadcasts) || []);
+    }).catch(function(){ renderBroadcasts([]); });
+  }
+  var seqState = { sequences: [], activeId: null };
+  function renderSequenceSelect(list){
+    var sel=$("seqStepTarget"); if(!sel) return;
+    var cur=sel.value;
+    sel.textContent="";
+    sel.appendChild(el("option", { value:"" }, "— Select sequence —"));
+    (list || []).forEach(function(s){
+      sel.appendChild(el("option", { value:s.sequence_id }, (s.name || s.slug) + " (" + s.slug + ")"));
+    });
+    if(cur) sel.value=cur;
+    else if(list && list.length === 1) sel.value=list[0].sequence_id;
+  }
+  function formatSeqTickStats(st){
+    st = st || {};
+    var parts = [];
+    if(st.sent) parts.push(st.sent + " sent");
+    if(st.dryRun) parts.push(st.dryRun + " dry-run");
+    if(st.completed) parts.push(st.completed + " completed");
+    if(st.stoppedUnsubscribed) parts.push(st.stoppedUnsubscribed + " stopped unsubscribed");
+    if(st.stoppedUnconsented) parts.push(st.stoppedUnconsented + " stopped unconsented");
+    if(st.skippedCap) parts.push(st.skippedCap + " deferred cap");
+    if(st.notDue) parts.push(st.notDue + " not due");
+    return parts.length ? parts.join(" · ") : "0 due enrollments";
+  }
+  function renderSeqTickResult(title, resBody){
+    var wrap=$("seqTickWrap"); if(!wrap) return;
+    $("seqTickTitle").textContent = title || "Sequence dry-run output";
+    $("seqTickStats").textContent = formatSeqTickStats(resBody && resBody.stats);
+    $("seqTickStats").className = "badge " + (resBody && resBody.armed ? "ok" : "warn");
+    var host=$("seqTickTable"); host.textContent="";
+    var decisions = (resBody && resBody.decisions) || [];
+    if(!decisions.length){
+      host.appendChild(el("div", { class:"empty" }, "No active enrollments due for this sequence."));
+      wrap.style.display="block";
+      return;
+    }
+    var tblWrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Contact","Step","Outcome","Next status","Reason"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    decisions.forEach(function(d){
+      var tr=el("tr");
+      tr.appendChild(el("td", null, d.email || d.contactId || "—"));
+      tr.appendChild(el("td", null, d.stepOrder != null ? ("Step " + d.stepOrder) : "—"));
+      var stTd=el("td");
+      var cls = (d.outcome==="sent" || d.outcome==="dry_run" || d.outcome==="completed") ? "ok" : (d.outcome==="error" ? "err" : "warn");
+      stTd.appendChild(el("span", { class:"badge "+cls }, d.outcome || ""));
+      tr.appendChild(stTd);
+      tr.appendChild(el("td", null, d.nextStatus || "—"));
+      tr.appendChild(el("td", null, d.gateReason || d.error || "—"));
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); tblWrap.appendChild(tbl); host.appendChild(tblWrap);
+    wrap.style.display="block";
+  }
+  function renderSequenceDetail(detail){
+    var wrap=$("seqDetailWrap"); if(!wrap || !detail || !detail.sequence) return;
+    var s = detail.sequence;
+    $("seqDetailTitle").textContent = "Sequence — " + (s.name || s.slug);
+    $("seqDetailBadge").className = "badge " + (s.armed ? "ok" : "warn");
+    $("seqDetailBadge").textContent = s.armed ? ("Armed (cap " + s.daily_cap + "/day)") : "OFF (disarmed)";
+    var host=$("seqDetailBody"); host.textContent="";
+    var steps = detail.steps || [];
+    var enrolls = detail.enrollments || [];
+    host.appendChild(el("div", { class:"metaline" }, steps.length + " step(s) · " + enrolls.length + " enrollment(s)"));
+    if(steps.length){
+      var sList = el("ul", { class:"rf" });
+      steps.forEach(function(st){
+        sList.appendChild(el("li", null, "Step " + st.step_order + " (+" + st.delay_hours + "h · " + st.template_id + "): " + st.subject));
+      });
+      host.appendChild(sList);
+    }
+    if(enrolls.length){
+      var eWrap=el("div", { class:"tblwrap", style:"margin-top:8px" }), tbl=el("table", { class:"tbl" });
+      var thead=el("thead"), hr=el("tr");
+      ["Contact","Step","Status","Next run"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+      thead.appendChild(hr); tbl.appendChild(thead);
+      var tbody=el("tbody");
+      enrolls.forEach(function(en){
+        var tr=el("tr");
+        tr.appendChild(el("td", null, en.email || en.contact_id));
+        tr.appendChild(el("td", null, String(en.current_step_order || 0)));
+        var stTd=el("td");
+        var cls = en.status==="completed" ? "ok" : en.status==="active" ? "acc" : "warn";
+        stTd.appendChild(el("span", { class:"badge "+cls }, en.status || ""));
+        tr.appendChild(stTd);
+        tr.appendChild(el("td", null, en.next_run_at ? ago(en.next_run_at) : "—"));
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody); eWrap.appendChild(tbl); host.appendChild(eWrap);
+    }
+    wrap.style.display="block";
+  }
+  function openSequenceArmConfirm(seq){
+    clearInlineErr($("seqErr"));
+    var cap = Number(seq.daily_cap || 0) >= 1 ? Number(seq.daily_cap) : 10;
+    showConfirm({
+      title: "Arm sequence standing authorization",
+      message: "Arm " + (seq.name || seq.slug) + " to send due steps automatically up to " + cap + "/day without per-email clicks. Every step still re-checks recipient consent and suppression, and Disarm stops it in one click.",
+      goLabel: "Arm standing auth",
+      onConfirm: function(extra){
+        return api("/sequences/"+encodeURIComponent(seq.sequence_id)+"/authorization", {
+          method:"PUT",
+          body:JSON.stringify({ standingAuthorization:true, dailyCap:cap, confirm:extra.confirm })
+        }).then(parse).then(function(res){
+          if(!res.ok) return { error: errText(res, { channel:"email" }) };
+          toast("Sequence armed (cap " + cap + "/day)");
+          loadSequences();
+          return null;
+        });
+      }
+    });
+  }
+  function disarmSequenceNow(seq){
+    clearInlineErr($("seqErr"));
+    api("/sequences/"+encodeURIComponent(seq.sequence_id)+"/disarm", { method:"POST", body:JSON.stringify({}) })
+      .then(parse).then(function(res){
+        if(!res.ok){ showInlineErr($("seqErr"), errText(res, null)); return; }
+        toast("Sequence disarmed — no further automated steps will send");
+        loadSequences();
+      }).catch(function(e){ showInlineErr($("seqErr"), "Disarm failed — "+((e&&e.message)||e)); });
+  }
+  function runSequenceDryRun(seq){
+    clearInlineErr($("seqErr")); clearInlineErr($("seqTickErr"));
+    api("/sequences/"+encodeURIComponent(seq.sequence_id)+"/tick", {
+      method:"POST", body:JSON.stringify({ dryRun:true })
+    }).then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("seqErr"), errText(res, { channel:"email" })); return; }
+      renderSeqTickResult("Dry-run — " + (seq.name || seq.slug), res.j || {});
+      toast("Sequence dry-run complete");
+      loadSequences();
+    }).catch(function(e){ showInlineErr($("seqErr"), "Dry-run failed — "+((e&&e.message)||e)); });
+  }
+  function inspectSequenceDetail(seqId){
+    clearInlineErr($("seqErr"));
+    api("/sequences/"+encodeURIComponent(seqId)).then(parse).then(function(res){
+      if(!res.ok){ showInlineErr($("seqErr"), errText(res, null)); return; }
+      renderSequenceDetail(res.j || {});
+    }).catch(function(e){ showInlineErr($("seqErr"), "Inspect failed — "+((e&&e.message)||e)); });
+  }
+  function renderSequences(list){
+    seqState.sequences = list || [];
+    if($("seqCountBadge")) $("seqCountBadge").textContent = seqState.sequences.length + (seqState.sequences.length === 1 ? " sequence" : " sequences");
+    renderSequenceSelect(seqState.sequences);
+    var host=$("sequencesList"); if(!host) return;
+    host.textContent="";
+    if(!seqState.sequences.length){
+      host.appendChild(el("div", { class:"empty" }, "No sequences yet — create one above (starts OFF by default), add steps, then arm when ready."));
+      return;
+    }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Sequence","Standing Auth","Steps & Enrollments","Actions"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    seqState.sequences.forEach(function(s){
+      var tr=el("tr", { "data-seq-row":s.sequence_id });
+      var nameTd=el("td");
+      nameTd.appendChild(el("div", null, s.name || s.slug));
+      nameTd.appendChild(el("div", { class:"metaline", style:"margin:0" }, s.slug + (s.trigger_form_slug ? (" · form: " + s.trigger_form_slug) : "")));
+      tr.appendChild(nameTd);
+      var authTd=el("td");
+      authTd.appendChild(el("span", { class:"badge "+(s.armed?"ok":"warn"), "data-seq-badge":s.sequence_id }, s.armed ? ("Armed (cap " + s.daily_cap + "/day)") : "OFF (disarmed)"));
+      tr.appendChild(authTd);
+      tr.appendChild(el("td", null, Number(s.step_count||0) + " steps · " + Number(s.active_enrollment_count||0) + " active / " + Number(s.total_enrollment_count||0) + " total"));
+      var actTd=el("td"), row=el("div", { class:"rowline" });
+      if(s.armed){
+        var disBtn=el("button", { type:"button", class:"btn sm danger", "data-seq-disarm":s.sequence_id }, "Disarm");
+        disBtn.addEventListener("click", function(){ disarmSequenceNow(s); });
+        row.appendChild(disBtn);
+      } else {
+        var armBtn=el("button", { type:"button", class:"btn sm primary", "data-seq-arm":s.sequence_id }, "Arm standing auth");
+        armBtn.addEventListener("click", function(){ openSequenceArmConfirm(s); });
+        row.appendChild(armBtn);
+      }
+      var dryBtn=el("button", { type:"button", class:"btn sm", "data-seq-dryrun":s.sequence_id }, "Run due steps (dry-run)");
+      dryBtn.addEventListener("click", function(){ runSequenceDryRun(s); });
+      var inspBtn=el("button", { type:"button", class:"btn sm", "data-seq-inspect":s.sequence_id }, "Inspect");
+      inspBtn.addEventListener("click", function(){ inspectSequenceDetail(s.sequence_id); });
+      row.appendChild(dryBtn); row.appendChild(inspBtn);
+      actTd.appendChild(row); tr.appendChild(actTd); tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadSequences(){
+    return api("/sequences").then(parse).then(function(res){
+      if(!res.ok){ renderSequences([]); return; }
+      clearInlineErr($("seqErr"));
+      renderSequences((res.j && res.j.sequences) || []);
+    }).catch(function(){ renderSequences([]); });
+  }
+  function loadCompliancePane(){
+    loadComplianceSettings();
+    loadSignupForms();
+    loadOptinLists();
+    loadBroadcasts();
+    loadSequences();
+    loadSmsQueue();
+    loadSuppressions();
+    loadComplianceContacts();
+  }
+  function renderTemplateChecklist(rendered){
+    var ul=$("tplChecklist"); ul.textContent="";
+    var errs=(rendered && rendered.compliance && rendered.compliance.errors) || [];
+    var hasErr=function(code){ return errs.some(function(e){ return e.code===code; }); };
+    var checks=[
+      { label:"Sender identity", ok:!hasErr("compliance_identity_required") },
+      { label:"Postal address footer", ok:!hasErr("compliance_postal_address_required") && !hasErr("template_missing_html_footer") && !hasErr("template_missing_text_footer") },
+      { label:"Unsubscribe link", ok:!hasErr("template_missing_html_unsubscribe") && !hasErr("template_missing_text_unsubscribe") },
+      { label:"HTML part", ok:Boolean(rendered && rendered.html) && !hasErr("template_missing_html_part") },
+      { label:"Plain-text alternative", ok:Boolean(rendered && rendered.text) && !hasErr("template_missing_text_part") }
+    ];
+    checks.forEach(function(item){
+      var li=el("li");
+      li.appendChild(el("span", { class:"badge "+(item.ok?"ok":"err") }, (item.ok?"✓ ":"✕ ") + item.label));
+      ul.appendChild(li);
+    });
+    var badge=$("tplApproveBadge");
+    if(rendered && rendered.canApprove){
+      badge.className="badge ok"; badge.textContent="Can approve";
+    } else {
+      badge.className="badge err"; badge.textContent="Blocked: " + (errs[0] ? errs[0].message : "incomplete");
+    }
+  }
+  $("complianceForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("compErr"));
+    var btn=$("compSaveBtn"); btn.disabled=true;
+    var payload={
+      senderName:$("compSenderName").value.trim(),
+      senderEmail:$("compSenderEmail").value.trim(),
+      replyToEmail:$("compReplyTo").value.trim(),
+      postalAddress:$("compPostalAddress").value.trim(),
+      unsubscribeBaseUrl:$("compUnsubUrl").value.trim(),
+      smsQuietStartHour:Number($("compQuietStart").value),
+      smsQuietEndHour:Number($("compQuietEnd").value),
+      smsDefaultTimezone:$("compQuietTz").value.trim()
+    };
+    api("/compliance", { method:"PUT", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("compErr"), errText(res, null)); return; }
+      fillComplianceForm(res.j && res.j.settings);
+      updateComplianceBadge(res.j && res.j.readiness, null);
+      toast("Compliance settings saved");
+      loadComplianceSettings();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("compErr"), "Save failed — "+((e&&e.message)||e)); });
+  });
+  $("tplPreviewBtn").addEventListener("click", function(){
+    clearInlineErr($("tplErr"));
+    var btn=$("tplPreviewBtn"); btn.disabled=true;
+    var payload={
+      templateId:$("tplSelect").value,
+      subject:$("tplSubject").value.trim(),
+      headline:$("tplHeadline").value.trim(),
+      intro:$("tplIntro").value.trim(),
+      body:$("tplBody").value.trim(),
+      ctaLabel:$("tplCtaLabel").value.trim(),
+      ctaUrl:$("tplCtaUrl").value.trim()
+    };
+    api("/templates/render", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("tplErr"), errText(res, null)); return; }
+      var rendered=res.j || {};
+      $("tplHtmlPreview").srcdoc = rendered.html || "";
+      $("tplTextPreview").textContent = rendered.text || "";
+      renderTemplateChecklist(rendered);
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("tplErr"), "Preview failed — "+((e&&e.message)||e)); });
+  });
+  $("suppAddBtn").addEventListener("click", function(){
+    clearInlineErr($("suppErr"));
+    var email=$("suppEmail").value.trim();
+    if(!email){ showInlineErr($("suppErr"), "Enter an email address to suppress."); return; }
+    var btn=$("suppAddBtn"); btn.disabled=true;
+    api("/audience/suppressions", { method:"POST", body:JSON.stringify({ email:email, channel:"email", reason:$("suppReason").value, source:"manual" }) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("suppErr"), errText(res, null)); return; }
+        $("suppEmail").value="";
+        toast("Address suppressed");
+        loadCompliancePane();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("suppErr"), "Suppression failed — "+((e&&e.message)||e)); });
+  });
+  $("signupFormCreate").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("optinErr"));
+    var btn=$("optinCreateBtn"); btn.disabled=true;
+    var payload={
+      name:$("optinName").value.trim(),
+      slug:$("optinSlug").value.trim(),
+      consentText:$("optinConsentText").value.trim(),
+      listId:$("optinList").value || null,
+      honeypotField:$("optinHoneypot").value.trim() || "company_website",
+      rateLimitPerIpPerHour:Number($("optinIpLimit").value),
+      rateLimitPerFormPerHour:Number($("optinFormLimit").value)
+    };
+    api("/audience/signup-forms", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("optinErr"), errText(res, null)); return; }
+      $("optinName").value=""; $("optinSlug").value=""; $("optinConsentText").value="";
+      if(res.j && res.j.snippet && res.j.form) showOptinSnippet(res.j.form.slug, res.j.snippet.html);
+      toast("Sign-up form created");
+      loadSignupForms();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("optinErr"), "Create failed — "+((e&&e.message)||e)); });
+  });
+  $("optinSnippetCopy").addEventListener("click", function(){
+    var txt=$("optinSnippetOut").value;
+    if(navigator.clipboard && txt) navigator.clipboard.writeText(txt).then(function(){ toast("Embed snippet copied"); });
+  });
+  $("optinTestSubmitBtn").addEventListener("click", function(){
+    clearInlineErr($("optinTestErr"));
+    if(!optinState.activeTestSlug) return;
+    var email=$("optinTestEmail").value.trim();
+    if(!email){ showInlineErr($("optinTestErr"), "Enter a test subscriber email."); return; }
+    var btn=$("optinTestSubmitBtn"); btn.disabled=true;
+    var payload={ email:email, utm_source:"compliance-pane", utm_medium:"owner-test", returnPreviewLink:true };
+    var camp=$("optinTestCampaign").value.trim();
+    if(camp) payload.utm_campaign=camp;
+    api("/audience/signup-forms/"+encodeURIComponent(optinState.activeTestSlug)+"/submit", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("optinTestErr"), errText(res, null)); return; }
+      var j=res.j || {};
+      $("optinTestOut").textContent = JSON.stringify(j, null, 2);
+      $("optinTestOut").style.display = "block";
+      if(j.preview && j.preview.token){
+        optinState.pendingToken = j.preview.token;
+        $("optinTestState").className = "badge warn";
+        $("optinTestState").textContent = "pending — awaiting confirmation";
+        $("optinTestConfirmBtn").style.display = "inline-flex";
+      } else {
+        optinState.pendingToken = null;
+        $("optinTestState").className = "badge";
+        $("optinTestState").textContent = "accepted (generic acknowledgement)";
+        $("optinTestConfirmBtn").style.display = "none";
+      }
+      loadSignupForms(); loadComplianceContacts();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("optinTestErr"), "Test submit failed — "+((e&&e.message)||e)); });
+  });
+  $("optinTestConfirmBtn").addEventListener("click", function(){
+    clearInlineErr($("optinTestErr"));
+    if(!optinState.pendingToken) return;
+    var btn=$("optinTestConfirmBtn"); btn.disabled=true;
+    api("/audience/opt-in/confirm", { method:"POST", body:JSON.stringify({ token:optinState.pendingToken }) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("optinTestErr"), errText(res, null)); return; }
+      optinState.pendingToken = null;
+      $("optinTestConfirmBtn").style.display = "none";
+      $("optinTestState").className = "badge ok";
+      $("optinTestState").textContent = "confirmed";
+      $("optinTestOut").textContent = JSON.stringify(res.j || {}, null, 2);
+      $("optinTestOut").style.display = "block";
+      toast("Subscription confirmed (pending -> confirmed)");
+      loadSignupForms(); loadComplianceContacts(); loadComplianceSettings();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("optinTestErr"), "Confirmation failed — "+((e&&e.message)||e)); });
+  });
+  $("broadcastForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("bcErr"));
+    var btn=$("bcCreateBtn"); btn.disabled=true;
+    var payload={
+      listId:$("bcList").value,
+      templateId:$("bcTemplate").value,
+      subject:$("bcSubject").value.trim(),
+      headline:$("bcHeadline").value.trim(),
+      body:$("bcBody").value.trim(),
+      ctaLabel:$("bcCtaLabel").value.trim(),
+      ctaUrl:$("bcCtaUrl").value.trim()
+    };
+    api("/broadcasts", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("bcErr"), errText(res, null)); return; }
+      $("bcSubject").value=""; $("bcHeadline").value=""; $("bcBody").value="";
+      $("bcCtaLabel").value=""; $("bcCtaUrl").value="";
+      toast("Broadcast draft created");
+      loadBroadcasts();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("bcErr"), "Create failed — "+((e&&e.message)||e)); });
+  });
+  $("sequenceForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("seqErr"));
+    var btn=$("seqCreateBtn"); btn.disabled=true;
+    var payload={
+      name:$("seqName").value.trim(),
+      slug:$("seqSlug").value.trim(),
+      triggerFormSlug:$("seqTriggerForm").value.trim(),
+      dailyCap:Number($("seqDailyCap").value),
+      description:$("seqDescription").value.trim()
+    };
+    api("/sequences", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("seqErr"), errText(res, null)); return; }
+      $("seqName").value=""; $("seqSlug").value=""; $("seqTriggerForm").value=""; $("seqDescription").value="";
+      toast("Sequence created (standing authorization OFF)");
+      loadSequences();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("seqErr"), "Create failed — "+((e&&e.message)||e)); });
+  });
+  $("sequenceStepForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("seqStepErr"));
+    var seqId=$("seqStepTarget").value;
+    if(!seqId){ showInlineErr($("seqStepErr"), "Select a target sequence first."); return; }
+    var btn=$("seqStepAddBtn"); btn.disabled=true;
+    var payload={
+      stepOrder:Number($("seqStepOrder").value),
+      delayHours:Number($("seqStepDelay").value),
+      templateId:$("seqStepTemplate").value,
+      subject:$("seqStepSubject").value.trim(),
+      body:$("seqStepBody").value.trim()
+    };
+    api("/sequences/"+encodeURIComponent(seqId)+"/steps", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("seqStepErr"), errText(res, null)); return; }
+      $("seqStepOrder").value=String(Number($("seqStepOrder").value || 1) + 1);
+      $("seqStepSubject").value=""; $("seqStepBody").value="";
+      toast("Sequence step added");
+      loadSequences();
+      inspectSequenceDetail(seqId);
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("seqStepErr"), "Add step failed — "+((e&&e.message)||e)); });
+  });
+  $("compExportCopy").addEventListener("click", function(){
+    var txt=$("compExportOut").textContent;
+    if(navigator.clipboard && txt) navigator.clipboard.writeText(txt).then(function(){ toast("Consent export copied"); });
+  });
+  if($("smsOptInForm")) $("smsOptInForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("smsOptInErr"));
+    var btn=$("smsOptInBtn"); btn.disabled=true;
+    var payload={
+      email:$("smsOptInEmail").value.trim(),
+      displayName:$("smsOptInName").value.trim(),
+      phoneE164:$("smsOptInPhone").value.trim(),
+      timezone:$("smsOptInTz").value.trim(),
+      programName:$("smsOptInProgram").value.trim(),
+      frequency:$("smsOptInFrequency").value.trim(),
+      helpText:$("smsOptInHelp").value.trim(),
+      stopText:$("smsOptInStop").value.trim(),
+      feeDisclosure:$("smsOptInFees").value.trim(),
+      disclosureText:$("smsOptInDisclosure").value.trim(),
+      recordedAt:new Date().toISOString()
+    };
+    api("/audience/sms-opt-in", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){
+        var missing = res.j && Array.isArray(res.j.missingFields) ? (" (" + res.j.missingFields.join(", ") + ")") : "";
+        showInlineErr($("smsOptInErr"), errText(res, null) + missing);
+        return;
+      }
+      var j=res.j || {};
+      $("smsOptInTzBadge").className = "badge " + (j.timezoneInferred ? "warn" : "ok");
+      $("smsOptInTzBadge").textContent = (j.timezone || "") + (j.timezoneInferred ? " (inferred)" : " (explicit)");
+      $("smsOptInConfirmText").textContent = j.confirmationText || "";
+      $("smsOptInResult").style.display = "block";
+      toast("SMS TCPA/CTIA opt-in recorded");
+      loadComplianceContacts().then(function(){
+        if(j.contact && j.contact.contact_id && $("smsScheduleContact")) $("smsScheduleContact").value = j.contact.contact_id;
+      });
+      loadComplianceSettings();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("smsOptInErr"), "SMS opt-in failed — "+((e&&e.message)||e)); });
+  });
+  if($("smsScheduleBtn")) $("smsScheduleBtn").addEventListener("click", function(){
+    clearInlineErr($("smsScheduleErr"));
+    var contactId=$("smsScheduleContact").value;
+    var body=$("smsScheduleBody").value.trim();
+    var nowIso=$("smsScheduleNow").value.trim();
+    if(!contactId){ showInlineErr($("smsScheduleErr"), "Select a contact first."); return; }
+    if(!body){ showInlineErr($("smsScheduleErr"), "Enter an SMS message body."); return; }
+    var btn=$("smsScheduleBtn"); btn.disabled=true;
+    var payload={ contactId:contactId, body:body };
+    if(nowIso) payload.nowIso=nowIso;
+    api("/audience/sms/schedule", { method:"POST", body:JSON.stringify(payload) }).then(parse).then(function(res){
+      btn.disabled=false;
+      var out=$("smsScheduleOut"); out.textContent=""; out.style.display="block";
+      var j=res.j || {};
+      if(!res.ok){
+        var msg = j.error === "sms_consent_required" ? "Refused (no SMS consent)"
+          : j.error === "sms_suppressed" ? "Refused (suppressed)" : errText(res, null);
+        out.appendChild(el("span", { class:"badge err" }, msg));
+        loadSmsQueue();
+        return;
+      }
+      var lbl = j.status === "held_quiet_hours"
+        ? ("Held until 08:00 (" + j.recipientTimezone + ") · release " + j.releaseAt)
+        : ("Ready (" + j.recipientTimezone + ")");
+      out.appendChild(el("span", { class:"badge " + (j.status==="held_quiet_hours"?"warn":"ok") }, lbl));
+      loadSmsQueue();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("smsScheduleErr"), "Schedule check failed — "+((e&&e.message)||e)); });
+  });
+  if($("smsKeywordBtn")) $("smsKeywordBtn").addEventListener("click", function(){
+    clearInlineErr($("smsScheduleErr"));
+    var contactId=$("smsScheduleContact").value;
+    var kw=$("smsKeywordInput").value.trim();
+    if(!contactId){ showInlineErr($("smsScheduleErr"), "Select a contact first."); return; }
+    if(!kw){ showInlineErr($("smsScheduleErr"), "Enter STOP or HELP."); return; }
+    var btn=$("smsKeywordBtn"); btn.disabled=true;
+    api("/audience/sms/keyword", { method:"POST", body:JSON.stringify({ contactId:contactId, body:kw }) }).then(parse).then(function(res){
+      btn.disabled=false;
+      if(!res.ok){ showInlineErr($("smsScheduleErr"), errText(res, null)); return; }
+      var j=res.j || {};
+      var out=$("smsScheduleOut"); out.textContent=""; out.style.display="block";
+      out.appendChild(el("span", { class:"badge " + (j.suppressed?"err":"ok") }, (j.action || "none").toUpperCase() + (j.replyText ? " — " + j.replyText : "")));
+      loadSmsQueue(); loadSuppressions(); loadComplianceContacts();
+    }).catch(function(e){ btn.disabled=false; showInlineErr($("smsScheduleErr"), "Keyword test failed — "+((e&&e.message)||e)); });
+  });
+
+  // ══ LAUNCH PLANS & UNIFIED CALENDAR (0.6.7) ═══════════════════════════════════════════════
+  var lpState = { plans: [], calendar: null };
+  var MS_CYCLE = { pending:"in_progress", in_progress:"done", done:"pending", blocked:"in_progress" };
+  var CAL_SOURCE_LABEL = {
+    engine_content:"Engine content",
+    launch_milestone:"Launch milestone",
+    broadcast:"Broadcast",
+    switchboard:"Switchboard"
+  };
+  function renderLaunchCampaignSelect(){
+    var sel=$("lpCampaign"); if(!sel) return;
+    var cur=sel.value;
+    sel.textContent="";
+    sel.appendChild(el("option", { value:"" }, "— Select campaign —"));
+    (state.campaigns || []).forEach(function(c){
+      sel.appendChild(el("option", { value:c.campaign_id }, c.name || c.slug || c.campaign_id));
+    });
+    if(cur) sel.value=cur;
+    else if(state.campaigns && state.campaigns.length === 1) sel.value=state.campaigns[0].campaign_id;
+  }
+  function updateLaunchPlan(planId, patch, okMsg){
+    clearInlineErr($("lpErr"));
+    return api("/launch-plans/"+encodeURIComponent(planId), { method:"PATCH", body:JSON.stringify(patch) })
+      .then(parse).then(function(res){
+        if(!res.ok){ showInlineErr($("lpErr"), errText(res, null)); return; }
+        if(okMsg) toast(okMsg);
+        loadLaunchPlans();
+        loadUnifiedCalendar();
+      }).catch(function(e){ showInlineErr($("lpErr"), "Update failed — "+((e&&e.message)||e)); });
+  }
+  function runLaunchRetro(planId, btn){
+    clearInlineErr($("lpErr"));
+    if(btn) btn.disabled=true;
+    return api("/launch-plans/"+encodeURIComponent(planId)+"/retro", { method:"POST", body:JSON.stringify({}) })
+      .then(parse).then(function(res){
+        if(btn) btn.disabled=false;
+        if(!res.ok){ showInlineErr($("lpErr"), errText(res, null)); return; }
+        toast("Recorded-numbers retro generated");
+        loadLaunchPlans();
+      }).catch(function(e){ if(btn) btn.disabled=false; showInlineErr($("lpErr"), "Retro failed — "+((e&&e.message)||e)); });
+  }
+  function buildRetroBlock(plan){
+    if(!plan.retro_markdown) return null;
+    var wrap=el("div", { style:"margin-top:12px; padding-top:10px; border-top:1px solid var(--line)" });
+    var head=el("div", { class:"rowline", style:"margin-bottom:6px" });
+    head.appendChild(el("div", { class:"sechead", style:"margin:0" }, "Recorded-numbers retro"));
+    var facts=plan.retro_facts && typeof plan.retro_facts==="object" ? plan.retro_facts : null;
+    var mbs=facts && facts.metricsBySource && typeof facts.metricsBySource==="object" ? facts.metricsBySource : null;
+    if(mbs){
+      Object.keys(mbs).forEach(function(src){
+        var v=mbs[src];
+        var isNoData = v === "NO DATA";
+        head.appendChild(el("span", { class:"badge "+(isNoData?"nodata":"ok") }, src + ": " + String(v)));
+      });
+    }
+    wrap.appendChild(head);
+    wrap.appendChild(el("pre", { class:"tpl-text-pre", "data-lp-retro-md":plan.plan_id }, String(plan.retro_markdown)));
+    return wrap;
+  }
+  function buildMilestoneSection(plan){
+    var milestones=Array.isArray(plan.milestones) ? plan.milestones : [];
+    var box=el("div", { style:"margin-top:10px" });
+    box.appendChild(el("div", { class:"sechead", style:"margin:0 0 6px" }, "Dated milestones"));
+    if(!milestones.length){
+      box.appendChild(el("div", { class:"metaline" }, "No dated milestones yet."));
+      return box;
+    }
+    milestones.forEach(function(ms, idx){
+      var row=el("div", { class:"rowline", style:"padding:5px 0; border-bottom:1px solid var(--line)" });
+      row.appendChild(el("span", { class:"badge tnum" }, ms.dueDate || ""));
+      row.appendChild(el("span", null, ms.title || ""));
+      row.appendChild(el("span", { class:"metaline", style:"margin:0" }, ms.ownerRole || "human"));
+      row.appendChild(el("span", { style:"flex:1" }));
+      var stCls = ms.status==="done" ? "ok" : ms.status==="in_progress" ? "acc" : ms.status==="blocked" ? "err" : "warn";
+      var btn=el("button", { type:"button", class:"btn sm", "data-ms-toggle":plan.plan_id+":"+ms.id }, ms.status || "pending");
+      btn.addEventListener("click", function(){
+        var next=milestones.map(function(m, j){
+          return j===idx ? Object.assign({}, m, { status: MS_CYCLE[m.status] || "in_progress" }) : m;
+        });
+        updateLaunchPlan(plan.plan_id, { milestones: next }, "Milestone updated");
+      });
+      row.appendChild(el("span", { class:"badge "+stCls }, ms.status || "pending"));
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+    return box;
+  }
+  function buildChecklistSection(plan){
+    var items=Array.isArray(plan.checklist) ? plan.checklist : [];
+    var box=el("div", { style:"margin-top:10px" });
+    box.appendChild(el("div", { class:"sechead", style:"margin:0 0 6px" }, "Asset checklist"));
+    if(!items.length){
+      box.appendChild(el("div", { class:"metaline" }, "No checklist items."));
+      return box;
+    }
+    items.forEach(function(item, idx){
+      var row=el("label", { class:"rowline", style:"padding:4px 0; cursor:pointer" });
+      var cb=el("input", { type:"checkbox", "data-chk-toggle":plan.plan_id+":"+item.id });
+      cb.checked = item.done === true;
+      cb.addEventListener("change", function(){
+        var next=items.map(function(it, j){
+          return j===idx ? Object.assign({}, it, { done: cb.checked }) : it;
+        });
+        updateLaunchPlan(plan.plan_id, { checklist: next }, "Checklist updated");
+      });
+      row.appendChild(cb);
+      row.appendChild(el("span", { class:"badge" }, item.category || "asset"));
+      row.appendChild(el("span", null, item.label || ""));
+      box.appendChild(row);
+    });
+    return box;
+  }
+  function renderLaunchPlans(plans){
+    lpState.plans = plans || [];
+    if($("lpCountBadge")) $("lpCountBadge").textContent = lpState.plans.length + (lpState.plans.length === 1 ? " plan" : " plans");
+    var host=$("launchPlansList"); if(!host) return;
+    host.textContent="";
+    if(!lpState.plans.length){
+      host.appendChild(el("div", { class:"empty" }, "No launch plans yet — attach a dated launch plan to a campaign above."));
+      return;
+    }
+    lpState.plans.forEach(function(plan){
+      var card=el("div", { class:"citem", "data-lp-card":plan.plan_id });
+      var milestones=Array.isArray(plan.milestones) ? plan.milestones : [];
+      var checklist=Array.isArray(plan.checklist) ? plan.checklist : [];
+      var msDone=milestones.filter(function(m){ return m && m.status==="done"; }).length;
+      var chkDone=checklist.filter(function(c){ return c && c.done===true; }).length;
+      var head=el("div", { class:"rowline" });
+      head.appendChild(el("b", { style:"font-size:14px" }, plan.title || "Launch plan"));
+      if(plan.campaign_name) head.appendChild(el("span", { class:"badge acc" }, plan.campaign_name));
+      head.appendChild(el("span", { class:"badge tnum" }, "Launch " + (plan.launch_date || "")));
+      var stCls = plan.status==="retro_complete" ? "ok" : plan.status==="launched" ? "acc" : plan.status==="ready" ? "ok" : "warn";
+      head.appendChild(el("span", { class:"badge "+stCls, "data-lp-status":plan.plan_id }, plan.status || "planning"));
+      head.appendChild(el("span", { class:"metaline", style:"margin:0" }, msDone+"/"+milestones.length+" milestones · "+chkDone+"/"+checklist.length+" checklist"));
+      head.appendChild(el("span", { style:"flex:1" }));
+      var retroBtn=el("button", { type:"button", class:"btn sm primary", "data-lp-retro":plan.plan_id }, "Generate recorded-numbers retro");
+      retroBtn.addEventListener("click", function(){ runLaunchRetro(plan.plan_id, retroBtn); });
+      head.appendChild(retroBtn);
+      card.appendChild(head);
+      card.appendChild(buildMilestoneSection(plan));
+      card.appendChild(buildChecklistSection(plan));
+      var retroBlock=buildRetroBlock(plan);
+      if(retroBlock) card.appendChild(retroBlock);
+      host.appendChild(card);
+    });
+  }
+  function loadLaunchPlans(){
+    renderLaunchCampaignSelect();
+    return api("/launch-plans").then(parse).then(function(res){
+      if(!res.ok){ renderLaunchPlans([]); return; }
+      clearInlineErr($("lpErr"));
+      renderLaunchPlans((res.j && res.j.plans) || []);
+    }).catch(function(){ renderLaunchPlans([]); });
+  }
+  function renderUnifiedCalendar(cal){
+    lpState.calendar = cal || { items:[], switchboardAvailable:false };
+    var items=Array.isArray(lpState.calendar.items) ? lpState.calendar.items : [];
+    if($("calCountBadge")) $("calCountBadge").textContent = items.length + (items.length === 1 ? " item" : " items");
+    if($("calSwitchboardBadge")){
+      var sbOn=Boolean(lpState.calendar.switchboardAvailable);
+      $("calSwitchboardBadge").className="badge "+(sbOn?"ok":"nodata");
+      $("calSwitchboardBadge").textContent = sbOn ? "Switchboard: linked" : "Switchboard: not linked";
+    }
+    var host=$("unifiedCalendarList"); if(!host) return;
+    host.textContent="";
+    if(!items.length){
+      host.appendChild(el("div", { class:"empty" }, "No scheduled items in this window — add a launch plan milestone, schedule content, or create a broadcast."));
+      return;
+    }
+    var wrap=el("div", { class:"tblwrap" }), tbl=el("table", { class:"tbl" });
+    var thead=el("thead"), hr=el("tr");
+    ["Date","Source","Title","Channel","Status"].forEach(function(h){ hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tbody=el("tbody");
+    items.forEach(function(it){
+      var tr=el("tr", { "data-cal-item":it.id || "" });
+      tr.appendChild(el("td", { class:"tnum" }, it.date || ""));
+      var srcTd=el("td");
+      var srcCls = it.source==="launch_milestone" ? "acc" : it.source==="switchboard" ? "ok" : "";
+      srcTd.appendChild(el("span", { class:"badge "+srcCls }, CAL_SOURCE_LABEL[it.source] || it.source || ""));
+      tr.appendChild(srcTd);
+      tr.appendChild(el("td", null, it.title || ""));
+      tr.appendChild(el("td", null, it.channel || ""));
+      var stTd=el("td");
+      var stCls = (it.status==="done" || it.status==="published" || it.status==="sent") ? "ok" : (it.status==="blocked" || it.status==="failed") ? "err" : "warn";
+      stTd.appendChild(el("span", { class:"badge "+stCls }, it.status || ""));
+      tr.appendChild(stTd);
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody); wrap.appendChild(tbl); host.appendChild(wrap);
+  }
+  function loadUnifiedCalendar(){
+    var q=[];
+    var f=$("calFrom") ? $("calFrom").value.trim() : "";
+    var t=$("calTo") ? $("calTo").value.trim() : "";
+    if(f) q.push("from="+encodeURIComponent(f));
+    if(t) q.push("to="+encodeURIComponent(t));
+    return api("/calendar"+(q.length?"?"+q.join("&"):"")).then(parse).then(function(res){
+      if(!res.ok){
+        if(res.status===400) showInlineErr($("calErr"), errText(res, null));
+        renderUnifiedCalendar({ items:[], switchboardAvailable:false });
+        return;
+      }
+      clearInlineErr($("calErr"));
+      renderUnifiedCalendar(res.j || { items:[], switchboardAvailable:false });
+    }).catch(function(){ renderUnifiedCalendar({ items:[], switchboardAvailable:false }); });
+  }
+  if($("launchPlanForm")) $("launchPlanForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    clearInlineErr($("lpErr"));
+    var campaignId=$("lpCampaign").value;
+    var title=$("lpTitle").value.trim();
+    var launchDate=$("lpDate").value.trim();
+    var msTitle=$("lpMsTitle").value.trim();
+    var msDate=$("lpMsDate").value.trim() || launchDate;
+    var msOwner=$("lpMsOwner").value || "human";
+    if(!campaignId){ showInlineErr($("lpErr"), "Select a campaign first."); return; }
+    if(!title || !launchDate){ showInlineErr($("lpErr"), "Launch plan title and launch date are required."); return; }
+    var milestones = msTitle ? [{ id:"ms-1", title:msTitle, dueDate:msDate, ownerRole:msOwner, status:"pending" }] : [];
+    var btn=$("lpCreateBtn"); btn.disabled=true;
+    api("/launch-plans", { method:"POST", body:JSON.stringify({ campaignId:campaignId, title:title, launchDate:launchDate, milestones:milestones }) })
+      .then(parse).then(function(res){
+        btn.disabled=false;
+        if(!res.ok){ showInlineErr($("lpErr"), errText(res, null)); return; }
+        $("lpTitle").value=""; $("lpMsTitle").value="";
+        toast("Launch plan saved");
+        loadLaunchPlans();
+        loadUnifiedCalendar();
+      }).catch(function(e){ btn.disabled=false; showInlineErr($("lpErr"), "Save failed — "+((e&&e.message)||e)); });
+  });
+  if($("calFilterBtn")) $("calFilterBtn").addEventListener("click", function(){ loadUnifiedCalendar(); });
+  if($("calResetBtn")) $("calResetBtn").addEventListener("click", function(){
+    if($("calFrom")) $("calFrom").value="";
+    if($("calTo")) $("calTo").value="";
+    loadUnifiedCalendar();
+  });
 
   // close modals on scrim click (never the confirm's Go path)
   ["newScrim","impScrim","draftScrim","cfScrim"].forEach(function(id){

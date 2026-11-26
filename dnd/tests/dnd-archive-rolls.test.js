@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-21 22:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove structured dice are validated, persisted, synchronized, and idempotent by stable event ID alongside legacy archive rows.
  * 2026-07-21 23:12:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove a delayed pre-rewind archive post cannot write into the restored timeline branch.
+ * 2026-11-25 14:25:00 | maintainer@emeraldcoastsystemsgroup.com     | Accept lightweight board-revision snapshot reads and inserts triggered alongside archive writes.
  */
 
 'use strict';
@@ -48,6 +49,7 @@ class ArchivePool {
     if (/SELECT seq, kind, content, payload FROM dnd_archive/.test(sql)) return rows(this.archive.filter((row) => row.seq > Number(params[1])));
     if (/SELECT user_sub, display_name, character_slug FROM dnd_players/.test(sql)) return rows([]);
     if (/SELECT slug, sheet FROM dnd_characters/.test(sql)) return rows([]);
+    if (/FROM dnd_snapshots|INTO dnd_snapshots/.test(sql)) return rows([]);
     throw new Error(`Unexpected archive SQL: ${sql}`);
   }
   existingEvent(eventId) {

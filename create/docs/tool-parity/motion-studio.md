@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-`motion-studio` (0.1.4) is a layered motion graphics editor built on the EffectCraft compositor. Its screen is `tools/workbench.html` with `tools/workbench.mjs`. It is measured against Adobe After Effects (desktop only: community and third-party sources say there is no native iPad or phone app) and Canva's animation tools (phone and desktop, aimed at beginners). The engine holds far more than the screen shows: 433 commands and 306 effects, read directly from the built engine with `{"op":"catalog"}`. The concierge can call any admitted command through `motion-apply-edits`. The screen reaches the same commands through one generic form called "More editing commands" (`#advanced`).
+`motion-studio` (0.4.4) is a layered motion graphics editor built on the EffectCraft compositor. Its screen is `tools/workbench.html` with `tools/workbench.mjs`. It is measured against Adobe After Effects (desktop only: community and third-party sources say there is no native iPad or phone app) and Canva's animation tools (phone and desktop, aimed at beginners). The engine holds far more than the screen shows: 433 commands and 306 effects, read directly from the built engine with `{"op":"catalog"}`. The concierge can call any admitted command through `motion-apply-edits`. The screen reaches the same commands through one generic form called "More editing commands" (`#advanced`).
 
 **How to read the table.**
 
@@ -20,8 +20,8 @@
 | Change composition settings later | basic | Canva: Yes† | AE: Yes† | Form: `comp.settings` (accepted with text values) | apply `comp.settings` | both |
 | Open, duplicate and delete compositions | basic | Canva: Yes† | Yes† | `#projects`, `#duplicate`, `#delete` | `motion-list-projects`, `motion-read-project`, `motion-fork-project`, `motion-delete-project` | both |
 | Undo | basic | Canva: Yes† | Yes† | `#undo` (restores the previous revision) | `motion-restore-revision` | both |
-| Redo | basic | Canva: Yes† | Yes† | none in `workbench.html` | `motion-restore-revision` to a later revision | concierge only |
-| Browse version history | pro | not confirmed | AE: Yes† | none. `open()` takes a revision from the URL, with no list control | `motion-revision-history`, `motion-read-revision` | concierge only |
+| Redo | basic | Canva: Yes† | Yes† | `#redo` (restores undone revisions forward, synced with History Restore) | `motion-restore-revision` to a later revision | both |
+| Browse version history | pro | not confirmed | AE: Yes† | Revision history sheet (`#historyList`) from Composition and More menus with per-revision Restore | `motion-revision-history`, `motion-read-revision`, `motion-restore-revision` | both |
 | Add text | basic | Canva: Yes | Yes | `#add` (Text) | apply `layer.newText` | both |
 | Edit text style (font, size, fill, stroke, tracking, alignment, paragraph) | basic | Canva: Yes† | Yes | `#textEdit` | apply `text.patchAt`, `motion-read-text`, `motion-list-fonts` | both |
 | Bring in your own font | basic to pro | Canva Pro† | AE: Yes† | none (fonts are bundled in the engine) | none | missing |
@@ -35,7 +35,7 @@
 | Add audio, audio-driven animation | basic | Canva: Yes† | Yes† | none | none. `keys.audioToKeyframes` is accepted but no audio can be added | missing |
 | Templates and stock media | basic | Canva: Yes | AE: partial† | none | none. `anim.applyPreset` and `essential.import*` are refused by `check_command` | missing |
 | Move, scale and rotate by typed numbers | basic | Canva: Yes† | Yes | `#transform` | apply `properties.patchAt`, `prop.set`, `motion-read-properties` | both |
-| Drag a layer on the canvas | basic | Canva: Yes† | Yes† | none. `#preview` is an image with no pointer handler; the only pointer drag in `workbench.mjs` is on motion-path handles | none (a gesture) | missing |
+| Drag a layer on the canvas | basic | Canva: Yes† | Yes† | `.motion-transform-overlay` drag body, center move handle, corner scale handles, and rotation handle (mouse + touch) | apply `properties.patchAt`, `motion-read-properties` | both |
 | Add and edit keyframes | basic | Canva: not confirmed | AE: Yes | `#key`, `#editKey`, `.keyButton` in `#timeline` | apply `prop.addKey`, `keys.addExact`, `keys.patchExact`, `motion-read-keyframe` | both |
 | Easing (linear, hold, easy ease) | basic | Canva: movement style† | Yes | `#key` and `#editKey` `ease` | apply `keys.easyEase`, `keys.interpolation` | both |
 | Graph editor, drag speed curves | pro | No† | AE: Yes† | none. `#keyCurve` draws a sampled curve, with no handles | apply `keys.velocity` | concierge only |
@@ -47,7 +47,7 @@
 | Null layers | pro | No† | AE: Yes† | Form: `layer.newNull` | apply `layer.newNull` | both |
 | Precompose (nest) | pro | No† | AE: Yes† | `#nest` | apply `layer.precompose` | both |
 | Layer timing by typed seconds | basic | Canva: Yes (timing) | Yes | `#layerTiming`, `#workArea` | apply `layer.timing`, `comp.workArea` | both |
-| Drag clips on a timeline | basic | Canva: Yes† | AE: Yes† | none. `#timeline` lists layers and key buttons, with no drag | none (a gesture) | missing |
+| Drag clips on a timeline | basic | Canva: Yes† | AE: Yes† | `.motion-span` draggable layer bars with trim edges and `.keyButton` draggable keyframe diamonds in `#timeline` (mouse + touch) | apply `layer.timing`, `keys.patchExact` | both |
 | Masks: rectangle, ellipse, settings | pro | No† | AE: Yes | `#mask`, `#maskSettings` | apply `layer.addMask`, `layer.mask.set`, `motion-read-mask` | both |
 | Mask vertices, feather, animated path | pro | No† | AE: Yes | `#maskVertex`, `#addFeather`, `#editFeather`, `#keyMaskPath` (typed, the path preview is not draggable) | apply `mask.patchAt`, `mask.setVertex`, `mask.featherPoint.*` | both |
 | Track mattes | pro | No† | AE: Yes† | Form: `layer.setTrackMatte` (pixels changed) | apply `layer.setTrackMatte` | both |
@@ -62,7 +62,7 @@
 | Puppet pins | pro | No† | AE: Yes† | none that works. Form refuses `position` sent as text | apply `puppet.addPin` (accepted; effect on the frame not confirmed) | concierge only |
 | Content-Aware Fill | pro | No† | AE: Yes | none | none usable. `layer.newContentAwareFill` only returned `{"frontend":"window.panel"}` | missing |
 | Markers | basic to pro | No† | AE: Yes† | Form: `comp.addMarker` | apply `comp.addMarker`, `layer.addMarker` | both |
-| Scrub and play the preview | basic | Canva: Yes† | Yes | `#time`, `#play`, `#previousFrame`, `#nextFrame`, `#loop` (frames render one at a time; the screen warns it may be slower than real time) | none. No tool returns a frame, so the concierge cannot see its work | UX only |
+| Scrub and play the preview | basic | Canva: Yes† | Yes | `#time`, `#play`, `#previousFrame`, `#nextFrame`, `#loop` (frames render one at a time; the screen warns it may be slower than real time) | `motion-preview` (bounded revision-pinned PNG frame with visual verification rule in persona) | both |
 | Render MP4 or transparent PNG sequence | basic | Canva: MP4† | Yes | `#renderStart`, `#renderFormat`, `#renderCancel`, `#renderDownload` | `motion-start-render`, `motion-render-status`, `motion-cancel-render`, `motion-list-renders` | both |
 | Render GIF or video with transparency | basic to pro | Canva: GIF† | AE: Yes† | none. Format is `mp4` or `png-sequence` (`routes/render-export.mjs`) | none | missing |
 | Export and import an editable project | pro | not confirmed | AE: Yes† | `#export`, `#importDocument`, `#bundleExport`, `#importBundle` | `motion-export-document`, `motion-export-bundle`, `motion-begin-bundle-import` and siblings | both |
@@ -71,15 +71,15 @@
 
 ## 3. Backlog (ordered by what people hit first)
 
-- **CREATE-TOOL-MOTION-STUDIO-01: Drag on the canvas.** Done when: a person drags, scales and rotates a selected layer directly on the preview with mouse and touch, and the saved values match the handles.
+- **CREATE-TOOL-MOTION-STUDIO-01: Drag on the canvas — DELIVERED (0.4.4).** Interactive `.motion-transform-overlay` handles on `#stage` support dragging position, corner scaling, and rotating the selected layer directly on the preview with mouse and touch, committing exact `properties.patchAt` values into saved revisions (verified in `motion-studio/tests/tool-parity.test.mjs`).
 - **CREATE-TOOL-MOTION-STUDIO-02: Add video and audio.** Done when: an MP4 and an MP3 upload to a composition, play in preview, and the rendered MP4 has both picture and sound. The same import works through a concierge tool.
 - **CREATE-TOOL-MOTION-STUDIO-03: Basic mode and one-tap animation.** Done when: at 412 px a person sees text, photo, a list of named animations and Export, and turns a photo plus a caption into an animated MP4 with no number box.
-- **CREATE-TOOL-MOTION-STUDIO-04: Drag on the timeline.** Done when: a person drags a layer bar and a keyframe in `#timeline` with mouse and touch, and the new timing is saved.
-- **CREATE-TOOL-MOTION-STUDIO-05: Let the concierge see a frame.** Done when: a `motion-preview` tool returns one rendered frame the model can read, and the persona checks its own edit before reporting it done.
+- **CREATE-TOOL-MOTION-STUDIO-04: Drag on the timeline — DELIVERED (0.4.4).** Layer timing bars (`.motion-span` + trim grips) and keyframe diamonds (`.keyButton`) in `#timeline` drag horizontally with mouse and touch, saving exact `layer.timing` and `keys.patchExact` revisions (verified in `motion-studio/tests/tool-parity.test.mjs`).
+- **CREATE-TOOL-MOTION-STUDIO-05: Let the concierge see a frame — DELIVERED (0.4.4).** `motion-preview` (`GET /api/motion-studio/projects/:id/revisions/:revision/preview-frame/:timeTicks/:compId/:maxSide`) returns a bounded revision-pinned PNG frame (`dataUrl`, `sha256`, `bytes`, `width`, `height`) under 60 KiB on existing own read grants, and `personas/motion-editor.yaml` instructs the concierge to visually verify saved edits before reporting them done (verified in `motion-studio/tests/tool-parity.test.mjs` and `package-contract.test.mjs`).
 - **CREATE-TOOL-MOTION-STUDIO-06: Fix the generic form's parameter types.** Done when: every catalog parameter that needs a list or number is sent as one, `shape.newPath`, `puppet.addPin`, `roto.stroke` and `layer.style.dropShadow` succeed from the form, and a test runs each through the real route.
 - **CREATE-TOOL-MOTION-STUDIO-07: Named controls for the common form-only actions.** Done when: blend mode, track matte, text presets, markers, layer styles and null layers each have a labelled control with choices, not a typed parameter box.
 - **CREATE-TOOL-MOTION-STUDIO-08: Templates and presets.** Done when: a person picks a starter composition and a preset from a gallery, and the concierge can apply the same preset by name. `anim.applyPreset` is admitted through an owned-asset adapter.
-- **CREATE-TOOL-MOTION-STUDIO-09: Screen history and redo.** Done when: the screen lists revisions with a Restore button, Redo returns the undone revision, and both match what the concierge tools report.
+- **CREATE-TOOL-MOTION-STUDIO-09: Screen history and redo — DELIVERED (0.4.4).** The Revision history sheet (`#historyList`, reachable from the Composition and More menus) lists saved revisions from `GET /projects/:id/revisions` with per-revision non-destructive Restore matching `motion-revision-history` / `motion-restore-revision`, and project-scoped Undo/Redo cleanly step back and forward through undone revisions (verified in `motion-studio/tests/tool-parity.test.mjs`).
 - **CREATE-TOOL-MOTION-STUDIO-10: Pen tool.** Done when: a person draws and edits a bezier shape and a mask path by dragging on the preview, and the path round-trips through `motion-inspect-project`.
 - **CREATE-TOOL-MOTION-STUDIO-11: Graph editor.** Done when: a person drags speed-curve handles and the concierge's `keys.velocity` reads back the same numbers.
 - **CREATE-TOOL-MOTION-STUDIO-12: GIF, transparent video and own fonts.** Done when: a composition renders to GIF and to video with an alpha channel, a person uploads a font and a text layer renders with it, each on screen and by tool.

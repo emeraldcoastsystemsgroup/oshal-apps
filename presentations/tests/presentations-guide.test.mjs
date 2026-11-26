@@ -10,6 +10,7 @@
  * 2026-09-26 06:22:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin protected direct, non-agentic reasoning for the tool-less Guide turn.
  * 2026-11-03 21:40:00 | maintainer@emeraldcoastsystemsgroup.com   | Image bytes never cross the Guide boundary (2.16.0): a data-URI #image: bullet in the draft state reaches the prompt as "#image: (attached)" beside the design-directive teaching, and a returned #image: bullet without a real https URL is normalized to the same marker, never the bytes.
  * 2026-11-21 08:40:00 | maintainer@emeraldcoastsystemsgroup.com   | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): verify Guide prompt exposes existing slide speaker notes and `update_slide` / `add_slide` accept bounded string `notes` (including `""` to clear) while rejecting non-string `notes`.
+ * 2026-11-25 10:00:00 | maintainer@emeraldcoastsystemsgroup.com   | 2.20.13 (CREATE-TOOL-PRESENTATIONS-15): verify Guide prompt exposes current cover subtitle and `set_subtitle` / `set_title.subtitle` accept bounded strings (including `""` to clear) while rejecting non-string subtitles.
  */
 
 import { test } from 'node:test';
@@ -217,5 +218,31 @@ test('Guide update_slide and add_slide accept bounded string notes, allow cleari
     ]);
     const added = res.body.actions.filter((a) => a.op === 'add_slide' && a.title !== 'Next steps');
     assert.deepEqual(added, [{ op: 'add_slide', title: 'Wrap up', bullets: ['Action item'], notes: 'Close with Q&A.' }]);
+  } finally { cellProposals = []; }
+});
+
+test('Guide set_subtitle and set_title.subtitle accept bounded strings, allow clearing, and reject non-strings', async () => {
+  calls.length = 0;
+  cellProposals = [
+    { op: 'set_subtitle', subtitle: 'Q4 Board Briefing' },
+    { op: 'set_subtitle', subtitle: '' },
+    { op: 'set_subtitle', subtitle: 12345 },
+    { op: 'set_title', title: 'Annual Plan', subtitle: 'FY 2027 Outlook' },
+    { op: 'set_title', title: 'Bad Subtitle', subtitle: { bad: true } },
+  ];
+  try {
+    const res = response();
+    await guideHandler()({
+      oidc: { user: { sub: 'owner' } },
+      body: { message: 'Update cover subtitle', kind: 'pptx', title: 'Annual Plan', subtitle: 'Draft Subtitle', slides: [] },
+    }, res);
+    assert.match(calls[0][3].text, /Current cover subtitle: Draft Subtitle/);
+    assert.deepEqual(res.body.actions.filter((a) => a.op === 'set_subtitle'), [
+      { op: 'set_subtitle', subtitle: 'Q4 Board Briefing' },
+      { op: 'set_subtitle', subtitle: '' },
+    ]);
+    assert.deepEqual(res.body.actions.filter((a) => a.op === 'set_title' && a.title !== 'Quarterly review'), [
+      { op: 'set_title', title: 'Annual Plan', subtitle: 'FY 2027 Outlook' },
+    ]);
   } finally { cellProposals = []; }
 });

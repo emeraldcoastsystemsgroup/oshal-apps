@@ -39,7 +39,7 @@ test('source tools and bot use source permissions while every spending tool stay
  assert.equal(catalog.bindings.tools.length,manifest.tools.length);
  for(const tool of manifest.tools){const binding=catalog.bindings.tools.find(b=>b.id===tool.name);assert.ok(binding,tool.name);
   if(tool.name.includes('-source-')){assert.ok(binding.allOf.every(p=>holds('source-editor',p)));assert.ok(!binding.allOf.includes('legacy.execute'));}
-  else if(!['creative_list','vids-jobs'].includes(tool.name)){assert.ok(binding.allOf.includes('legacy.execute'));assert.ok(binding.allOf.some(p=>!holds('source-editor',p)));}
+  else if(!['creative_list','vids-jobs','vids-export-status'].includes(tool.name)){assert.ok(binding.allOf.includes('legacy.execute'));assert.ok(binding.allOf.some(p=>!holds('source-editor',p)));}
  }
  for(const bot of manifest.bots){const binding=catalog.bindings.bots.find(b=>b.id===bot.agentId||b.id===bot.name);assert.deepEqual(binding?.allOf,['app.open','source.read']);}
  for(const job of catalog.bindings.jobs)assert.deepEqual(job.allOf,['app.open','legacy.execute']);
@@ -54,7 +54,7 @@ test('real mounted surfaces/contracts/HTTP edits have one exact binding and matc
  for(const tool of manifest.tools.filter(t=>t.executor?.executorType==='api')){
   const [method,path]=tool.executor.apiEndpoint.split(' ');assert.deepEqual(catalog.bindings.tools.find(b=>b.id===tool.name).allOf,bound(method,path.replaceAll('{input.id}','owned-id')));
  }
- if(APP==='vids')for(const p of ['/jobs','/brand','/story','/jobs/owned-id/artifact/publish'])assert.ok(bound('POST',mount+p).includes('legacy.execute'));
+ if(APP==='vids')for(const p of ['/jobs','/brand','/story','/jobs/owned-id/artifact/publish','/jobs/owned-id/cancel','/jobs/owned-id/retry'])assert.ok(bound('POST',mount+p).includes('legacy.execute'));
 });
 test('fresh source role decisions permit actual source operations and reject reader/legacy/revoked authority',async()=>{
  const f=context(),owner=identity(f.ctx);for(const action of ['read','create','change','delete'])await authorizeSource(f.ctx,action,owner);
