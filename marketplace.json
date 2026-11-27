@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.76.6",
+      "version": "1.77.4",
       "dependencies": {
         "apps": [],
         "tools": [],

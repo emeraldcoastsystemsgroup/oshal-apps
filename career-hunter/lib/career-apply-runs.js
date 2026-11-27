@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: a run also records who pressed Submit (submittedBy: you or career) and whether Career pressed it once without the employer's confirmation being seen (pressedByCareer).
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 4.7 and 5.1): the person's own record of each assisted application, apply-runs.json beside the submission queue. One approval binds one job's exact packet for 24 hours; it may start again (Go on) while it lasts, because it never submits, and each start is its own attempt with its own frozen input file (apply-<id>-<attempt>.json) and request digest over the same approved task. A job holds one run at a time; a changed packet needs that run stopped or ended first. Nothing here starts work: the routes publish the input before any kernel call.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.12 (the PointClickCare check run, 2026-11-26): the kernel refused the start (the Lever rules of 1.76.10 named a slot it does not take), the run stayed approved, its ticket had ended so Stop was refused, and for a day no corrected approval of that job could be made (run_conflict). An approval that never started is now replaced by a newer approval of other documents and marked stopped; one that started still holds the job.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A run also records bankedAttempts, the attempts whose end Career read for the answers the person kept on their question cards (career-apply-sync.js banks them itself), so each attempt is read for them once.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -10,7 +12,7 @@ const ID=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/,HASH=/^[a-f0-9]{64}$/;
 const STATUSES=new Set(['approved','queued','running','waiting','ready','submitted','not_seen','paused','stopped','failed']);
 /** A run that holds its job: another approval of different documents waits until it ends. */
 const HOLDING=new Set(['approved','queued','running','waiting','ready','paused']);
-const PATCH=['status','reason','nativeTicketId','live','keptCards','receiptFile','pictures','confirmationFile','confirmationSha256','confirmationText','submittedAt','changes','attemptWork','submittedBy','pressedByCareer'];
+const PATCH=['status','reason','nativeTicketId','live','keptCards','bankedAttempts','receiptFile','pictures','confirmationFile','confirmationSha256','confirmationText','submittedAt','changes','attemptWork','submittedBy','pressedByCareer'];
 const fail=(code,message,status=409)=>{throw new queue.SubmissionError(code,message,status);};
 
 /**
@@ -48,7 +50,13 @@ function mutate(dir,id,change,now=Date.now()){
 function approve(dir,built,posting,now=Date.now()){
  const state=read(dir),postingId=built.task.postingId;
  const holding=Object.values(state.runs).find(run=>run.postingId===postingId&&HOLDING.has(run.status)&&Date.parse(run.expiresAt)>now);
- if(holding){
+ if(holding&&holding.packetDigest!==built.packetDigest&&holding.status==='approved'){
+  // Approved but never started (its start was refused, or Start was never pressed): nothing was typed, and its
+  // ticket may already have ended, so it cannot be stopped. The newer approval replaces it.
+  holding.status='stopped';holding.live=null;holding.reason='Replaced by a newer approval before it started. Nothing was submitted.';
+  holding.updatedAt=new Date(now).toISOString();holding.events.push({at:holding.updatedAt,kind:'stopped'});holding.events=holding.events.slice(-60);
+ }
+ else if(holding){
   if(holding.packetDigest!==built.packetDigest)fail('run_conflict','Career is already filling in this job’s form with other documents. Stop it before approving these.');
   return {run:holding,deduped:true};
  }

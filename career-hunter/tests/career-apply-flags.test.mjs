@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I (Roger, 2026-11-21: "we are going to have some flags like run in foreground and stop before submit. or approve submit automatically"): How Career fills in a form and the standing self-identification answers, through Career's real routes over HTTP on a made-up person's real store. The three settings start on Roger's defaults (like a person, in front, stop before Submit), save with Undo, and refuse an unknown choice and Behind with Like a person; the packet carries them as task.flags under its digest, and the approval screen says each in words, its last line saying Career presses Submit once when he chose it. Veteran and disability status save as Yes, No or blank (anything else refused, Undo puts them back) and reach the packet as selfid.veteran and selfid.disability (yes, no; no fact when blank), citizenship as eligibility.citizenship. The sync records Submitted by Career after your approval only with the employer's confirmation verified, Career's own Submit not seen as Not seen yet with its words, the job page's line when he used the mouse, and the kernel's note about his clipboard on the receipt. Red before lane APPLY-I: no flags in the answers, the packet or the review; veteran_status a refused standing answer; the sync refused submitted_by_career as a result that differs from the approval.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: gender, Hispanic or Latino and race are closed standing answers that reach the packet as the kernel's selfid.gender, selfid.hispanic and selfid.race words; a wrong choice is refused and a blank one is no fact.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.12: an approval that never started is replaced by a newer approval of other documents (stopped, with its reason); a started run still refuses another packet with run_conflict.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,6 +61,27 @@ test('the packet carries the settings under its digest and the approval says eac
   assert.equal((await save(dana.sub, { flags: { submit: 'stop-before-submit' } })).code, 200);
   const frozen = JSON.parse(fs.readFileSync(path.join(dana.dir, `apply-${approved.body.run.id}-1.json`), 'utf8'));
   assert.equal(frozen.task.flags.submit, 'submit-after-approval', 'a setting changed after approval does not reach that run');
+});
+
+test('an approval that never started is replaced by a newer approval of other documents; one that started still holds the job', async () => {
+  const dana = h.person('dana-replaced');
+  const review = async () => (await h.call('GET', '/apply-review/7', null, dana.sub)).body;
+  const approve = async (digest) => h.call('POST', '/apply-runs', { postingId: 7, packetDigest: digest, approved: true }, dana.sub);
+  const first = await approve((await review()).packetDigest);
+  assert.equal(first.code, 200, JSON.stringify(first.body));
+  assert.equal((await save(dana.sub, { flags: { window: 'background', input: 'fast' } })).code, 200, 'another packet');
+  const second = await approve((await review()).packetDigest);
+  assert.equal(second.code, 200, 'no run_conflict: the first approval never started: ' + JSON.stringify(second.body));
+  assert.notEqual(second.body.run.id, first.body.run.id);
+  const listed = (await h.call('GET', '/apply-runs', null, dana.sub)).body.runs;
+  const old = listed.find((run) => run.id === first.body.run.id);
+  assert.deepEqual([old.status, old.reason], ['stopped', 'Replaced by a newer approval before it started. Nothing was submitted.']);
+  // Once it started, the job is held: another packet is refused until it is stopped.
+  assert.equal((await h.call('POST', `/apply-runs/${second.body.run.id}/bind`, {}, dana.sub)).code, 200);
+  assert.equal((await h.call('POST', `/apply-runs/${second.body.run.id}/start`, {}, dana.sub)).code, 200);
+  assert.equal((await save(dana.sub, { flags: { window: 'foreground', input: 'person-like' } })).code, 200);
+  const third = await approve((await review()).packetDigest);
+  assert.deepEqual([third.code, third.body.code], [409, 'run_conflict'], JSON.stringify(third.body));
 });
 
 test('veteran and disability status are Yes, No or blank, undo, and reach the packet as yes or no; blank is no fact', async () => {

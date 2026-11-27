@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "lies about my level of expertise on c# ... the cover letter is not acceptable"): what Career does with the problems claims_check finds, whichever model wrote the documents. A level the records do not state is toned down to experience with the tool; a years count is cut to what the recorded dates add up to; a résumé job's title goes back to the recorded one; a claim naming a tool the records never name, a tool under the wrong job, a title the records do not hold or a letter sentence drawn from work outside the letter's evidence is taken out. A letter that lost a sentence, or is too thin to send, is written again once with the problems named; a letter still too thin is marked needs your review, with the problems in words, and is never marked ready on its own.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: never emit '+' suffixes when toning down years claims in _retime().
+# 3 | maintainer@emeraldcoastsystemsgroup.com | A résumé made on 2026-11-26 carried the notice "The résumé claimed 11 years; your records support about 2. Career toned it down to what your records say", for a person who states Java 11 years; the résumé then said "2 years" twice beside "Java / J2EE (11 years)" and the reviewer refused it. _retime wrote a count Career worked out from the roles' dates in place of the figure. It is gone: Career never writes a number of years of its own. A years figure the person has not stated is taken out with the sentence kept (_untime, by years_truth.without, the way years_truth.enforce does it: "over 25 years of experience in X" reads "experience in X"); one that cannot be taken out and leave a sentence goes with its claim. The notice says "Career took the figure out", and the line for the letter's second writing tells the model to state no number of years there, with no count in it.
 """Hold a generated packet to the records: tone down or remove each unsupported claim, then judge the letter."""
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ import copy
 import hashlib
 import re
 
-from . import claims_check
+from . import claims_check, years_truth
 
 VERSION = 1
 MIN_LETTER_WORDS = 90
@@ -57,24 +58,29 @@ def _tidy(text: str) -> str:
     return value
 
 
-def _retime(text: str, problem: dict) -> str:
-    """A years claim cut to what the records support ('15+ years' -> '6 years', no '+'); under two years, the count goes."""
-    claim, supported = problem.get("claim") or "", int(problem.get("supported") or 0)
-    if not claim or claim not in text:
-        return text
-    if supported >= 2:
-        return text.replace(claim, f"{supported}-year" if re.search(r"-\s*years?$", claim, re.I) else f"{supported} years", 1)
-    return re.sub(re.escape(claim) + r"(?:['’]s?)?(?:\s+of)?\s*", "", text, count=1)
+def _untime(text: str, problem: dict) -> str | None:
+    """A claim without a years figure the person has not stated ('15+ years of Java' -> 'Java', 'Kubernetes (15
+    years)' -> 'Kubernetes'): years_truth.without takes it out the way years_truth.enforce does, and no number is ever
+    written in its place. None when the figure cannot be taken out and leave a sentence; the claim then goes whole."""
+    claim, at = problem.get("claim") or "", problem.get("at")
+    if not claim:
+        return None
+    if not isinstance(at, int) or text[at:at + len(claim)] != claim:
+        at = text.find(claim)
+    return years_truth.without(text, at, at + len(claim)) if at >= 0 else None
 
 
-def _rewrite(text: str, problems: list) -> str:
+def _rewrite(text: str, problems: list) -> str | None:
+    """The claim with each years figure taken out (last first, so the places of the earlier ones hold) and each level
+    toned down, or None when a years figure cannot be taken out of it."""
     value = text
+    for problem in sorted((p for p in problems if p["kind"] == "years"), key=lambda p: -int(p.get("at") or 0)):
+        value = _untime(value, problem)
+        if value is None:
+            return None
     for problem in problems:
         if problem["kind"] == "level":
             value = _tone_term(value, problem["term"]) if problem.get("term") else _tone_generic(value)
-    for problem in problems:
-        if problem["kind"] == "years":
-            value = _retime(value, problem)
     value = _tidy(value)
     return value[:1].upper() + value[1:] if value and text[:1].isupper() else value
 
@@ -103,9 +109,15 @@ def _segment_fix(text: str, problems: list, recheck) -> tuple:
            for p in problems):
         return None, "removed"
     rewritten = _rewrite(text, problems)
-    if rewritten == text.strip() or recheck(rewritten):
+    if not rewritten or rewritten == text.strip() or recheck(rewritten):
         return None, "removed"
     return rewritten, "toned down"
+
+
+def _done(problem: dict, action: str) -> str:
+    """What was done about one problem of a claim that was rewritten: a level is toned down; a years figure is taken
+    out, never changed to another number."""
+    return "years taken out" if action == "toned down" and problem["kind"] == "years" else action
 
 
 def _recorded_headline(prof: dict, rec: dict) -> str:
@@ -165,9 +177,10 @@ def _edit_cover(cover: dict, edits: dict) -> None:
 
 def fix(data: dict, problems: list, rec: dict, job: dict, allowed, prof: dict) -> tuple:
     """
-    @description Apply every problem to a copy of the packet: tone down or cut a level or a years count in place when
-    the claim then holds, put a résumé job's title back to the recorded one, and take out everything else (a résumé
-    headline taken out becomes the recorded headline, an emptied summary the recorded summary).
+    @description Apply every problem to a copy of the packet: tone down a level in place and take a years figure the
+    person has not stated out of its sentence when the claim then holds (no number is ever written in its place), put
+    a résumé job's title back to the recorded one, and take out everything else (a résumé headline taken out becomes
+    the recorded headline, an emptied summary the recorded summary).
     @param data - The generation. @param problems - claims_check.check() output. @param rec - records().
     @param job - {title, company, terms}. @param allowed - Row keys the letter may draw on. @param prof - The profile.
     @returns (fixed copy, [problem + action]).
@@ -184,7 +197,7 @@ def fix(data: dict, problems: list, rec: dict, job: dict, allowed, prof: dict) -
             recheck = lambda value, d=document, p=path, o=owners: bool(claims_check.segment_problems(rec, job, d, p, value, o, allowed))
             new, action = _segment_fix(items[0]["text"], items, recheck)
             edits[document][path] = new
-        actions += [{**problem, "action": action} for problem in items]
+        actions += [{**problem, "action": _done(problem, action)} for problem in items]
     if edits["cover"]:
         _edit_cover(out.setdefault("cover", {}), edits["cover"])
     _edit_resume(out.setdefault("resume", {}), edits["resume"], removed_entries, prof, rec)
@@ -212,6 +225,7 @@ def digest(cover: dict) -> str:
 
 
 _ACTION_WORDS = {"removed": "Career took it out.", "toned down": "Career toned it down to what your records say.",
+                 "years taken out": "Career took the figure out.",
                  "taken out of the list": "Career took it out of that list.",
                  "put back to the recorded title": "Career put back your recorded title."}
 
@@ -228,7 +242,8 @@ def instruction(problem: dict, rec: dict) -> str:
     if kind == "level":
         return f"- The draft said “{claim}”. The records do not state that level: say only what the records say."
     if kind == "years":
-        return f"- The draft claimed {claim}. The recorded dates support about {problem.get('supported', 0)} years: do not claim more."
+        return (f"- The draft said “{claim}”. The candidate has not stated that number of years: "
+                "state no number of years there at all.")
     if kind == "attribution":
         where = "; ".join(claims_check._where(rows[k]) for k in problem.get("where", []) if k in rows)
         return f"- The draft put {claim} under the wrong job. The records name it only at: {where}."

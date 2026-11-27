@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G, Roger 2026-11-21: "there is more than workday ... are you fixing all posts or just workday"): which form an assisted application fills, moved out of career-apply-packet.js and widened past Workday, Greenhouse, Lever and Ashby. Seven more engines are named by their own hosts (SAP SuccessFactors, IBM Kenexa BrassRing, Amazon's own portal, Eightfold, SmartRecruiters, iCIMS, Oracle Recruiting Cloud and Oracle Taleo), each with its rules in lib/apply-profiles. A company careers page that embeds Greenhouse, Lever, Ashby or SmartRecruiters is resolved, from the company's engine and token and the posting's own engine id that Career's source already recorded (else the page's gh_jid or ashby_jid), to the engine's own form address, the address the company's frame loads, so the run fills it in that engine's careful rules on one approved origin (the add-on reads the top frame only, and a run is approved for one origin). An iCIMS posting is opened at its in_iframe address and an amazon.jobs posting at its application on account.amazon.jobs, for the same reason. Any other public HTTPS employer site is no longer refused: it is the generic site, filled in Career's careful general rules (lib/apply-profiles/generic.json): only exact labels take his record's facts, everything else is his saved answer or a card, pages are moved with Next or Continue, and the run stops before any button that sends the application.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.76.9 (the Temporal check run, 2026-11-26): an Ashby posting on Ashby's own host was opened at its posting address, whose Overview tab has no form; with "Application" no longer an opening word (1.76.8) the run filled nothing and said Ready. The run now opens the posting's /application address, as an embedded Ashby form already did.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.11 (the Eightfold site lane, Lockheed Martin's real pages, 2026-11-26): an Eightfold posting is opened at its form's address (/careers/apply with the posting's pid and domain); the posting page holds file fields of its own, so the kernel refuses Apply Now there.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
@@ -74,8 +76,28 @@ function amazonApplication(url){
  const address=new URL(url),id=/\/jobs\/(\d{1,20})(?:\/|$)/.exec(address.pathname)?.[1];
  return ['www.amazon.jobs','amazon.jobs'].includes(address.hostname)&&id?`https://account.amazon.jobs/jobs/${id}/apply`:url;
 }
+/**
+ * @description An Ashby posting's own application tab. The posting's address opens its Overview, and the only way in
+ * from there is a tab named Application, a word the application page shows too (so it cannot be an opening word).
+ * @param {string} url The posting, /<board>/<posting id>. @returns {string} Its /application address; any other path as it is.
+ */
+function ashbyApplication(url){
+ const address=new URL(url),parts=address.pathname.split('/').filter(Boolean);
+ if(parts.length!==2||!UUID.test(parts[1]))return url;
+ address.pathname=`/${parts[0]}/${parts[1]}/application`;return address.href;
+}
+/**
+ * @description An Eightfold posting's own application form. The posting's address (/careers?pid=...) shows the job,
+ * and its Apply Now is refused there because that page already holds file fields; the form is /careers/apply with
+ * the same pid and domain. @param {string} url The posting. @returns {string} Its form's address; any other path as it is.
+ */
+function eightfoldApplication(url){
+ const address=new URL(url);
+ if(address.pathname.replace(/\/+$/,'')!=='/careers'||!/^\d{1,20}$/.test(address.searchParams.get('pid')||''))return url;
+ address.pathname='/careers/apply';return address.href;
+}
 /** @description Where an engine's own form opens, when it is not the posting's address. @param {string} id @param {string} url @returns {string} */
-const ownForm=(id,url)=>id==='icims'?icimsFrame(url):id==='amazon'?amazonApplication(url):url;
+const ownForm=(id,url)=>id==='icims'?icimsFrame(url):id==='amazon'?amazonApplication(url):id==='ashby'?ashbyApplication(url):id==='eightfold'?eightfoldApplication(url):url;
 /**
  * @description The form an assisted application fills and the rules it is filled in: the posting's own engine; else the
  * engine the company's page embeds, at that engine's own address; else the generic site at the posting's address.

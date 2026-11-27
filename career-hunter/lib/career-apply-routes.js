@@ -7,12 +7,14 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: POST /saved-answers also switches the two Attestations ({revision, attest}) and undoes the last change ({revision, undo}); the packet reads the switches into task.attest.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: Go on starts an attempt that was published but whose start was refused, instead of refusing it as not paused.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.1 to 5.4): the routes of an assisted application, every one the signed-in person's own. GET /apply-review/:postingId shows the exact packet (this job's Word and PDF résumé and its cover letter with their versions, the facts that may be typed, the résumé's roles with dates, education, the saved answers, the site and the stop at Review) and changes nothing. POST /apply-runs approves that exact packet and publishes its frozen input before any kernel call; /bind makes the career-apply ticket; /start starts the published attempt on executor orbit-apply-v1; /go-on publishes and starts the next attempt of a paused run while its approval lasts; /sync reads the kernel's record (career-apply-sync.js); /kept takes what the person's page read of the kernel's card route (GET /api/apply/cards `kept`, lane D) and writes it with Career's own writers. GET /apply-runs, /apply-runs/:id/receipt, /picture/:n and /confirmation read what was kept, each picture checked against its digest. GET and POST /saved-answers and the page GET /saved-answers-ui are Saved answers under Settings. A Word résumé is the packet's own Resume_ATS.docx when it has one, else rendered by docx_resume.py, which now gives the same bytes every time.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.76.14: the material of an application carries the generated cover letter's words (application.json generated.cover), for a site whose form takes the letter in a text box.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0 and 2.4): POST /saved-answers also changes What Career does by itself on an employer's site ({revision, help}: the five switches), with Undo; the packet reads the switches into task.assist. POST /apply-code is the lookup of one verification code in the person's own mailbox (lib/career-apply-codes.js), answered only to the kernel's own run of his approved application: a request without the kernel's mark, such as any browser's, is refused before anything is read.
  */
 'use strict';
 const {Router}=require('express'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {createChildLogger}=require('@/shared/logger');
 const queue=require('./career-submission-queue'),drafts=require('./career-application-draft'),docx=require('./career-docx-export');
-const packet=require('./career-apply-packet'),runs=require('./career-apply-runs'),answers=require('./career-apply-answers'),applySync=require('./career-apply-sync');
+const packet=require('./career-apply-packet'),runs=require('./career-apply-runs'),answers=require('./career-apply-answers'),applySync=require('./career-apply-sync'),codes=require('./career-apply-codes');
 const batchRoutes=require('./career-apply-batch-routes');
 const {callerSub,userPaths,openUserDb}=require('../routes/career-user-store');
 const {loadAutofillProfile}=require('../routes/career-autofill-routes');
@@ -58,8 +60,8 @@ async function material(sub,id){
  const folder=path.dirname(resolveContainedRegularFile(posting.resume_path,userDir)),record=json(path.join(folder,'application.json'),userDir);
  const saved=answers.read(userDir);
  return {posting,folder,profile:await loadAutofillProfile(sub),standing:answers.standingFacts(saved),answers:saved.answers,
-  careerDb:json(path.join(userDir,'career_db.json'),userDir)||{},resume:record?.generated?.resume||{},
-  attest:saved.attest,flags:saved.flags,resumeDocx:await wordResume(folder,userDir),resumePdf,coverPdf:posting.cover_path?contained(posting.cover_path,userDir):null};
+  careerDb:json(path.join(userDir,'career_db.json'),userDir)||{},resume:record?.generated?.resume||{},cover:record?.generated?.cover||null,
+  attest:saved.attest,flags:saved.flags,help:saved.help,resumeDocx:await wordResume(folder,userDir),resumePdf,coverPdf:posting.cover_path?contained(posting.cover_path,userDir):null};
 }
 /** Career's own writers for a run: the main résumé's revision-checked edit, the application's row, the job's folder. */
 function writers(ctx,sub,dir,run){
@@ -180,10 +182,22 @@ function registerAnswers(router,run){
  router.get('/saved-answers',run(async(_req,res,_sub,dir)=>res.json(answers.read(dir))));
  router.post('/saved-answers',run(async(req,res,_sub,dir)=>{
   const body=req.body||{},keys=Object.keys(body);
-  const actions=['standing','remove','attest','flags','undo'].filter(key=>key in body);
-  if(keys.some(key=>key!=='revision'&&!actions.includes(key))||actions.length!==1)fail('invalid_request','Change your standing answers, attestations or how Career fills in a form, remove one saved answer, or undo the last change.',400);
-  const action=actions[0],writer={standing:answers.setStanding,remove:answers.remove,attest:answers.setAttest,flags:answers.setFlags,undo:answers.undo}[action];
+  const actions=['standing','remove','attest','flags','help','undo'].filter(key=>key in body);
+  if(keys.some(key=>key!=='revision'&&!actions.includes(key))||actions.length!==1)fail('invalid_request','Change your standing answers, attestations, how Career fills in a form or what it does by itself, remove one saved answer, or undo the last change.',400);
+  const action=actions[0],writer={standing:answers.setStanding,remove:answers.remove,attest:answers.setAttest,flags:answers.setFlags,help:answers.setHelp,undo:answers.undo}[action];
   res.json(writer(dir,body.revision,body[action]));
+ }));
+}
+/**
+ * @description POST /apply-code: one verification code from the person's own mailbox, for the kernel's own run of his
+ * approved application only. A browser's request carries no kernel mark and is refused before anything is read. What
+ * is logged is the run, the status, the sender's domain and the message's time, never the code.
+ * @param {import('express').Router} router @param {Function} run The signed-in wrapper. @returns {void}
+ */
+function registerCodes(router,run){
+ router.post('/apply-code',run(async(req,res,_sub,dir)=>{
+  if(!codes.fromRun(req))return res.status(403).json({error:'Only Career’s own run of an application you approved reads a code from your mail.',code:'not_the_run'});
+  res.json(await codes.lookup(dir,req.body||{},{log:note=>logger.info(note,'apply code lookup')}));
  }));
 }
 /**
@@ -218,7 +232,7 @@ function createCareerApplyRoutes(ctx){
   const saved=runs.get(dir,req.params.id),keptCards=await applySync.keepCards(dir,saved,body.kept,writers(ctx,sub,dir,saved));
   res.json({ok:true,run:runs.publicRun(runs.update(dir,saved.id,{keptCards}))});
  }));
- registerEvidence(router,run);registerAnswers(router,run);
+ registerEvidence(router,run);registerAnswers(router,run);registerCodes(router,run);
  batchRoutes.register(router,run,{ctx,approve,bind,start,goOn,writers,postingRow});
  return router;
 }

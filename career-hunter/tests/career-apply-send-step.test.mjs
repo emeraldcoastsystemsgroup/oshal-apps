@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): the approval screen says what Career does by itself on this site, one sentence for each of his five switches, that a check is always his, and what Career does with a sign-in and a code.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the approval screen names the Word file it uploads as the résumé for upload forms (the parse résumé): Résumé for upload forms (Word) · version …, and Career uploads the résumé for upload forms (Word). Red before: Résumé (Word) and the Word résumé.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): for an employer's own site the approval screen says Career's careful rules and that it stops before any button that sends the application; for a company page embedding Greenhouse it says where the form really opens; at 1440x900 and 412x915, nothing wider than the screen.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the approval screen says each Attestations switch in words (one on, one off).
@@ -89,6 +90,11 @@ async function offeredAndReviewed(page, size) {
   assert.equal(await page.locator('#assistStop b').innerText(), 'Career stops at the employer’s Review page. You press Submit.');
   assert.deepEqual(await page.locator('#assistAttest li').allInnerTexts(), ['Career ticks the employer’s terms box for you, in your name.',
     'You sign the self-identification form yourself. Career hands it back to you there.'], 'the approval says each switch in words');
+  const help = await page.locator('#assistHelp li').allInnerTexts();
+  assert.equal(help.length, 6, 'and each thing Career does by itself on this site, one sentence each');
+  assert.match(help[4], /Career reads that one message in your mailbox \(only mail that arrived after the code was asked for, from myworkdayjobs\.com\) and types the code\./);
+  assert.equal(help[5], 'A “verify you are human” check is always yours. Career never solves or skips one.');
+  assert.match(await page.locator('#assistHands').innerText(), /^Career never sees or types a password\. A verification code the site emails you is the only code Career types\./);
   const facts = await page.locator('#assistFacts dt').evaluateAll((terms) => terms.map((dt) => [dt.textContent, dt.nextElementSibling.textContent]));
   for (const pair of [['Phone', '555-0100'], ['Phone type', 'Mobile'], ['Address', '1 Example Way'], ['City', 'Springfield'], ['State', 'Illinois'],
     ['State abbreviation', 'IL'], ['Postal code', '62701'], ['Country', 'United States']]) assert.ok(facts.some(([dt, dd]) => dt === pair[0] && dd === pair[1]), 'the approval lists ' + pair.join(': '));

@@ -4,6 +4,8 @@
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
+  6 | maintainer@emeraldcoastsystemsgroup.com | Remember each employer site and Look at the page before moving on are not available yet (the kernel does not act on them: career-apply-help.js NOT_YET): each shows off, cannot be switched, and says "Not available yet, so it stays off."; the other three are on unless he switches one off.
+  5 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0; Roger, 2026-11-26): What Career does by itself on an employer's site, five switches, all on unless he switched one off, each saved at once with Undo like the Attestations above them: Remember each employer site; Look at the page before moving on; Sign in with the login Chrome saved; Create an account with Chrome's suggested password (only with sign-in on, so it greys with a line saying why when sign-in is off); Read a verification code from my mail. Each says in plain words what Career does and what it never sees or keeps. Under the switches, always: a "verify you are human" check is always yours.
   4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: Standing answers lists gender, Hispanic or Latino and race beside veteran and disability, each a closed list whose blank choice declines the question on the form.
   3 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: How Career fills in a form, three choices that save at once with Undo: Typing (Like a person, the default, slower and changing nothing inside the page, or Fast), Window (In front, the default, or Behind my other windows, which is offered only with Fast) and Submit (Stop before Submit, the default, or Submit after I approve), with a line saying why Like a person is the default. The standing answers gain Protected veteran and Disability (No, Yes, or blank, which declines that question on the form) and Citizenship.
   2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): the Attestations group, two switches off by default: Tick the employer's terms box for me, and Sign the self-identification form with my name and today's date, each saying what Career does in his name and what happens when it is off. A switch saves at once with the revision the page read and offers Undo, which puts the earlier answers back while nothing changed after; Save answers offers Undo too.
@@ -54,6 +56,10 @@
   fieldset.choices label.choice input { width: 22px; height: 22px; margin: 2px 0 0; flex: 0 0 22px; }
   fieldset.choices label.choice small { display: block; color: var(--ds-ink-2); font-size: 13px; line-height: 18px; }
   label.switch input:focus-visible { outline: 2px solid var(--ds-accent-ink, #1d4fa8); outline-offset: 2px; }
+  label.switch input:disabled { opacity: .5; cursor: not-allowed; }
+  label.switch small.soon { color: var(--ds-ink); font-weight: 600; }
+  .why { margin: 4px 0 0 78px; font-size: 13px; line-height: 18px; }
+  .always { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--ds-hairline); font-weight: 600; }
   a { color: var(--ds-accent-ink); }
   @media (max-width: 640px) { .wrap { padding: 12px 14px 40px; } .fields { grid-template-columns: minmax(0, 1fr); } ul.answers li { flex-direction: column; } }
 </style>
@@ -117,6 +123,18 @@
       <label class="choice"><input type="radio" name="flagSubmit" value="submit-after-approval"><span><b>Submit after I approve</b><small>When you approve a job, Career checks the Review page and presses Submit once if nothing is wrong, and keeps the employer’s confirmation.</small></span></label></fieldset>
     <div class="actions"><span class="note" id="flagsSaved" role="status"></span><button type="button" class="ck-btn" id="flagsUndo" hidden>Undo</button></div>
   </section>
+  <section class="card" id="help" hidden aria-labelledby="helpTitle">
+    <h2 id="helpTitle">What Career does by itself on an employer’s site</h2>
+    <p class="note">Each is on unless you switch it off, except the two that are not available yet. Each is used only on a form you approved, and the approval screen says which are on for that job.</p>
+    <label class="switch" for="helpSiteMemory"><input type="checkbox" role="switch" id="helpSiteMemory" disabled><span><b>Remember each employer site</b><small>Career keeps what worked on a site: which field takes which of your facts, the choices a list really offers, the order of its pages. It keeps no value of yours. Every value is read again from the application you approve.</small><small class="soon">Not available yet, so it stays off.</small></span></label>
+    <label class="switch" for="helpScreen"><input type="checkbox" role="switch" id="helpScreen" disabled><span><b>Look at the page before moving on</b><small>After filling a page, Career takes pictures of it and this installation’s own picture model checks them: red errors, empty required fields, a file that did not attach, a value that looks different. Career fixes what it can and looks again, up to 3 times.</small><small class="soon">Not available yet, so it stays off.</small></span></label>
+    <label class="switch" for="helpSignIn"><input type="checkbox" role="switch" id="helpSignIn"><span><b>Sign in with the login Chrome saved</b><small>When the site asks you to sign in, Chrome fills your saved login and Career presses Sign in. Career never sees, types or keeps a password.</small></span></label>
+    <label class="switch" for="helpCreateAccount"><input type="checkbox" role="switch" id="helpCreateAccount" aria-describedby="helpCreateWhy"><span><b>Create an account with Chrome’s suggested password</b><small>When you have no account there, Career accepts the strong password Chrome suggests, and Chrome saves it. Career never sees it.</small></span></label>
+    <p class="note why" id="helpCreateWhy" hidden>Needs “Sign in with the login Chrome saved” switched on: Career signs in with the account it made.</p>
+    <label class="switch" for="helpMailCodes"><input type="checkbox" role="switch" id="helpMailCodes"><span><b>Read a verification code from my mail</b><small>When the site emails you a code, Career reads that one message in your mailbox (only mail that arrived after the code was asked for, from the employer’s or the job site’s address) and types the code. It reads nothing else.</small></span></label>
+    <p class="always" id="helpAlways">A “verify you are human” check is always yours. Career never solves or skips one.</p>
+    <div class="actions"><span class="note" id="helpSaved" role="status"></span><button type="button" class="ck-btn" id="helpUndo" hidden>Undo</button></div>
+  </section>
   <section class="card" id="keptCard" hidden aria-labelledby="keptTitle">
     <h2 id="keptTitle">Answers you kept from applications</h2>
     <ul class="answers" id="kept"></ul>
@@ -127,6 +145,7 @@
 (() => {
   const API = '/api/career-hunter', $ = (id) => document.getElementById(id), FIELDS = ['workAuthorization', 'sponsorship', 'heard', 'phoneType', 'veteranStatus', 'disabilityStatus', 'citizenship', 'gender', 'hispanicLatino', 'race'];
   const FLAGS = { input: 'flagInput', window: 'flagWindow', submit: 'flagSubmit' };
+  const HELP = { siteMemory: 'helpSiteMemory', screen: 'helpScreen', signIn: 'helpSignIn', createAccount: 'helpCreateAccount', mailCodes: 'helpMailCodes' };
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let current = null;
   /** @description One request to the Saved answers route; a refusal says why in words. @returns {Promise<object>} */
@@ -145,9 +164,13 @@
     $('attestSign').checked = data.attest.selfIdSignature === true;
     for (const [key, name] of Object.entries(FLAGS)) for (const box of document.getElementsByName(name)) box.checked = box.value === data.flags[key];
     for (const box of document.getElementsByName('flagWindow')) if (box.value === 'background') box.disabled = data.flags.input === 'person-like';
+    for (const [key, id] of Object.entries(HELP)) $(id).checked = data.help[key] === true;
+    $('helpCreateAccount').disabled = data.help.signIn !== true;
+    $('helpCreateWhy').hidden = data.help.signIn === true;
     $('standing').hidden = false;
     $('attest').hidden = false;
     $('flags').hidden = false;
+    $('help').hidden = false;
     $('keptCard').hidden = false;
     $('kept').innerHTML = data.answers.length ? data.answers.map((item) => `<li><div><p class="question">${esc(item.text)}</p><p class="answer">${esc(item.value)}</p><p class="from">${item.source === 'card' ? 'Kept from an application card' : 'Saved here'}${when(item.savedAt) ? ' · ' + esc(when(item.savedAt)) : ''}</p></div><button type="button" class="ck-btn" data-remove="${esc(item.id)}" aria-label="Remove the answer to ${esc(item.text)}">Remove</button></li>`).join('')
       : '<li><p class="note">None yet. When you tick Keep this answer for next time on a question card, the answer is listed here.</p></li>';
@@ -162,7 +185,7 @@
     } catch (error) { $('status').textContent = error.message; } finally { $('save').disabled = false; }
   });
   /** @description Say a save worked, and offer Undo while it is the last change. @returns {void} */
-  function saved(line, undo, words) { $(line).textContent = words; $(undo).hidden = !current.undo; for (const other of ['savedUndo', 'attestUndo', 'flagsUndo']) if (other !== undo) $(other).hidden = true; }
+  function saved(line, undo, words) { $(line).textContent = words; $(undo).hidden = !current.undo; for (const other of ['savedUndo', 'attestUndo', 'flagsUndo', 'helpUndo']) if (other !== undo) $(other).hidden = true; }
   async function flag(key, box) {
     for (const other of document.getElementsByName(FLAGS[key])) other.disabled = true;
     try { draw(await call({ revision: current.revision, flags: { [key]: box.value } })); saved('flagsSaved', 'flagsUndo', 'Saved.'); }
@@ -175,6 +198,14 @@
     try { draw(await call({ revision: current.revision, attest: { [key]: box.checked } })); saved('attestSaved', 'attestUndo', 'Saved.'); }
     catch (error) { box.checked = !box.checked; $('attestSaved').textContent = error.message; } finally { box.disabled = false; }
   }
+  /** @description Save one of the five switches at once; a refusal puts the switch back and says why. @returns {Promise<void>} */
+  async function help(key, box) {
+    box.disabled = true;
+    try { draw(await call({ revision: current.revision, help: { [key]: box.checked } })); saved('helpSaved', 'helpUndo', 'Saved.'); }
+    catch (error) { draw(current); $('helpSaved').textContent = error.message; }
+    finally { box.disabled = key === 'createAccount' && current.help.signIn !== true; }
+  }
+  for (const [key, id] of Object.entries(HELP)) $(id).addEventListener('change', () => help(key, $(id)));
   $('attestTerms').addEventListener('change', () => attest('terms', $('attestTerms')));
   $('attestSign').addEventListener('change', () => attest('selfIdSignature', $('attestSign')));
   async function undo(line, button) {
@@ -184,6 +215,7 @@
   }
   $('attestUndo').addEventListener('click', () => undo('attestSaved', $('attestUndo')));
   $('flagsUndo').addEventListener('click', () => undo('flagsSaved', $('flagsUndo')));
+  $('helpUndo').addEventListener('click', () => undo('helpSaved', $('helpUndo')));
   $('savedUndo').addEventListener('click', () => undo('saved', $('savedUndo')));
   $('kept').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-remove]'); if (!button) return;

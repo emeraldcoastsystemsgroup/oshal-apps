@@ -21,6 +21,7 @@
 # 53 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: after the years and term passes, _tailored_packet has resume_review.settle judge the review's own checks again on the final packet, so the job page's "needs your review" names only what the sent résumé still holds.
 # 54 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: before the years pass, _tailored_packet drops a job the model wrote twice (role_plan.drop_repeats) and records the count as roles_carried.repeated.
 # 55 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2 (Roger's Honeycomb letter, made 6:17 PM Central on 2026-11-25, was dated "November 26, 2026"): the letter's date is the calendar day in Career's time zone (America/Chicago, the zone its schedules run on; CAREER_TIME_ZONE overrides), not the server's UTC day.
+# 56 | maintainer@emeraldcoastsystemsgroup.com | A cover letter read "In my own open-source work on <project> | independent product, I designed ...": the model copied a recorded label with its " | descriptor" tail into a sentence. After the term pass and before the review is judged again, _tailored_packet runs label_prose.rewrite (_plain_labels): in the letter's paragraphs and the résumé's summary and bullets, a label the person's records hold with such a tail is written as the name before the bar; heading fields and lines of columns stay. It runs last because the cover editor, the letter's second writing and the résumé reviewer can each write the label back. The claims receipt's letter fingerprint follows the letter when this pass changed it, so a letter marked needs your review stays marked, and application.json records what was rewritten as label_prose.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -45,6 +46,7 @@ from . import (
     docx_parse,
     docx_resume,
     enrich,
+    label_prose,
     letter_evidence,
     profile,
     resume_review,
@@ -707,6 +709,23 @@ def _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, includ
     return prompt, ranked, letter_block
 
 
+def _plain_labels(data, prof_doc, selected, claims_checked) -> tuple:
+    """
+    @description The last pass over the packet's sentences (label_prose.rewrite): a recorded organization or project
+    label that carries a " | descriptor" tail is written as the name before the bar. When the pass changed the letter
+    and the claims receipt's fingerprint was that letter's, the fingerprint is taken again, so the check's verdict
+    (needs your review included) stays with the letter it judged.
+    @param data - The packet after the years and term passes. @param prof_doc - The profile it was generated from.
+    @param selected - Selected Other experience. @param claims_checked - The claims receipt, updated in place.
+    @returns (packet, [{path, from, to}]).
+    """
+    judged = claims_checked.get("cover_digest") == claims_fix.digest(data.get("cover"))
+    data, changes = label_prose.rewrite(data, prof_doc, selected, _dewash)
+    if judged and any(change["path"].startswith("cover.") for change in changes):
+        claims_checked["cover_digest"] = claims_fix.digest(data.get("cover"))
+    return data, changes
+
+
 def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
     """Generate and check one packet on the existing model rail, keeping recorded role identity independent."""
     prof_doc = _prep_profile(prof, include_oshal)
@@ -751,8 +770,9 @@ def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
     roles_carried["repeated"] = role_plan.drop_repeats(data.get("resume") or {})
     data, years_fixed = years_truth.enforce(data, prof_doc, selected)
     data, terms_fixed = term_fidelity.restore(data, prof_doc, selected, posting)
+    data, labels_fixed = _plain_labels(data, prof_doc, selected, claims_checked)
     resume_reviewed = resume_review.settle(resume_reviewed, data, prof_doc, selected, posting)
-    return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed
+    return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed, labels_fixed
 
 
 def _packet_files(outdir, data, ctx, family: str | None = None, roles: list | None = None):
@@ -818,8 +838,8 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         # Gate the personal open-source (OSHAL) work on the opt-in flag, then pick the
         # matching system prompt (ban vs allow). OFF mode is byte-identical to before.
         selected = additional_experience or []
-        data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed = _tailored_packet(
-            prof, selected, row, company_doc, include_oshal, guidance)
+        (data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed,
+         labels_fixed) = _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance)
 
         # Put the requisition number in the folder name when it's a clean id (referral/
         # manual rows store the real req #) so the packet ties back to the posting at a
@@ -841,7 +861,7 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
                         "url": row["url"], "stories_cited": stories_cited, "roles_carried": roles_carried,
                         "claims_check": claims_checked, "resume_review": resume_reviewed,
                         "years_truth": years_truth.receipt(skill_tenure.compute_tenure(prof_doc, selected), years_fixed),
-                        "term_fidelity": terms_fixed,
+                        "term_fidelity": terms_fixed, "label_prose": labels_fixed,
                         "profile_snapshot": prof_doc,
                         "job_context": {"description": row['description'],
                             **row.get('description_context', {'basis':'corpus-description'}),

@@ -6,6 +6,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: generate_for with the person's own years by skill states those years in the rendered résumé whatever the writer and the reviewer wrote, records the figures and corrections in application.json (years_truth), and restores a miswritten recorded term (term_fidelity).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years case uses new made-up figures (12, 5 and 24).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: verify skill_tenure counts start-of-title/line "Java" roles and structured engagement tech lists across multi-role spans.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | claims_fix._retime, which wrote a count worked out from the roles' dates over a years claim ("20+ years" became "11 years"), is gone; the check now proves the figure is taken out and no number written (claims_fix._untime).
 """Resume quality & career-resume-reviewer Swarm bot contract tests."""
 from __future__ import annotations
 
@@ -159,7 +160,7 @@ def test_plus_normalization() -> None:
 
 
 def test_skill_tenure_and_claims_fix() -> None:
-    """Overlapping roles union cleanly without double-counting; parenthetical years bind backward; claims_fix emits no '+'."""
+    """Overlapping roles union cleanly without double-counting; parenthetical years bind backward; claims_fix writes no number of years."""
     prof = sample_profile()
     tenure = skill_tenure.compute_tenure(prof, prof["additional_experience"], today=TODAY)
     # 2000-01 to 2026-11 = 26y 11m (not double-counting overlaps in 2002, 2006, 2024-10, 2026-07..08)
@@ -179,9 +180,9 @@ def test_skill_tenure_and_claims_fix() -> None:
     paren_check = claims_check.check(
         {"resume": {"skills": ["Languages: Java / J2EE (9 years), Python, Rust"]}, "cover": {}}, rec, job)
     check("parenthetical 'Java / J2EE (9 years), Python' binds to Java, never corrupted by Python", paren_check == [])
-    # claims_fix._retime never emits '+'
-    retimed = claims_fix._retime("Leader with 20+ years of Java", {"claim": "20+ years", "supported": 11})
-    check("claims_fix._retime emits '11 years' with zero '+'", retimed == "Leader with 11 years of Java")
+    # claims_fix writes no number of years: a figure the records do not add up to is taken out, '+' and all
+    untimed = claims_fix._untime("Leader with 20+ years of Java", {"claim": "20+ years", "at": 12})
+    check("claims_fix takes a years figure out and writes no number in its place", untimed == "Leader with Java")
     # Start-of-title "Java Developer", start-of-bullet "Java ...", and engagement tech: ["Java"] must all union cleanly.
     title_prof = {
         "roles": [

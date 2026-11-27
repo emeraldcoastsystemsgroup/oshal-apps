@@ -6,9 +6,13 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): an employer site Career has no rules for is no longer refused as site_unsupported. Which form is filled and in which rules comes from career-apply-sites.js formFor (the posting's own engine, the engine its company page embeds at that engine's own address, else the generic site); the approval screen names it, says where an embedded form really opens, and for a site filled in the careful general rules says what that means and that Career stops before any button that sends the application.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: an installation may name exact hosts that use a site's form, in the package setting CAREER_APPLY_SITE_HOSTS ({"workday":["careers.example.com"]}): an employer whose own careers address fronts its Workday form. A malformed setting is refused, never half read; a host is matched exactly, never as a suffix.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: the facts carry his standing gender, Hispanic or Latino and race answers too (selfid.gender male or female, selfid.hispanic yes or no, selfid.race white, black, asian, american-indian, pacific-islander or two-or-more), the words the kernel's apply_selfid.rs takes; a blank one is no fact.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.12: the facts carry work.employer, his current employer from the résumé's roles (the role with no end, else the first), so a site's rules can fill a Current company box; the kernel refuses a rule that names a role directly (role.1.employer in 1.76.10 made it refuse every Lever packet).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.76.14 (the PointClickCare check run, 2026-11-26): Lever has no cover-letter upload, only an ADDITIONAL INFORMATION box that says "Add a cover letter or anything else you want to share", and it was left empty, so the application went without its letter. The packet now carries the generated letter's words as the answer to a site's letter box (COVER_BOXES; Lever's so far), whole or not at all (never cut to fit), unless he kept an answer for that box.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): the task carries assist, What Career does by itself on an employer's site, from the person's five switches (career-apply-help.js), under the approval digest, so a switch changed after approval does not reach that run; with every switch off, and for a caller that gives no switches, the task carries no assist at all and is the task before the switches. Its mail codes part names the only senders a code may come from: the approved site's own domain, and the job site's sending domains when its rules name them (a `mail` list, kept out of the rules the kernel reads). The review says each switch in one sentence (assistLines, and assistLinesAny for a sheet of several jobs) and, in one line, what Career does and does not do with a sign-in and a code on this run (handsLine).
  */
 'use strict';
-const queue=require('./career-submission-queue'),roles=require('./career-resume-roles'),sites=require('./career-apply-sites'),flagsOf=require('./career-apply-flags');
+const queue=require('./career-submission-queue'),roles=require('./career-resume-roles'),sites=require('./career-apply-sites'),flagsOf=require('./career-apply-flags'),helpOf=require('./career-apply-help');
+const answerIds=require('./career-apply-answers');
 
 const MIME={docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',pdf:'application/pdf'};
 const MAGIC={docx:Buffer.from([0x50,0x4b,0x03,0x04]),pdf:Buffer.from('%PDF-')};
@@ -27,6 +31,30 @@ const SELFID_VALUES={yes:'yes',no:'no',male:'male',female:'female',white:'white'
  'american indian or alaska native':'american-indian','native hawaiian or other pacific islander':'pacific-islander','two or more races':'two-or-more'};
 /** The posting's employer, which the kernel reads for Previously worked for this employer (its fact posting.employer). */
 const POSTING_SLOT='posting.employer';
+/** His current employer, from the résumé's roles: the fact a form's Current company takes. */
+const WORK_SLOT='work.employer';
+/** A site's text boxes that take the cover letter because its form has no cover-letter upload: [the box's label, its kind in the read]. */
+const COVER_BOXES={lever:[['ADDITIONAL INFORMATION','textarea']]};
+/**
+ * @description The generated cover letter as words for a text box: greeting, paragraphs, closing and his name, a blank
+ * line between. Empty when there is no letter or it is longer than a saved answer may be: a letter is never cut.
+ * @param {object|null} cover application.json's generated.cover. @param {string} name His full name. @returns {string}
+ */
+function coverText(cover,name){
+ const line=value=>String(value??'').replace(/\s+/g,' ').trim();
+ const paragraphs=(Array.isArray(cover?.paragraphs)?cover.paragraphs:[]).map(line).filter(Boolean);if(!paragraphs.length)return '';
+ const words=[line(cover.greeting)||'Dear Hiring Manager,',...paragraphs,(line(cover.closing)||'Sincerely,')+'\n'+line(name)].join('\n\n');
+ return words.length<=MAX_ANSWER?words:'';
+}
+/**
+ * @description The saved answers a run may use, with the cover letter's words for this site's letter boxes (an answer
+ * he kept for that box wins). @param {object} material @param {string} siteId @param {string} name @returns {object[]}
+ */
+function answersFor(material,siteId,name){
+ const kept=answers(material.answers),letter=coverText(material.cover,name);
+ for(const [label,type] of letter?COVER_BOXES[siteId]||[]:[]){const id=answerIds.questionId(label,type);if(!kept.some(item=>item.id===id))kept.push({id,text:label,value:letter});}
+ return kept.slice(0,200);
+}
 /** Whether a self-identification value is one its slot takes: yes or no, male or female, or a race. */
 const selfidFits=(slot,value)=>slot==='selfid.gender'?['male','female'].includes(value):slot==='selfid.race'?!['yes','no','male','female'].includes(value):['yes','no'].includes(value);
 const fail=(code,message,status=409)=>{throw new queue.SubmissionError(code,message,status);};
@@ -128,18 +156,22 @@ const answers=saved=>(Array.isArray(saved)?saved:[]).filter(item=>/^question:[a-
  * the posting's own engine, the engine its company page embeds, or the generic site (career-apply-sites formFor). Refused
  * when the address is not a public HTTPS posting, a document is missing or of the wrong kind, or
  * the record has no name and email. @param {object} material {posting, profile, standing, careerDb, resume, resumeDocx,
- * resumePdf, coverPdf, answers}. @returns {{site:object,task:object,links:object[],packetDigest:string}}
+ * resumePdf, coverPdf, cover, answers, attest, flags, help}. @returns {{site:object,task:object,links:object[],packetDigest:string}}
  */
 function build(material){
  const {posting}=material,{url,site}=sites.formFor({...posting,url:queue.jobUrl(posting?.url)});
- const rules=sites.siteRules(site.id),documents=[document('resume-docx',posting,material.resumeDocx),document('resume-pdf',posting,material.resumePdf)];
+ const {mail,...rules}=sites.siteRules(site.id),documents=[document('resume-docx',posting,material.resumeDocx),document('resume-pdf',posting,material.resumePdf)];
  if(material.coverPdf)documents.push(document('cover-pdf',posting,material.coverPdf));
  const known=facts(material.profile,material.standing),employer=text(posting.company);if(employer)known[POSTING_SLOT]=employer;
  if(!known.email||!(known['name.first']||known['name.full']))fail('profile_incomplete','Add your name and email to your record before Career fills in a form.');
  const {roles:list,links}=packetRoles(material.resume,material.careerDb);
+ // The employer he works for now (the role with no end, else the latest on this résumé), for a form's Current company.
+ const current=list.find(role=>!role.end)||list[0];if(text(current?.employer))known[WORK_SLOT]=text(current.employer);
  const attest={terms:material.attest?.terms===true,selfIdSignature:material.attest?.selfIdSignature===true};
  const flags=flagsOf.read({[flagsOf.FIELD]:material.flags});
- const task={postingId:posting.id,url,documents,facts:known,roles:list,education:education(material.careerDb),answers:answers(material.answers),attest,flags,rules};
+ // His switches reach the run only here; a caller that gives none, or every switch off, sends no assist at all.
+ const assist=material.help?helpOf.assist(helpOf.read({[helpOf.FIELD]:material.help}),{flags,origin:new URL(url).origin,mail}):null;
+ const task={postingId:posting.id,url,documents,facts:known,roles:list,education:education(material.careerDb),answers:answersFor(material,site.id,known['name.full']||''),attest,flags,rules,...(assist?{assist}:{})};
  const binding={...task,documents:documents.map(({id,name,type,sha256})=>({id,name,type,sha256}))};
  return {site,task,links,packetDigest:queue.jsonDigest(binding)};
 }
@@ -164,6 +196,26 @@ function modeLines(site,host){
  if(site.id==='generic')lines.push('Career has no rules for this site, so it types your record only into fields whose words say exactly what they are, asks you everything else, and moves pages only with Next or Continue.');
  return lines;
 }
+/**
+ * @description What the approval screen says Career does and does not do with a sign-in and a code on this run, in one
+ * line. @param {object|null} assist The task's assist, or null when it has none. @returns {string}
+ */
+function handsLine(assist){
+ const signIn=assist?.signIn?'When the site asks you to sign in, Chrome fills the login it saved and Career presses Sign in; with no saved login, Career waits for you in that window.'
+  :'When the site asks you to sign in, Career waits for you in that window.';
+ const code=assist?.mailCodes?'A verification code the site emails you is the only code Career types.':'Career types no code.';
+ return `Career never sees or types a password. ${code} ${signIn} A question nothing you recorded answers comes to you as a card.`;
+}
+/**
+ * @description What the approval screen says Career does by itself: one sentence for each switch for this job
+ * (assistLines) and for a sheet that approves several jobs at once (assistLinesAny); none for a caller with no switches.
+ * @param {object} task The built task. @param {object} [kept] The person's switches. @returns {{assistLines:string[],assistLinesAny:string[]}}
+ */
+function assistWords(task,kept){
+ if(!kept)return {assistLines:[],assistLinesAny:[]};
+ const help=helpOf.read({[helpOf.FIELD]:kept}),assist=task.assist||null;
+ return {assistLines:helpOf.lines(assist,task.flags,help),assistLinesAny:helpOf.lines(assist,task.flags,help,true)};
+}
 /** @description A slot's place on the approval screen, in SLOT_LABELS' order (Phone type under Phone). @param {string} slot @returns {number} */
 const shown=slot=>{const at=Object.keys(SLOT_LABELS).indexOf(slot);return at<0?999:at;};
 /**
@@ -176,7 +228,8 @@ function review(material){
  return {postingId:task.postingId,title:material.posting.title,company:material.posting.company,url:task.url,host:new URL(task.url).hostname,
   site,uploads:task.rules.document,documents:task.documents.map(({id,name,type,sha256,bytes})=>({id,name,type,sha256,byteLength:bytes.length})),
   facts:Object.entries(task.facts).sort(([a],[b])=>shown(a)-shown(b)).map(([slot,value])=>({slot,label:SLOT_LABELS[slot]||slot,value})),roles:task.roles,education:task.education,
-  answers:task.answers,attest:task.attest,attestLines:attestLines(task.attest),flags:task.flags,flagLines:flagsOf.lines(task.flags),stop:flagsOf.stopLine(task.flags,stopLine(site)),mode:modeLines(site,new URL(task.url).hostname),packetDigest:built.packetDigest};
+  answers:task.answers,attest:task.attest,attestLines:attestLines(task.attest),flags:task.flags,flagLines:flagsOf.lines(task.flags),stop:flagsOf.stopLine(task.flags,stopLine(site)),mode:modeLines(site,new URL(task.url).hostname),
+  assist:task.assist||null,...assistWords(task,material.help),handsLine:handsLine(task.assist||null),packetDigest:built.packetDigest};
 }
 /**
  * @description The approved input of one attempt, Appendix C: its own attempt number and request digest over the same
@@ -185,9 +238,10 @@ function review(material){
 function input({id,attempt,expiresAt,task}){
  const documents=task.documents.map(({id:doc,name,type,sha256,bytes})=>({id:doc,name,type,sha256,base64:bytes.toString('base64')}));
  const bound={version:2,intentId:id,attempt,origin:new URL(task.url).origin,expiresAt,mode:'assist',bounds:{...BOUNDS},
-  task:{submissionId:id,postingId:task.postingId,url:task.url,documents,facts:task.facts,roles:task.roles,education:task.education,answers:task.answers,attest:task.attest,flags:task.flags,rules:task.rules}};
+  task:{submissionId:id,postingId:task.postingId,url:task.url,documents,facts:task.facts,roles:task.roles,education:task.education,answers:task.answers,attest:task.attest,flags:task.flags,rules:task.rules,
+   ...(task.assist?{assist:task.assist}:{})}};
  const value={...bound,requestDigest:queue.jsonDigest(bound)};
  if(Buffer.byteLength(JSON.stringify(value))>MAX_INPUT)fail('packet_too_large','These documents are too large to send to your computer (1 MB in all).');
  return value;
 }
-module.exports={BOUNDS,MIME,siteFor:sites.siteFor,siteRules:sites.siteRules,documentName,facts,recordedDate,packetRoles,education,answers,build,review,input};
+module.exports={BOUNDS,MIME,siteFor:sites.siteFor,siteRules:sites.siteRules,documentName,facts,recordedDate,packetRoles,education,answers,build,review,input,handsLine};

@@ -9,6 +9,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { applyHarness } from './helpers/career-apply-fixture.mjs';
 
 let h;
@@ -50,9 +51,22 @@ test('a company page that embeds an engine is approved at that engine’s own fo
   const ashby = await approve('dana-embed-ashby', { url: `https://www.example-freight.com/careers?ashby_jid=${UUID_A}`,
     company: { atsType: 'ashby', atsToken: 'example-freight' }, atsJobId: 'not-an-ashby-id' });
   assert.equal(ashby.review.url, `https://jobs.ashbyhq.com/example-freight/${UUID_A}/application`, 'the page’s ashby_jid when the record’s id is not Ashby’s');
+  // On Ashby's own host the posting's address is its Overview tab: the run opens the application tab.
+  const own = await approve('dana-own-ashby', { url: `https://jobs.ashbyhq.com/example-freight/${UUID_A}?utm_source=career`, company: {} });
+  assert.deepEqual([own.review.url, own.review.site.id], [`https://jobs.ashbyhq.com/example-freight/${UUID_A}/application?utm_source=career`, 'ashby']);
+  const there = await approve('dana-own-ashby-form', { url: `https://jobs.ashbyhq.com/example-freight/${UUID_A}/application`, company: {} });
+  assert.equal(there.review.url, `https://jobs.ashbyhq.com/example-freight/${UUID_A}/application`, 'an application address stays as it is');
+  // An Eightfold posting opens at its form: the posting page holds file fields, so Apply Now is refused there.
+  const eightfold = await approve('dana-own-eightfold', { url: 'https://example-freight.eightfold.ai/careers?pid=996477813610&domain=example-freight.com', company: {} });
+  assert.deepEqual([eightfold.review.url, eightfold.review.site.id], ['https://example-freight.eightfold.ai/careers/apply?pid=996477813610&domain=example-freight.com', 'eightfold']);
   const lever = await approve('dana-embed-lever', { url: 'https://example-freight.com/jobs/office-manager',
     company: { atsType: 'lever', atsToken: 'examplefreight' }, atsJobId: UUID_B });
   assert.deepEqual([lever.review.url, lever.input.task.rules.id], [`https://jobs.lever.co/examplefreight/${UUID_B}/apply`, 'lever']);
+  // Lever has no cover-letter upload: the letter's words answer its ADDITIONAL INFORMATION box; other sites get none.
+  const letter = lever.input.task.answers.find((answer) => answer.text === 'ADDITIONAL INFORMATION');
+  assert.equal(letter?.value, 'Dear team,\n\nI run offices well.\n\nSincerely,\nDana Q Example', JSON.stringify(lever.input.task.answers));
+  assert.match(letter.id, /^question:[a-f0-9]{64}$/);
+  assert.equal(greenhouse.input.task.answers.some((answer) => answer.text === 'ADDITIONAL INFORMATION'), false);
   const smart = await approve('dana-embed-sr', { url: 'https://example-freight.com/careers/7',
     company: { atsType: 'smartrecruiters', atsToken: 'ExampleFreight' }, atsJobId: '744000012345678' });
   assert.equal(smart.review.url, 'https://jobs.smartrecruiters.com/ExampleFreight/744000012345678');
@@ -116,5 +130,18 @@ test('every profile keeps the closed shape, never presses a submit word, signs n
     assert.deepEqual(profile.signature, { page: 'questions', name: [], date: [] }, `${file}: no signature line is signed`);
     assert.ok(!profile.fields.some((rule) => rule.match.label.some((label) => /^(name|full name|signature|date)$/i.test(label.trim()))), `${file}: no bare Name, Full Name, Signature or Date, which can be a signature line`);
     assert.deepEqual(profile.equivalents.Florida, ['Florida', 'FL'], `${file}: a state list of abbreviations takes his state`);
+  }
+});
+
+test('every site’s rules name only slots the kernel takes', () => {
+  // The kernel's slot_key_ok (apply_input.rs): 1 to 64 letters, digits, dot, underscore or hyphen, a letter first, and
+  // never a role or a school directly. A rule outside it makes the kernel refuse every packet for that site.
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'apply-profiles');
+  for (const file of fs.readdirSync(dir).filter((name) => name.endsWith('.json'))) {
+    const rules = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+    for (const rule of rules.fields || []) {
+      assert.match(rule.slot, /^[A-Za-z][A-Za-z0-9._-]{0,63}$/, `${file}: ${rule.slot}`);
+      assert.doesNotMatch(rule.slot, /^(role|education)\./, `${file}: ${rule.slot} names a role or school directly`);
+    }
   }
 });

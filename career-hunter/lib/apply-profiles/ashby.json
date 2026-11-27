@@ -7,7 +7,6 @@
     "open": [
       "Apply for this Job",
       "Apply for this job",
-      "Application",
       "Apply"
     ],
     "continue": [],
@@ -21,7 +20,9 @@
         "auto": [],
         "label": [
           "Name",
-          "Full Name"
+          "Full Name",
+          "Legal First & Last Name", "Preferred First & Last Name",
+          "Preferred First & Last Name"
         ]
       },
       "slot": "name.full"
@@ -30,8 +31,29 @@
       "match": {
         "auto": [],
         "label": [
+          "Legal First Name",
+          "First Name"
+        ]
+      },
+      "slot": "name.first"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Legal Last Name",
+          "Last Name"
+        ]
+      },
+      "slot": "name.last"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
           "Location",
-          "Current Location"
+          "Current Location",
+          "What location do you intend to work from?"
         ]
       },
       "slot": "address.city"
@@ -40,7 +62,8 @@
       "match": {
         "auto": [],
         "label": [
-          "Email"
+          "Email",
+          "Email Address"
         ]
       },
       "slot": "email"
@@ -49,7 +72,8 @@
       "match": {
         "auto": [],
         "label": [
-          "Phone"
+          "Phone",
+          "Phone Number"
         ]
       },
       "slot": "phone"
@@ -60,7 +84,8 @@
         "label": [
           "LinkedIn Profile",
           "LinkedIn",
-          "LinkedIn URL"
+          "LinkedIn URL",
+          "Linkedin Profile Link"
         ]
       },
       "slot": "links.linkedin"
@@ -72,7 +97,8 @@
           "Website",
           "Portfolio",
           "Portfolio URL",
-          "Other website"
+          "Other website",
+          "Other Website / Portfolio"
         ]
       },
       "slot": "links.website"
@@ -82,7 +108,8 @@
         "auto": [],
         "label": [
           "GitHub",
-          "GitHub URL"
+          "GitHub URL",
+          "GitHub Profile"
         ]
       },
       "slot": "links.github"
@@ -92,7 +119,8 @@
         "auto": [],
         "label": [
           "legally authorized to work",
-          "authorized to work"
+          "authorized to work",
+          "Are you legally authorized to work in the United States?"
         ]
       },
       "slot": "eligibility.authorized"

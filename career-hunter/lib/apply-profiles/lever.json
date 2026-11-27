@@ -18,6 +18,15 @@
       "match": {
         "auto": [],
         "label": [
+          "Current company"
+        ]
+      },
+      "slot": "work.employer"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
           "Full name",
           "Name"
         ]
@@ -69,8 +78,7 @@
         "label": [
           "Website",
           "Portfolio",
-          "Portfolio URL",
-          "Other website"
+          "Portfolio URL"
         ]
       },
       "slot": "links.website"
@@ -90,7 +98,8 @@
         "auto": [],
         "label": [
           "legally authorized to work",
-          "authorized to work"
+          "authorized to work",
+          "Are you legally authorized to work in the United States for our Company?"
         ]
       },
       "slot": "eligibility.authorized"
@@ -101,7 +110,8 @@
         "label": [
           "require sponsorship",
           "visa sponsorship",
-          "need sponsorship"
+          "need sponsorship",
+          "Do you now, or will you in the future, require sponsorship for employment visa status (e.g., H-1B visa status, etc.) to work legally for our Company in the United States?"
         ]
       },
       "slot": "eligibility.sponsorship"
@@ -176,7 +186,8 @@
     "I don't wish to answer",
     "I do not want to answer",
     "Decline to self-identify",
-    "Prefer not to say"
+    "Prefer not to say",
+    "Prefer not to disclose"
   ],
   "signature": {
     "page": "questions",

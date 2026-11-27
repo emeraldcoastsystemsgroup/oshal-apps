@@ -1,3 +1,8 @@
+# 141 | maintainer@emeraldcoastsystemsgroup.com | assisted-application also runs career-apply-bank: Career banks the answers the person kept on question cards itself when a run's attempt ends (POST /apply-runs/:id/sync, no page open) under the question id the kernel computed, the next packet carries them, once per card, newest answer kept with Undo, his own runs only, and an attempt that ended before this version is read once.
+# 140 | maintainer@emeraldcoastsystemsgroup.com | assisted-application also runs career-apply-help (what Career does by itself on an employer's site: only the switches the kernel acts on reach a run) and career-apply-codes (the lookup of one verification code in the person's own mailbox, against a stand-in Gmail).
+# 139 | maintainer@emeraldcoastsystemsgroup.com | Register email-confirmation-not-rejection: an employer's automatic confirmation was recorded as a rejection and its job set to rejected (production, 2026-11-26, two applications confirmed within seconds). The mail reader takes a confirmation as an acknowledgement, a rejection only from a statement outside any condition, and nothing dated earlier than five minutes after applied_at as a rejection of that application; the next check relabels a stored wrong event and puts its job back, leaving a rejection the person recorded or a real one stored.
+# 138 | maintainer@emeraldcoastsystemsgroup.com | Register claims-years: the claims check leaves a years figure the person stated as written (a résumé read "2 years" beside "Java / J2EE (11 years)" after the check held "11 years of Java and <another tool>" to the tool with the fewest recorded years), takes a figure they have not stated out of its sentence, never writes a number of its own, says so in true words, and the real generation function ends with the person's figure after the letter's second writing and the reviewer's rewrite, and on a letter held for review. letter-truth and resume-reviewer expect a years problem with no count on it and a figure taken out in place of the retired rewrite.
+# 137 | maintainer@emeraldcoastsystemsgroup.com | final-packet also proves a recorded organization or project label that carries a " | descriptor" tail is written as its name in the final letter's and résumé's sentences (a cover letter read "<project> | independent product, I designed ..."), with heading lines left alone, and that the claims check's notice names such an entry once.
 # 136 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2: final-packet also proves the letter date is the Central calendar day.
 # 135 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: years-truth now proves a person who stated figures gets years only where they stated one (unconfirmed claims and an unstated total taken out, a person with no figures keeps the roles' floor); register final-packet (one entry per job; the review judged on the final résumé).
 # 134 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: register role-location (a job's location on Work history over the real routes and engine, with Undo, a client engagement's, the parse résumé printed from the saved record, the concierge's patch tool, and the page in Chromium at 1440x900 and 412x915); parse-resume and assisted-application expect the recorded location on the parse résumé and the typed rows in the kernel's shape.
@@ -4035,13 +4040,25 @@ cases:
     isolation: {mode: pure}
     limits: {timeoutMs: 120000, maxMemoryMb: 512}
     installation: never
+  - id: claims-years
+    name: The claims check keeps a years figure the person stated and takes out one they did not
+    purpose: Prove, on a made-up person who states Java 11 years and whose dated records span 2, that the claims check (claims_check, claims_fix) leaves the person's own figure as written beside another tool, in a skills line, in N-year form, behind a title, in a role's bullet and in the letter, keeps a stated total, takes a figure they have not stated out of its sentence (a total, a count of decades, an N-year form, a skills tag, a bullet) and never writes a number worked out from the roles' dates, removes the sentence when the figure cannot be taken out of it, does the same for a person who stated no figure, says "a years figure you have not stated ... Career took the figure out" and never what the records support, gives the résumé review no conflict, and that generate._tailored_packet ends with the person's 11 years where the model wrote them and no other number of years after the letter's second writing and the reviewer's rewrite each put one back, and on a letter held for the person's review.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-claims-years.test.mjs]}
+    expected:
+      - tests/career-claims-years-contract.py reports 61 or more checks and no failure, including "Brings 11 years of Java and Spring development" left as written, "over 25 years of experience building" read as "experience building", and no "2 years" anywhere in the generated packet.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
   - id: final-packet
     name: A generated résumé prints each job once and its review names only what the sent résumé holds
-    purpose: Prove role_plan.drop_repeats keeps one entry when the model writes the same job twice with different punctuation (the copy bound to the recorded role kept, two stints with different spans kept), and resume_review.settle judges the review's own checks again on the final packet, so a years conflict the years pass already fixed is not shown as needing review while a reviewer's item and a conflict still present are, and that a letter is dated the calendar day in Career's time zone (America/Chicago), not the server's UTC day.
+    purpose: Prove role_plan.drop_repeats keeps one entry when the model writes the same job twice with different punctuation (the copy bound to the recorded role kept, two stints with different spans kept), that resume_review.settle judges the review's own checks again on the final packet, so a years conflict the years pass already fixed is not shown as needing review while a reviewer's item and a conflict still present are, that a letter is dated the calendar day in Career's time zone (America/Chicago), not the server's UTC day, and that label_prose.rewrite, the last text pass of generate._tailored_packet, writes a recorded organization or project label that carries a bar and a descriptor as the name before the bar in the letter's and the résumé's sentences, leaving heading lines and a packet without such a label as they were, with the claims notice naming the entry once.
     level: unit
     runner: {kind: node-test, scope: package, files: [tests/career-final-packet.test.mjs]}
     expected:
-      - tests/career-final-packet-contract.py reports 10 or more checks and no failure, including a letter made at 00:18 UTC on November 26 dated November 25.
+      - tests/career-final-packet-contract.py reports 36 or more checks and no failure, including a letter made at 00:18 UTC on November 26 dated November 25 and a generated letter whose sentences name a made-up project without the bar and descriptor its record carries.
     prerequisites: [runner:node-test, fixture:store-toolchain]
     sideEffects: none
     isolation: {mode: pure}
@@ -4302,14 +4319,16 @@ cases:
     name: Fill it in on my Chrome, the approval packet and what Career does with the kernel's record
     purpose: Prove the assisted application's approved input (browser-task version 2), its approval, bind, start and Go on, and the sync that reads the kernel's record, keeps verified pictures, writes the receipt and writes back what the person kept, all through Career's real routes on a made-up person's real store.
     level: integration
-    runner: {kind: node-test, scope: package, files: [tests/career-apply-packet.test.mjs, tests/career-apply-sync.test.mjs, tests/career-apply-sites.test.mjs]}
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-packet.test.mjs, tests/career-apply-sync.test.mjs, tests/career-apply-sites.test.mjs, tests/career-apply-ashby-profile.test.mjs, tests/career-apply-lever-profile.test.mjs, tests/career-apply-workday-profile.test.mjs, tests/career-apply-brassring-profile.test.mjs, tests/career-apply-eightfold-profile.test.mjs, tests/career-apply-help.test.mjs, tests/career-apply-codes.test.mjs, tests/career-apply-bank.test.mjs]}
     expected:
       - Any public employer site is filled, never refused as site_unsupported. A site Career names no engine for is the generic site (careful general rules, no page kinds guessed, Next or Continue to move, a stop before any button that sends); a company page embedding Greenhouse, Lever, Ashby or SmartRecruiters is approved at that engine's own form address from the source's engine, token and job id (or gh_jid / ashby_jid), never a guessed one; SAP SuccessFactors, BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS (at its in_iframe address), Oracle Recruiting Cloud and Taleo are recognised by host and get their own rules; no profile presses a submit word, signs for him or maps State to anything but the state.
       - The packet's Word résumé is the parse résumé (its own Resume_Parse.docx byte for byte, else the same digest from docx_resume.py --kind parse; never Resume_ATS.docx), which every site's rules upload; the PDF résumé and cover letter, only the roles on this job's résumé with their recorded dates (a year alone stays a year), education, facts and the site's rules; approval publishes the frozen input before any kernel call.
       - Bind, start, a lost acknowledgement and Go on send exactly the approved bytes on executor orbit-apply-v1, never a second start of one attempt; another person, no person, a changed packet and a site without rules are refused.
       - A job's recorded location is on its Location line in the packet's Word résumé and a job with none has no such line; the typed work-history rows hold only the keys the kernel reads; documents made before a location was saved are refused as out of date.
       - A run in progress reads as one line; a kept answer is saved by its question id and a kept month is written through the engine's revision-checked edit only over a year alone, once per card, this run's cards only.
+      - Career banks what he kept on a question card itself when the attempt ends (sync, no page open), under the question id the kernel computed, and the next job's approved input carries it. Only cards he said Keep on, of this run, never a month; once per card with the job page's Keep; a newer answer replaces the older with Undo, an earlier one never does; standing self-identification answers and the Attestations stay; a full list keeps the run's end; an attempt that ended earlier is read once.
       - An ended attempt keeps only pictures matching the kernel's digest, writes apply-receipt.json with every change and its source, and records Submitted by you only with the verified confirmation; a mismatched result, Not seen and Stop record nothing.
+      - What Career does by itself rides in the approved input as task.assist, only the switches the kernel acts on (signIn, createAccount, mailCodes), none with every switch off; the two not available yet are off and refused. A verification code is read only for the kernel's own run of an approved application with mail codes, from the application's own mailbox, after the moment asked, from an approved sender, by closed patterns; two codes are ambiguous; no code is logged.
     prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port is a scripted stand-in and no employer site is contacted."}
@@ -4592,4 +4611,26 @@ cases:
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the model and Chromium are scripted stand-ins."}
     limits: {timeoutMs: 300000, maxMemoryMb: 1536}
+    installation: never
+  - id: email-confirmation-not-rejection
+    name: An employer's confirmation is an acknowledgement, a rejection is a statement, and the next check puts a wrong one right
+    purpose: >-
+      Production, 2026-11-26. Career's mail reader recorded two automatic confirmations as rejections and set both jobs to
+      rejected, three seconds after one application and five seconds before Career's own record of the other. One says
+      "If you are not selected for this position, continue to keep an eye on our careers page"; the other's subject ends
+      "We have your application." The shipped lib/career-email-updates.js over real SQLite with the engine's own schema,
+      the real application-email-state.json and job-board-state.json, and a scripted mailbox, for a made-up person and
+      made-up employers.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-email-updates.test.mjs]}
+    expected:
+      - Both confirmations read as acknowledged, seconds from the application and two days later, in plain text and in HTML, and both jobs stay applied through the real check.
+      - A stated rejection reads as rejected, also after "Thank you for applying" and before a condition in the same sentence. Rejection words inside a condition or about candidates in general read as no rejection.
+      - A message dated earlier than five minutes after applied_at is not a rejection of that application; an offer and an interview invitation read as before.
+      - The next check relabels a stored rejection whose subject is a confirmation inside that time and puts its job back to applied, or to the interview already on record, also when the mailbox cannot be read.
+      - A rejection the person recorded, a job with a real rejection stored, an event outside that time or with another subject, and an event matched to several applications keep their status.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the in-memory database and remove the temporary store folder."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
     installation: never

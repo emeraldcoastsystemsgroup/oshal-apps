@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: a career total counted from the roles is a floor for a person who stated none (a lower number is corrected, "over 20 years" stands); years "of experience in <a field>" are left as written because no record confirms a field; a titled claim that matches neither figure takes the nearer true one; a corrected "1 year" reads "4 years".
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: the reader takes every figure Work history's Years by skill form can save: a skill's years up to and including 60 (60 itself was refused) and a total up to and including 70 (was under 60), so nothing the form saves is ignored by generation.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (Roger, 2026-11-25: a generated résumé said "Machine Learning (4 years)", "SAP HANA (5 years)", "AWS GovCloud (5 years)" and "over 25 years" / "26 years" of experience, none of them his figures): a person who has stated years of their own gets a years count only where they stated one. In the summary, headline, competencies, skills and cover letter, a years claim that names none of their figures, and a career total when they stated no total, is taken out by code after the last model pass ("Kubernetes (2 years)" reads "Kubernetes", "over 25 years of experience in X" reads "experience in X"); a claim that names one of their figures is still corrected to it. A person with no figures of their own keeps the roles' floor.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The claims check (claims_check, claims_fix) ran before this pass with a rule of its own: it judged "11 years of Java and Spring" by the tool with the fewest recorded years and wrote that count in ("2 years of Java and Spring"), on a person who states Java 11 years; the notice read "your records support about 2" and the résumé reviewer then refused the conflict it made. The claims check now asks this module: own_figure() says whether the number a claim writes is the person's own for what it names (it is then left as written), sets_own() and reads() say whether this pass will write the person's figure over a claim that names one of theirs, and without() takes a figure out of a sentence the way enforce() does, also a count of decades and an "N-year" form this pass leaves alone. stated_overlay() keeps the person's figures on the records for those questions. enforce() itself is unchanged.
 """Authoritative candidate-confirmed per-skill and total-career years truth."""
 from __future__ import annotations
 
@@ -48,6 +49,13 @@ _LOWER_BOUND = frozenset({"over", "more than", "at least"})
 _BETWEEN = frozenset({"in", "with", "for", "on", "across", "of", "at", "to", "using", "and", "or", "plus", "via",
                       "through", "over", "under", "into"})
 _WHOLE_CAREER = re.compile(r"\b(?:total|overall|combined)\b", re.I)
+# A count of decades ("two decades", "a decade"), with _CLAIM_RE's group names so _claim_context and _cut read it the
+# same way. enforce() does not correct decades; without() takes one out for the claims check.
+_DECADE_RE = re.compile(
+    r"(?<![\w.$-])(?:(?P<mod>over|more than|nearly|almost|about|around|roughly|close to|at least)\s+)?"
+    r"(?P<n>an?|" + _NUMBER + r")(?P<gap>\s*)(?P<plus>\+)?(?P<sep>-|\s*)(?P<unit>decades?)(?P<poss>['’]s?)?(?![\w-])",
+    re.I,
+)
 
 
 def _valid_years(value, most: float = 60.0) -> float | None:
@@ -169,6 +177,7 @@ def stated_overlay(rec: dict, prof: dict) -> None:
     if not isinstance(rec, dict):
         return
     figs = figures(prof)
+    rec["figures"] = figs  # the person's own figures, for own_figure(): a claim that states one is theirs
     stated = rec.setdefault("stated", {})
     for fig in figs["skills"]:
         for token in fig["tokens"]:
@@ -210,6 +219,15 @@ def _before_phrase(before: str, limit: int) -> str:
     return " ".join(clause.split()[-limit:])
 
 
+def _time_expression(text: str, match: re.Match) -> bool:
+    """@description Whether a years match is a length of time and not anyone's tenure: "5 years ago", "in 3 years",
+    "every 2 years", "the last 5 years". @param text - The string. @param match - A _CLAIM_RE or _DECADE_RE match.
+    @returns True when it is."""
+    before, after = text[:match.start()], text[match.end():]
+    return bool(claims_check._YEARS_NOT_CLAIM.search(before[-12:]) or _SKIP_AFTER.match(after)
+                or _SKIP_BEFORE.search(before[-24:]))
+
+
 def _claim_context(text: str, match: re.Match) -> dict | None:
     """@description What a years match is a claim about, or None when it is not a statement of the person's tenure
     (a project's length, "5 years ago", "in 3 years", a range).
@@ -217,7 +235,7 @@ def _claim_context(text: str, match: re.Match) -> dict | None:
     @returns {"subject": text, "tight": bool, "career": bool, "title": bool} or None."""
     before, after = text[:match.start()], text[match.end():]
     tail = before[-24:]
-    if claims_check._YEARS_NOT_CLAIM.search(before[-12:]) or _SKIP_AFTER.match(after) or _SKIP_BEFORE.search(tail):
+    if _time_expression(text, match):
         return None
     if _LIST_BEFORE.search(before):  # "Java (11 years)", "Java: 11 years", "Java - 11 yrs"
         head = re.split(r"[,;:\n•|(]", _LIST_BEFORE.sub("", before))[-1]
@@ -398,6 +416,77 @@ def _capital(segment: str) -> str:
     """@description A segment with its first letter capitalised, for words that now open a sentence.
     @param segment - Text. @returns The text."""
     return segment[:1].upper() + segment[1:] if segment[:1].isalpha() else segment
+
+
+def _claim_at(text: str, start: int, end: int) -> tuple:
+    """@description The years figure written at [start, end) of a string, as this module reads one: a count of years,
+    or of decades. @param text - The string. @param start - Where the figure begins. @param end - Where it ends.
+    @returns (match, _claim_context() of it) or (None, None) when no figure is written there."""
+    for pattern in (_CLAIM_RE, _DECADE_RE):
+        for match in pattern.finditer(text or ""):
+            if match.start() < end and start < match.end():
+                return match, _claim_context(text, match)
+    return None, None
+
+
+def own_figure(figs, text: str, start: int, end: int, claimed: float, subject: str = "") -> bool:
+    """@description Whether the number a years claim writes is the person's own figure for what the claim names: their
+    total for a statement of experience, or their figure for a skill named with it (_agrees). Such a claim is theirs.
+    It is supported as written whatever the roles' dates add up to, and no check may change it.
+    @param figs - figures(prof), as stated_overlay() keeps it on the records. @param text - The string the claim is
+    in. @param start - Where its figure begins. @param end - Where the figure ends. @param claimed - The number
+    written, without its "over" or "+" (a decade is 10). @param subject - The words another reader bound the figure
+    to, read as well as this module's own reading. @returns True when the number is theirs."""
+    if not isinstance(figs, dict) or not _stated(figs):
+        return False
+    _match, context = _claim_at(text, start, end)
+    readings = [context] if context else []
+    if (subject or "").strip():
+        readings.append({"subject": subject, "career": bool(_CAREER_CUE.search(subject))})
+    return any(_agrees(reading, claimed, figs) for reading in readings)
+
+
+def reads(document: str, section: str) -> bool:
+    """@description Whether enforce() reads a string of a packet: every string of the cover letter, and the résumé's
+    headline, summary, competencies and skills (never a role's bullets, which are that role's own).
+    @param document - "cover" or "resume". @param section - The résumé key the string sits under.
+    @returns True when the last pass reads it."""
+    return document == "cover" or section in _PERSON_KEYS
+
+
+def sets_own(figs, text: str, start: int, end: int) -> bool:
+    """@description Whether the years figure written at [start, end) is certainly about one of the person's own
+    figures while stating another number (_target): enforce() writes their figure there ("9 years of Java" reads "12
+    years of Java" for a person who states 12), so an earlier check leaves the claim for it where reads() holds.
+    @param figs - figures(prof). @param text - The string. @param start - Where the figure begins.
+    @param end - Where it ends. @returns True when enforce() sets the figure to the person's own."""
+    if not isinstance(figs, dict) or not _stated(figs):
+        return False
+    match, context = _claim_at(text, start, end)
+    if not context or match.re is not _CLAIM_RE:
+        return False
+    context["hedged"] = bool(match.group("plus")) or (match.group("mod") or "").lower() in _LOWER_BOUND
+    return _target(context, _number(match), figs) is not None
+
+
+def without(text: str, start: int, end: int) -> str | None:
+    """@description A string without the years figure written at [start, end), its words kept a sentence the way
+    enforce() takes out a figure the person never stated (_cut): "Kubernetes (2 years)" reads "Kubernetes", "over 25
+    years of experience in X" reads "experience in X", "a 26-year career" reads "a career", "two decades of Java" reads
+    "Java". No number is written in its place.
+    @param text - The string. @param start - Where the figure begins. @param end - Where it ends.
+    @returns The string without it, or None when this module cannot take that figure out and leave a sentence (no
+    figure is written there, it is a length of time such as "in 3 years", or nothing says what the years are of)."""
+    match, context = _claim_at(text, start, end)
+    if match is None:
+        return None
+    if context is None:  # "a 5-year migration": the hyphen form comes out whatever follows; nothing else unread does
+        if match.group("sep") != "-" or _time_expression(text, match):
+            return None
+        context = {"tight": False}
+    cut_from, cut_to, filler, opens = _cut(text, match, context, 0)
+    rest = text[cut_to:]
+    return text[:cut_from] + (_capital(filler) if opens and filler else filler) + (_capital(rest) if opens and not filler else rest)
 
 
 def _enforce_text(text: str, path: str, figs: dict, changes: list) -> str:

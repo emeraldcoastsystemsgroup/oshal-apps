@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): the packet carries task.assist, the person's five switches as the kernel takes them (all on unless he switched one off; mail codes as this application's own route and the approved site's own domain), under the approval digest, so a switch changed after approval leaves that run's input as approved and the old digest no longer approves; with every switch off the input has no assist at all, exactly the input before the switches; behind his other windows neither sign-in switch is sent, and the approval says why; the approval says each switch in one sentence and what Career does with a sign-in and a code.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: a job's location, as Work history saves it on the record, reaches the employer's form in the packet's Word résumé (the parse résumé's Location line under the job's Company, which Workday's Autofill with Resume reads), and a job with none gets no Location line; the work-history rows Career types stay in the closed shape the kernel reads (its Role refuses an unknown key and a Roles group takes only title, employer, current, start, end and description), so no location is typed into one until the kernel takes it.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3: a start the kernel refused for want of a Job Apply computer fails the run's ticket there; Go on binds a fresh ticket and starts the same approved bytes on it, once.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the packet's Word résumé (resume-docx) is the parse résumé: the packet's own Resume_Parse.docx byte for byte, else the real docx_resume.py export-packet --kind parse render with the same digest every time; an executive Resume_ATS.docx beside it is not what is uploaded. Every site's rules upload it (document docx), so Workday's Autofill with Resume and the other sites' résumé fields get the résumé laid out for their parser, the PDF only where a field refuses Word. Red before: the packet carried Resume_ATS.docx and Greenhouse, Lever and Ashby uploaded the PDF.
@@ -11,6 +12,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): the packet carries task.attest {terms, selfIdSignature} from the person's two Attestations switches, false unless he switched one on; it is under the approval digest, so a switch changed after approval leaves that run's input as approved and the old digest no longer approves.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: a record that holds the address in profile.application_contact (address1, city, state, state_abbrev, postal_code, country) gives every contact slot: address.line1, address.city, address.state (the full name) and address.state_abbrev, address.postal, address.country, phone, the phone type standing answer as phone.type, and posting.employer, which the kernel reads for Previously worked for this employer. Red before: no street, no postal code, the state from the location line only.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome): the approval packet of an assisted application, through Career's real routes over HTTP on a made-up person's real store. Red on store main 75fa525e (no /apply-review or /apply-runs route; career-submission-native review refuses anything but two PDFs). It carries this job's Word résumé rendered by the real docx_resume.py with the same digest on every render (or the packet's own Resume_ATS.docx byte for byte), the PDF résumé and cover letter, only the roles on this job's résumé with their recorded dates (a year stays a year), education, the facts and the site's rules; approval publishes the frozen browser-task version 2 before any kernel call; bind, start, a lost acknowledgement and Go on send exactly the approved bytes; another person, no person, a changed packet and a site Career has no rules for are refused.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | task.assist carries only the switches the kernel acts on (signIn, createAccount, mailCodes): Remember each employer site and Look at the page before moving on are not available yet, so no packet carries them and a request to switch one on is refused. Red before: both rode in every packet as true.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.77.1: Workday's attest.terms rule names Create Account's privacy box (createAccountCheckbox) beside Voluntary Disclosures' terms box.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,7 +56,7 @@ test('the packet carries this job’s parse résumé from the real docx_resume.p
   assert.equal(requestDigest, queue.jsonDigest(bound));
   assert.deepEqual([input.version, input.intentId, input.attempt, input.mode, input.origin], [2, approved.body.run.id, 1, 'assist', 'https://example.wd1.myworkdayjobs.com']);
   assert.deepEqual(input.bounds, { advancing: 16, entries: 20, edits: 400, activeMs: 1800000, waitMs: 1800000 });
-  assert.deepEqual(Object.keys(input.task).sort(), ['answers', 'attest', 'documents', 'education', 'facts', 'flags', 'postingId', 'roles', 'rules', 'submissionId', 'url']);
+  assert.deepEqual(Object.keys(input.task).sort(), ['answers', 'assist', 'attest', 'documents', 'education', 'facts', 'flags', 'postingId', 'roles', 'rules', 'submissionId', 'url']);
   assert.deepEqual(input.task.attest, { terms: false, selfIdSignature: false }, 'with the switches off, the packet says false');
   const word = Buffer.from(input.task.documents[0].base64, 'base64');
   assert.deepEqual([...word.subarray(0, 4)], [0x50, 0x4b, 0x03, 0x04], 'a Word file, not a PDF');
@@ -96,7 +99,7 @@ test('only the roles on this job’s résumé are in it, with recorded dates (a 
   assert.deepEqual(Object.fromEntries(body.facts.map((f) => [f.slot, f.value])), {
     'name.first': 'Dana', 'name.middle': 'Q', 'name.last': 'Example', 'name.full': 'Dana Q Example', email: 'dana@example.test', phone: '555-0100', 'phone.type': 'Mobile',
     'address.line1': '1 Example Way', 'address.city': 'Springfield', 'address.state': 'Illinois', 'address.state_abbrev': 'IL', 'address.postal': '62701', 'address.country': 'United States',
-    'links.linkedin': 'https://www.linkedin.com/in/dana-example', 'posting.employer': 'Example Freight Co' }, 'every contact slot from profile.application_contact and profile.phone, the phone type he gave, and the posting’s employer');
+    'links.linkedin': 'https://www.linkedin.com/in/dana-example', 'posting.employer': 'Example Freight Co', 'work.employer': 'Example Freight Co' }, 'every contact slot from profile.application_contact and profile.phone, the phone type he gave, the posting’s employer, and his current employer from the résumé’s roles');
   assert.deepEqual(body.facts.filter((f) => f.slot.startsWith('address.') || f.slot.startsWith('phone')).map((f) => f.label),
     ['Phone', 'Phone type', 'Address', 'City', 'State', 'State abbreviation', 'Postal code', 'Country']);
   assert.deepEqual(body.education, [
@@ -258,11 +261,53 @@ test('the Attestations switches ride in the packet under the approval digest; a 
   assert.notEqual(changed.packetDigest, on.packetDigest, 'a changed switch is a different packet to approve');
 });
 
+test('the switches the kernel acts on ride in the packet as task.assist under the approval digest; every switch off sends none; a later change does not reach that run', async () => {
+  const dana = h.person('dana-assist'), read = async () => (await h.call('GET', '/saved-answers', null, dana.sub)).body;
+  const set = async (help) => assert.equal((await h.call('POST', '/saved-answers', { revision: (await read()).revision, help }, dana.sub)).code, 200);
+  const mail = { route: '/api/career-hunter/apply-code', senders: ['myworkdayjobs.com'] };
+  const on = (await h.call('GET', '/apply-review/7', null, dana.sub)).body;
+  assert.deepEqual(on.assist, { signIn: true, createAccount: true, mailCodes: mail }, 'on unless he switched one off, and only what the kernel acts on');
+  assert.deepEqual(on.assistLines.slice(0, 2), ['Career remembers nothing about this employer’s site.', 'Career does not look at pictures of the page before moving on.'], 'neither is available yet');
+  assert.equal(on.assistLines.length, 6);
+  assert.match(on.assistLines[4], /from myworkdayjobs\.com\) and types the code\. It reads nothing else\./);
+  assert.equal(on.assistLines[5], 'A “verify you are human” check is always yours. Career never solves or skips one.');
+  assert.equal(on.handsLine, 'Career never sees or types a password. A verification code the site emails you is the only code Career types. When the site asks you to sign in, Chrome fills the login it saved and Career presses Sign in; with no saved login, Career waits for you in that window. A question nothing you recorded answers comes to you as a card.');
+  // Every switch off: no assist at all, and the task is the task before the switches.
+  const soon = (await h.call('POST', '/saved-answers', { revision: (await read()).revision, help: { screen: true } }, dana.sub));
+  assert.deepEqual([soon.code, soon.body.error], [400, '“Look at the page before moving on” is not available yet, so it stays off.']);
+  await set({ signIn: false, mailCodes: false });
+  const off = (await h.call('GET', '/apply-review/7', null, dana.sub)).body;
+  assert.equal(off.assist, null);
+  assert.notEqual(off.packetDigest, on.packetDigest, 'the switches are under the approval digest');
+  assert.equal(off.handsLine, 'Career never sees or types a password. Career types no code. When the site asks you to sign in, Career waits for you in that window. A question nothing you recorded answers comes to you as a card.');
+  const plain = (await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: off.packetDigest, approved: true }, dana.sub)).body.run;
+  assert.equal('assist' in frozen(dana, plain.id).task, false, 'with every switch off the input carries no task.assist');
+  assert.deepEqual(Object.keys(frozen(dana, plain.id).task).sort(), ['answers', 'attest', 'documents', 'education', 'facts', 'flags', 'postingId', 'roles', 'rules', 'submissionId', 'url']);
+  // One switch on: the approved run keeps exactly what was approved, whatever he switches after.
+  const erin = h.person('erin-assist'), mine = async () => (await h.call('GET', '/saved-answers', null, erin.sub)).body;
+  await h.call('POST', '/saved-answers', { revision: (await mine()).revision, help: { signIn: false } }, erin.sub);
+  const some = (await h.call('GET', '/apply-review/7', null, erin.sub)).body, carried = { signIn: false, createAccount: false, mailCodes: mail };
+  assert.deepEqual(some.assist, carried);
+  const { run } = (await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: some.packetDigest, approved: true }, erin.sub)).body;
+  assert.deepEqual(frozen(erin, run.id).task.assist, carried, 'the packet carries them');
+  await h.call('POST', '/saved-answers', { revision: (await mine()).revision, help: { mailCodes: false } }, erin.sub);
+  assert.deepEqual(frozen(erin, run.id).task.assist, carried, 'the approved run keeps what was approved');
+  assert.equal((await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: some.packetDigest, approved: true }, erin.sub)).code, 428, 'the digest he approved no longer approves the changed packet');
+  // Behind his other windows Chrome fills no saved login: neither sign-in switch is sent, and the approval says why.
+  const finn = h.person('finn-assist'), his = (await h.call('GET', '/saved-answers', null, finn.sub)).body;
+  const fast = (await h.call('POST', '/saved-answers', { revision: his.revision, flags: { input: 'fast' } }, finn.sub)).body;
+  await h.call('POST', '/saved-answers', { revision: fast.revision, flags: { window: 'background' } }, finn.sub);
+  const behind = (await h.call('GET', '/apply-review/7', null, finn.sub)).body;
+  assert.deepEqual(behind.assist, { signIn: false, createAccount: false, mailCodes: mail });
+  assert.equal(behind.assistLines[2], 'You sign in yourself: Chrome fills a saved login only in a window in front, and this run’s window is behind your other windows.');
+});
+
 test('the terms box is reached only through the site rules’ attest.terms slot; no fact is an attest key', async () => {
   const rules = (name) => JSON.parse(fs.readFileSync(new URL(`../lib/apply-profiles/${name}.json`, import.meta.url), 'utf8'));
   const terms = rules('workday').fields.filter((field) => field.slot === 'attest.terms');
   assert.equal(terms.length, 1, 'the Workday profile names attest.terms once');
-  assert.deepEqual(terms[0].match.auto, ['agreementCheckbox'], 'on Voluntary Disclosures’ terms check box');
+  // Voluntary Disclosures’ terms box, and (1.77.1, Roger's Alteryx run) Create Account's privacy box.
+  assert.deepEqual(terms[0].match.auto, ['agreementCheckbox', 'createAccountCheckbox'], 'the two terms boxes Workday has');
   assert.ok(terms[0].match.label.includes('I have read and consent to the terms and conditions'));
   assert.deepEqual(rules('workday').signature, { page: 'self-id', name: ['Name'], date: ['Date'] }, 'the signature uses the name and date of the self-id page');
   for (const site of ['workday', 'greenhouse', 'lever', 'ashby']) {

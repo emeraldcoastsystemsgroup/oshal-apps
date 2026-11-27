@@ -8,7 +8,8 @@
       "Apply",
       "Apply Now",
       "Apply now",
-      "I'm interested"
+      "I'm interested",
+      "Close welcome message"
     ],
     "continue": [
       "Next",
@@ -238,7 +239,8 @@
         "label": [
           "Are you legally authorized to work in the United States?",
           "Are you authorized to work in the United States?",
-          "Are you legally eligible to work in the United States?"
+          "Are you legally eligible to work in the United States?",
+          "Are you legally authorized to work in the country of the job for which you are applying?"
         ]
       },
       "slot": "eligibility.authorized"
@@ -250,7 +252,8 @@
           "Will you now or in the future require sponsorship for employment visa status?",
           "Will you now or in the future require visa sponsorship?",
           "Do you now or will you in the future require sponsorship?",
-          "Will you require sponsorship to work in the United States?"
+          "Will you require sponsorship to work in the United States?",
+          "Will you require sponsorship for an employment Visa?"
         ]
       },
       "slot": "eligibility.sponsorship"
@@ -532,7 +535,9 @@
     "I prefer not to answer",
     "Prefer not to answer",
     "I don't wish to self-identify",
-    "I choose not to disclose"
+    "I choose not to disclose",
+    "I do not wish to self-identify",
+    "I am not a protected Veteran / I prefer not to answer"
   ],
   "signature": {
     "page": "questions",

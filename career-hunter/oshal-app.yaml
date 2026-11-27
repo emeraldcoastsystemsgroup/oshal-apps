@@ -4,8 +4,18 @@
 # -----------------------------------------------------------------------------
 # 207 | maintainer@emeraldcoastsystemsgroup.com | Unreleased (lane CAREER-LOCATION): career_resume_patch sets a job's location
 # 206 | maintainer@emeraldcoastsystemsgroup.com | Unreleased (lane CAREER-CONCURRENT): staticFiles lists tools/career-pending-writes.js, the door every Career page's changes go through, so a change made while a résumé is written waits and saves by itself
-# 212 | maintainer@emeraldcoastsystemsgroup.com | 1.76.5 (CHANGELOG.md 212)
-# 213 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6 (CHANGELOG.md 213)
+# 217 | maintainer@emeraldcoastsystemsgroup.com | 1.76.10 (CHANGELOG.md 217)
+# 218 | maintainer@emeraldcoastsystemsgroup.com | 1.76.11 (CHANGELOG.md 218)
+# 219 | maintainer@emeraldcoastsystemsgroup.com | 1.76.12 (CHANGELOG.md 219)
+# 220 | maintainer@emeraldcoastsystemsgroup.com | 1.76.13 (CHANGELOG.md 220)
+# 221 | maintainer@emeraldcoastsystemsgroup.com | 1.76.14 (CHANGELOG.md 221)
+# 222 | maintainer@emeraldcoastsystemsgroup.com | 1.76.15 (CHANGELOG.md 222)
+# 223 | maintainer@emeraldcoastsystemsgroup.com | 1.76.16 (CHANGELOG.md 223)
+# 224 | maintainer@emeraldcoastsystemsgroup.com | 1.77.0 (CHANGELOG.md 224)
+# 225 | maintainer@emeraldcoastsystemsgroup.com | 1.77.1 (CHANGELOG.md 225)
+# 226 | maintainer@emeraldcoastsystemsgroup.com | 1.77.2 (CHANGELOG.md 226)
+# 227 | maintainer@emeraldcoastsystemsgroup.com | 1.77.3 (CHANGELOG.md 227)
+# 228 | maintainer@emeraldcoastsystemsgroup.com | 1.77.4 (CHANGELOG.md 228)
 # 211 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4 (CHANGELOG.md 211)
 # 210 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3 (CHANGELOG.md 210)
 # 209 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2 (CHANGELOG.md 209)
@@ -116,7 +126,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.76.6
+version: 1.77.4
 
 localEditing:
   itemId: master

@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: preserve capitalized skills at start of role titles/lines (e.g. "Java Developer", "Java microservices...") and structured tech/skills lists on engagements and additional experience so multi-role skill tenure is never undercounted.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Overlay candidate-confirmed skill and total-career year figures (years_truth) onto compute_tenure, render exact person figures and confirmation block in prompt_block, and scope multi-token person figures in find_year_contradictions.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1 (Roger, 2026-11-25: "Machine Learning (4 years)", "SAP HANA (5 years)", "over 25 years" on his résumés, none his figures): prompt_block for a person who stated years of their own lists only those figures, says to state no years for anything else, and gives a total only when they stated one; a person with no figures keeps the counted table.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The résumé review's own check read "11 years of Java and Spring" as a claim about every tool in it, so a person who states Java 11 years was told the résumé "claims '11 years' for Spring, but verified role dates support 2.1 years" and the résumé was held for review. A years claim whose number is the person's own figure for a skill it names is about that skill (_own, _claim_scopes): it is not held against the tools named beside it, as a figure with a name of several words already was not. A statement of experience that gives the person's own total ("25 years of experience across Java and Kubernetes") is about the career, not those tools.
 """Deterministic per-skill and total-career experience tenure calculator."""
 from __future__ import annotations
 
@@ -368,9 +369,11 @@ def _extract_year_claims(section: str, text: str, vocab) -> list:
     return claims
 
 
-def _claim_scopes(claim: dict, skill_map: dict) -> list:
-    """@description Resolve a year claim's scopes, preferring a matching multi-token person figure over single tokens.
-    @param claim - Extracted claim dict. @param skill_map - tenure['skills'] dict. @returns List of (kind, key) tuples."""
+def _claim_scopes(claim: dict, skill_map: dict, tenure: dict | None = None) -> list:
+    """@description Resolve a year claim's scopes, preferring a matching multi-token person figure over single tokens,
+    then the person's own figure the claim states: their figure for a skill it names, or their total for a statement
+    of experience. @param claim - Extracted claim dict. @param skill_map - tenure['skills'] dict.
+    @param tenure - compute_tenure() output (the person's total). @returns List of (kind, key) tuples."""
     from . import years_truth
     person_figs = [
         {"name": v.get("display") or k, "tokens": tuple(claims_check.words(v.get("display") or k)),
@@ -378,14 +381,26 @@ def _claim_scopes(claim: dict, skill_map: dict) -> list:
         for k, v in skill_map.items() if isinstance(v, dict) and v.get("source") == "person"
     ]
     multi_figs = [f for f in person_figs if len(f["tokens"]) > 1]
-    if multi_figs:
-        pos = claim["text"].find(claim["phrase"])
-        tail = claim["text"][pos + len(claim["phrase"]):] if pos >= 0 else ""
-        clause = claim["phrase"] + re.split(r"[,;)]|\b(?:who|that|which|where|while|when|but)\b", tail, maxsplit=1, flags=re.I)[0]
-        matched = years_truth.subject(clause, multi_figs)
-        if matched:
-            return [("skill", matched["key"])]
+    pos = claim["text"].find(claim["phrase"])
+    tail = claim["text"][pos + len(claim["phrase"]):] if pos >= 0 else ""
+    clause = claim["phrase"] + re.split(r"[,;)]|\b(?:who|that|which|where|while|when|but)\b", tail, maxsplit=1, flags=re.I)[0]
+    matched = years_truth.subject(clause, multi_figs) if multi_figs else None
+    if matched:
+        return [("skill", matched["key"])]
+    own = [s for s in claim["skills"] if _own(skill_map.get(s), claim)]
+    if own:  # "11 years of Java and Spring" from a person who states Java 11 years: the years are Java's
+        return [("skill", s) for s in own]
+    total = (tenure or {}).get("total_career_years_exact") if (tenure or {}).get("career_source") == "person" else None
+    if total is not None and claim["base"] == total and years_truth._CAREER_CUE.search(clause):
+        return [("career", "career")]  # "25 years of experience across Java and Kubernetes": the person's own total
     return [("skill", s) for s in claim["skills"]] if claim["skills"] else [("career", "career")]
+
+
+def _own(info, claim: dict) -> bool:
+    """@description Whether a years claim states the person's own figure for a skill: it is then theirs, never an
+    inflated count. @param info - The skill's tenure record. @param claim - An extracted claim. @returns bool"""
+    return (isinstance(info, dict) and info.get("source") == "person"
+            and (claim["base"] == info["years"] or claim["years"] == info["years"]))
 
 
 def find_year_contradictions(resume: dict, tenure: dict, rec: dict | None = None) -> list:
@@ -405,11 +420,11 @@ def find_year_contradictions(resume: dict, tenure: dict, rec: dict | None = None
     skill_map = tenure.get("skills") or {}
     total_exact = max(float(tenure.get("total_career_years_exact") or 0.0), float((rec or {}).get("stated_career") or 0.0))
     for claim in all_claims:
-        for scope in _claim_scopes(claim, skill_map):
+        for scope in _claim_scopes(claim, skill_map, tenure):
             by_scope.setdefault(scope, []).append(claim)
             if scope[0] == "skill":
                 info = skill_map.get(scope[1])
-                if info and info.get("source") == "person" and (claim["base"] == info["years"] or claim["years"] == info["years"]):
+                if _own(info, claim):
                     continue
                 stated = float(((rec or {}).get("stated") or {}).get(scope[1], 0))
                 supported = max(float(info["years"]) if info else 0.0, stated)

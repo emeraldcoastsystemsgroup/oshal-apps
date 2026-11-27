@@ -13,7 +13,7 @@
     "Review": "review"
   },
   "press": {
-    "open": ["Apply", "Apply Now", "Autofill with Resume", "Apply Manually"],
+    "open": ["Autofill with Resume", "Apply Manually", "Continue Application", "Apply", "Apply Now"],
     "continue": ["Continue", "Save and Continue", "Next"],
     "back": ["Back"],
     "add-entry": ["Add", "Add Another"],
@@ -37,7 +37,7 @@
     {"match": {"auto": [], "label": ["Website", "Portfolio"]}, "slot": "links.website"},
     {"match": {"auto": [], "label": ["Are you legally authorized to work", "authorized to work"]}, "slot": "eligibility.authorized"},
     {"match": {"auto": [], "label": ["require sponsorship", "visa sponsorship", "need sponsorship"]}, "slot": "eligibility.sponsorship"},
-    {"match": {"auto": ["agreementCheckbox"], "label": ["I have read and consent to the terms and conditions", "Yes, I have read and consent to the terms and conditions", "I agree to the terms and conditions"]}, "slot": "attest.terms"}
+    {"match": {"auto": ["agreementCheckbox", "createAccountCheckbox"], "label": ["I have read and consent to the terms and conditions", "Yes, I have read and consent to the terms and conditions", "I agree to the terms and conditions", "I have read the Privacy Policy, including the Candidate Privacy Policy."]}, "slot": "attest.terms"}
   ],
   "groups": [
     {"page": "experience", "heading": "Work Experience", "facts": "roles", "keys": ["employer", "title"],

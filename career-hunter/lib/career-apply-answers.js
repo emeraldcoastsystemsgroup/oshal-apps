@@ -3,10 +3,12 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): Attestations, two switches kept as `attest: {terms, self_id_signature}` and both off unless he switched one on: tick the employer's terms box for him, and sign the self-identification form with his name and today's date. Every save keeps the file as it was (apply-profile-backups/<revision>.json) and Undo puts it back, only while nothing changed after that save. They are kept here beside the other Saved answers, not in the main résumé: a main-résumé edit changes career_db.json, which every prepared job's documents are judged against (career-application-draft.js source), so a switch there would mark every prepared résumé to be generated again.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: two standing answers beside work authorisation and sponsorship, veteran status and disability status (Yes, No or blank, kept as veteran_status and disability_status; a blank one means Career declines that question on the form), and citizenship (free text, kept as citizenship, for a form that asks it apart from work authorisation). How Career fills in a form (career-apply-flags.js), three settings kept as apply_flags and read with the rest; setFlags changes them with the revision the page read and keeps Undo, as the Attestations do.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6 (Roger, 2026-11-25: "just set this information ... add my preferences to my profile"): three more standing self-identification answers, gender (Male, Female), Hispanic or Latino (Yes, No) and race (the EEO-1 categories), kept as gender, hispanic_latino and race, each closed to its choices and blank meaning Career declines the question on the form, as veteran and disability already were.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): What Career does by itself on an employer's site, five switches kept as apply_help beside the Attestations and read with the rest (career-apply-help.js; all on unless he switched one off). setHelp changes them with the revision the page read and keeps Undo, as the Attestations do.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Career banks card answers itself now (career-apply-sync.js), from runs that may end in any order, so a kept answer replaces the one saved for its question only when it was given later: an answer older than the saved one changes nothing, and a newer one replaces it with the earlier file kept for Undo, as every save does.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const queue=require('./career-submission-queue'),flagsOf=require('./career-apply-flags');
+const queue=require('./career-submission-queue'),flagsOf=require('./career-apply-flags'),helpOf=require('./career-apply-help');
 const FILE='apply_profile.json',MAX_BYTES=512*1024,MAX_ANSWERS=200,MAX_VALUE=2000,MAX_TEXT=500;
 const STANDING=[['workAuthorization','work_authorization'],['sponsorship','requires_sponsorship'],['heard','how_heard'],['phoneType','phone_type'],
  ['veteranStatus','veteran_status'],['disabilityStatus','disability_status'],['citizenship','citizenship'],
@@ -36,7 +38,7 @@ function load(dir){
 const revisionOf=text=>crypto.createHash('sha256').update(text).digest('hex');
 /**
  * @description The person's Saved answers: the standing ones and every kept answer, with the file's revision.
- * @param {string} dir The person's own store. @returns {{revision:string,standing:object,answers:object[],attest:object,flags:object,undo:string|null}}
+ * @param {string} dir The person's own store. @returns {{revision:string,standing:object,answers:object[],attest:object,flags:object,help:object,undo:string|null}}
  */
 function read(dir){
  const {raw,text}=load(dir),standing={},revision=revisionOf(text),last=lastSave(dir),flags=flagsOf.read(raw);
@@ -44,7 +46,7 @@ function read(dir){
  const answers=(Array.isArray(raw.answers)?raw.answers:[]).filter(item=>ID.test(item?.id||'')&&clean(item.text,MAX_TEXT)&&clean(item.value,MAX_VALUE))
   .map(item=>({id:item.id,text:clean(item.text,MAX_TEXT),type:clean(item.type,40),value:clean(item.value,MAX_VALUE),source:item.source==='card'?'card':'settings',savedAt:clean(item.savedAt,40)}));
  const attest=Object.fromEntries(ATTEST.map(([key,field])=>[key,raw.attest?.[field]===true]));
- return {revision,standing,answers,attest,flags,undo:last?.after===revision?last.before:null};
+ return {revision,standing,answers,attest,flags,help:helpOf.read(raw),undo:last?.after===revision?last.before:null};
 }
 function writeAtomic(file,bytes){
  const temp=file+'.'+crypto.randomUUID()+'.tmp';
@@ -106,7 +108,8 @@ function remove(dir,revision,id){
 /**
  * @description Keep answers the person gave on application cards with Keep this answer for next time, as the kernel's
  * card route lists them (GET /api/apply/cards `kept`: id, questionId, question, value, answeredAt). Upserted by
- * questionId, so the same kept answer listed again changes nothing. An entry with a slot fills the record, not this list.
+ * questionId, so the same kept answer listed again changes nothing, and an answer given before the one saved for its
+ * question never replaces it. An entry with a slot fills the record, not this list.
  * @param {string} dir @param {object[]} kept The kept entries. @returns {number} How many answers were added or changed.
  */
 function keep(dir,kept){
@@ -115,7 +118,7 @@ function keep(dir,kept){
  const {raw}=load(dir),list=Array.isArray(raw.answers)?raw.answers.filter(item=>ID.test(item?.id||'')):[];let changed=0;
  for(const item of valid){
   const value=clean(item.value,MAX_VALUE),at=clean(item.answeredAt,40)||new Date().toISOString(),found=list.find(entry=>entry.id===item.questionId);
-  if(found&&found.value===value)continue;
+  if(found&&(found.value===value||Date.parse(found.savedAt)>Date.parse(at)))continue;
   const entry={id:item.questionId,text:clean(item.question,MAX_TEXT),type:found?.type||'',value,source:'card',savedAt:at};
   if(found)Object.assign(found,entry);else list.push(entry);changed++;
  }
@@ -159,10 +162,20 @@ function setFlags(dir,revision,values){
  raw[flagsOf.FIELD]=flagsOf.change(flagsOf.read(raw),values);return save(dir,raw);
 }
 /**
+ * @description Set What Career does by itself on an employer's site (career-apply-help.js) from the Saved answers page;
+ * a switch not named stays as it is. @param {string} dir @param {string} revision The revision the page read.
+ * @param {object} values Some of {siteMemory, screen, signIn, createAccount, mailCodes}, each true or false.
+ * @returns {object} The saved answers now.
+ */
+function setHelp(dir,revision,values){
+ const raw=current(dir,revision);
+ raw[helpOf.FIELD]=helpOf.change(helpOf.read(raw),values);return save(dir,raw);
+}
+/**
  * @description The standing answers a packet may carry as facts. @param {object} saved read() output.
  * @returns {{heard:string,phoneType:string,veteranStatus:string,disabilityStatus:string,citizenship:string,gender:string,hispanicLatino:string,race:string}}
  */
 const standingFacts=saved=>({heard:saved.standing.heard,phoneType:saved.standing.phoneType,veteranStatus:saved.standing.veteranStatus,
  disabilityStatus:saved.standing.disabilityStatus,citizenship:saved.standing.citizenship,gender:saved.standing.gender,
  hispanicLatino:saved.standing.hispanicLatino,race:saved.standing.race});
-module.exports={FILE,questionId,read,setStanding,setAttest,setFlags,undo,remove,keep,standingFacts};
+module.exports={FILE,questionId,read,setStanding,setAttest,setFlags,setHelp,undo,remove,keep,standingFacts};

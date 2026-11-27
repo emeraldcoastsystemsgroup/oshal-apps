@@ -4,9 +4,10 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.76.5 (the same Honeycomb run): its cancelled ticket's work read as completed with no answer ("completed ticket work is unavailable"); that read also ends the run with its ticket (endedWithTicket).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: only the latest attempt is read. A Go on whose start was refused left its new attempt unstarted, the sync read the ended attempt before it again and put the run back to Paused, and the next Go on was refused, so the person could not go on at all.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 4.6, 5.2 and 5.3): read an assisted application's progress from the kernel's work record for executor orbit-apply-v1 (the person's own ticket, through the package ticket port), say it as the job page's one line, and when an attempt ends read its accepted answer only when its intent, attempt and request digest are the approved ones. It keeps the pictures the run took, each checked against the digest the kernel recorded; writes apply-receipt.json in the job's folder (the files uploaded with their digests, each change with where its value came from, the questions, the hand-backs, the pictures, how it ended); records Submitted by you only with the employer's confirmation picture verified; and writes back what the person kept on a question card, as his own page reads it from the kernel's card route (GET /api/apply/cards `kept`, lane D) and hands it to POST /apply-runs/:id/kept: an answer into Saved answers by its question id, a month (2012-05, 05/2012, May or May 2012) into that role's start or end through the main résumé's own revision-checked edit, and only where the record held that year alone.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The owner, 2026-11-26 ("are you building a bank of my answers ... use oswarm directly to do all functions"): answers kept on cards stayed in the kernel and never reached Saved answers, because only the job page's Keep wrote them, and no page was open. Career now banks them itself when it reads an ended attempt in sync, the moment it already holds the run's verified answer as the signed-in person (the card route answers only his own browser session, and a package request carries no credential, so Career reads the run's own answer): every question card he answered with Keep goes into Saved answers through keepCards and answers.keep, once per card, the ledger the job page's Keep shares. The answer names a card's question by its words; its question id is the one an entered value of that answer was filled from (card:question:<id>) whose card id the kernel derives from this run and that id (apply_cards.rs card_id), so a card of another run is never taken and a month card (its value fills the record) is left to the job page. An attempt whose end Career read is marked (bankedAttempts); an attempt that ended before this version is read once at the next sync of any of the person's runs, at most three a sync. A refusal (Saved answers full or unreadable) is logged and never stops the run's end being recorded.
  */
 'use strict';
-const fs=require('node:fs'),path=require('node:path');
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {createChildLogger}=require('@/shared/logger');
 const logger=createChildLogger({module:'career-apply-sync'});
 const queue=require('./career-submission-queue'),runs=require('./career-apply-runs'),answers=require('./career-apply-answers'),packet=require('./career-apply-packet');
@@ -16,6 +17,12 @@ const OUTCOMES={submitted_by_you:'submitted',submitted_by_career:'submitted',not
 /** The ends that need the employer's confirmation picture: his own Submit, or Career's one Submit after his approval. */
 const CONFIRMED=['submitted_by_you','submitted_by_career'];
 const PAGE_WORDS={fixed:'fixed',filled:'filled',added:'added',deleted:'removed',answered:'answered'};
+/** A run's ends: its latest attempt has ended and Go on, if any, starts another. */
+const ENDED=['submitted','not_seen','stopped','failed','paused'];
+/** An entered value his card answer filled: card:question:<id> (model: when the planner pointed at that answer). */
+const CARD_SOURCE=/^(?:model:)?card:(question:[a-f0-9]{64})$/;
+/** How many attempts that ended before Career banked by itself one sync reads. */
+const EARLIER_PER_SYNC=3;
 const REASONS={'sign-in':'Waiting for you to sign in','code':'Waiting for you to enter the code','check':'Waiting for you to solve the check',
  'question':'Needs your answer','field':'Needs you to set a field','errors':'Needs you to fix what the site marked','off-site':'Waiting for you on another site',
  'window':'Paused because you used the mouse. It goes on by itself when you stop, or press Stop.',
@@ -83,6 +90,71 @@ async function keepCards(dir,run,kept,writers){
   handled.push({card:item.id,kind:item.slot?'month':'answer',result,at:new Date().toISOString()});seen.add(item.id);
  }
  return handled.slice(-200);
+}
+/**
+ * @description The id the kernel gives the card of one question of one run (crates/api/src/apply_cards.rs card_id):
+ * apply- and the first 16 bytes of the SHA-256 of "apply-card", the run and the question id, unit-separated.
+ * @param {string} run The approval's run (the input's intentId). @param {string} questionId Career's question id.
+ * @returns {string} apply-<32 hex>
+ */
+const cardId=(run,questionId)=>'apply-'+crypto.createHash('sha256').update(`apply-card\u001f${run}\u001f${questionId}`).digest('hex').slice(0,32);
+/**
+ * @description What an ended attempt's answer says the person kept on its question cards, in the shape of the kernel
+ * card route's kept entries, so keepCards writes it as it writes the job page's. Only a card he answered with Keep. The
+ * answer names a card's question by its words; its id is the question id an entered value was filled from
+ * (card:question:<id>) whose card id the kernel derives from this run and that id: a card of another run never
+ * matches, and a card no entered value names by question id (a month, which fills the record) is not taken.
+ * @param {object} run The run. @param {object} data The accepted answer's data. @returns {object[]} The kept entries.
+ */
+function keptOf(run,data){
+ const named=new Map();
+ for(const item of list(data?.changes,400)){
+  const found=CARD_SOURCE.exec(item.from||''),card=found&&cardId(run.id,found[1]);
+  if(card&&!named.has(card))named.set(card,{questionId:found[1],at:words(item.at,40)});
+ }
+ return list(data?.questions,100).filter(item=>item.keep===true&&typeof item.answer==='string'&&item.answer.trim()&&named.has(item.card))
+  .map(item=>({id:item.card,run:run.id,questionId:named.get(item.card).questionId,question:words(item.text,500),value:item.answer,answeredAt:named.get(item.card).at}));
+}
+/** @description The attempts whose end Career has read for kept answers. @param {object} run @returns {number[]} */
+const bankedOf=run=>Array.isArray(run.bankedAttempts)?run.bankedAttempts:[];
+/** @description Those attempts with this one. @param {object} run @param {number} n @returns {number[]} */
+const readTo=(run,n)=>[...new Set([...bankedOf(run),n])];
+/**
+ * @description Bank what the person kept on one ended attempt's cards into Saved answers with Career's own writers
+ * (keepCards: once per card, the ledger the job page's Keep shares), and mark the attempt read. A refusal (Saved
+ * answers full or unreadable) is logged and leaves the cards for the job page; it never stops the run's end being kept.
+ * @param {string} dir The person's store. @param {string} id The run. @param {number} n The attempt. @param {object|null} data
+ * The attempt's verified answer data, or null when it has none. @param {object} writers Career's own writers.
+ * @returns {Promise<{keptCards:object[],bankedAttempts:number[]}>} The run's patch.
+ */
+async function bank(dir,id,n,data,writers){
+ const run=runs.get(dir,id);let keptCards=run.keptCards||[];
+ try{const kept=data?keptOf(run,data):[];if(kept.length)keptCards=await keepCards(dir,run,kept,writers);}
+ catch(error){logger.error({err:error,runId:id,attempt:n},'apply run kept answers not banked; left for the job page');}
+ return {keptCards,bankedAttempts:readTo(run,n)};
+}
+/**
+ * @description Read once each attempt of the person's runs that ended before Career banked kept answers itself (its
+ * end recorded, its answer never read for them), newest first and at most three a sync, and bank what he kept on
+ * its cards. An answer the kernel no longer gives is not asked for again. Never throws.
+ * @param {string} dir The person's store. @param {object} tickets The package ticket port. @param {object} writers
+ * Career's own writers. @returns {Promise<void>}
+ */
+async function bankEarlier(dir,tickets,writers){
+ try{
+  const due=[];
+  for(const run of Object.values(runs.read(dir).runs)){
+   if(!ID.test(run.nativeTicketId||''))continue;
+   for(const attempt of run.attempts)if(ID.test(attempt.workId||'')&&!bankedOf(run).includes(attempt.n)&&(attempt!==run.attempts.at(-1)||ENDED.includes(run.status)))due.push({run,attempt});
+  }
+  due.sort((a,b)=>String(b.run.updatedAt).localeCompare(String(a.run.updatedAt))||b.attempt.n-a.attempt.n);
+  for(const {run,attempt} of due.slice(0,EARLIER_PER_SYNC)){
+   let data=null;
+   try{const accepted=await tickets.getAcceptedWork(run.nativeTicketId,attempt.workId);if(accepted)data=acceptedAnswer(run,attempt,accepted).data;}
+   catch(error){logger.error({err:error,runId:run.id,attempt:attempt.n},'earlier apply attempt unreadable; its kept answers are left for the job page');}
+   runs.update(dir,run.id,await bank(dir,run.id,attempt.n,data,writers));
+  }
+ }catch(error){logger.error({err:error},'earlier apply attempts not banked');}
 }
 /** @description Keep one picture's exact bytes, refused unless they are a PNG of the recorded digest. @returns {string} Its file name. */
 function keepPicture(dir,name,evidence,hash){
@@ -156,17 +228,13 @@ async function ended(dir,run,attempt,row,tickets,writers){
   patch.confirmationSha256=data.confirmation.sha256;patch.confirmationText=words(data.confirmation.text);patch.submittedAt=run.submittedAt||new Date().toISOString();
   await writers.recordSubmitted({...run,...patch,workId:row.id},path.join(dir,patch.confirmationFile));
  }
- return patch;
+ // What he kept on this attempt's cards is banked here, after its end is kept, with no page open.
+ return {...patch,...await bank(dir,run.id,attempt.n,data,writers)};
 }
 /**
- * @description Bring a run's record up to what the kernel holds for its current attempt. Reads only; it never starts,
- * repeats or presses anything. @param {string} dir The person's store. @param {string} id The run. @param {object} tickets
- * The package ticket port. @param {{month:Function,recordSubmitted:Function,folder:Function}} writers Career's own writers.
- * @returns {Promise<object>} The run as its owner reads it.
- */
-/**
  * @description A run whose ticket ended while its work cannot be read (a Stop while the run waited on him leaves the
- * work completed with no answer, or gone): the run ends with its ticket, so the job can be approved again.
+ * work completed with no answer, or gone): the run ends with its ticket, so the job can be approved again. Its attempt
+ * has no answer to read for kept answers, so it is marked read.
  * @param {string} dir The person's store. @param {string} id The run. @param {object} run The run's record.
  * @param {object} tickets The package ticket port. @param {Error} error What the read said.
  * @returns {Promise<object|null>} The run as its owner reads it, or null when the ticket has not ended.
@@ -174,16 +242,29 @@ async function ended(dir,run,attempt,row,tickets,writers){
 async function endedWithTicket(dir,id,run,tickets,error){
  logger.error({err:error,runId:id,ticketId:run.nativeTicketId},'apply run work read failed');
  const ticket=typeof tickets.getTicket==='function'?await tickets.getTicket(run.nativeTicketId).catch(()=>null):null;
- const state=String(ticket?.status||ticket?.state||'');
- if(state==='cancelled')return runs.publicRun(runs.update(dir,id,{status:'stopped',live:null,reason:'You stopped it. Nothing was submitted.'}));
- if(state==='failed')return runs.publicRun(runs.update(dir,id,{status:'failed',live:null,reason:'Your computer stopped before the form reached Review. Nothing was submitted.'}));
+ const state=String(ticket?.status||ticket?.state||''),last=run.attempts.at(-1),bankedAttempts=last?readTo(run,last.n):bankedOf(run);
+ if(state==='cancelled')return runs.publicRun(runs.update(dir,id,{status:'stopped',live:null,reason:'You stopped it. Nothing was submitted.',bankedAttempts}));
+ if(state==='failed')return runs.publicRun(runs.update(dir,id,{status:'failed',live:null,reason:'Your computer stopped before the form reached Review. Nothing was submitted.',bankedAttempts}));
  return null;
 }
+/**
+ * @description Bring a run's record up to what the kernel holds for its current attempt, banking what the person kept
+ * on the cards of an attempt that ended, then read the person's earlier ended attempts not yet read for kept answers
+ * (bankEarlier). Reads the kernel only; it never starts, repeats or presses anything. @param {string} dir The person's
+ * store. @param {string} id The run. @param {object} tickets The package ticket port.
+ * @param {{month:Function,recordSubmitted:Function,folder:Function}} writers Career's own writers.
+ * @returns {Promise<object>} The run as its owner reads it.
+ */
 async function sync(dir,id,tickets,writers){
+ const now=await syncRun(dir,id,tickets,writers);
+ await bankEarlier(dir,tickets,writers);
+ return now;
+}
+async function syncRun(dir,id,tickets,writers){
  const run=runs.get(dir,id),attempt=run.attempts.at(-1);
  // Only the latest attempt is read: one published but not started yet (a Go on whose start was refused) leaves the run
  // as it is, and an attempt that ended (paused included) is read once; Go on starts the next, which moves the run on again.
- if(!run.nativeTicketId||!attempt?.workId||['submitted','not_seen','stopped','failed','paused'].includes(run.status))return runs.publicRun(run);
+ if(!run.nativeTicketId||!attempt?.workId||ENDED.includes(run.status))return runs.publicRun(run);
  let rows;
  try{rows=await tickets.getTicketWork(run.nativeTicketId);}
  catch(error){const gone=await endedWithTicket(dir,id,run,tickets,error);if(gone)return gone;throw error;}
@@ -195,9 +276,9 @@ async function sync(dir,id,tickets,writers){
   try{patch=await ended(dir,run,attempt,row,tickets,writers);}
   catch(error){const gone=await endedWithTicket(dir,id,run,tickets,error);if(gone)return gone;throw error;}
  }
- else if(['failed','unknown','cancelled'].includes(row.state))patch={status:row.state==='cancelled'?'stopped':'failed',live:null,
+ else if(['failed','unknown','cancelled'].includes(row.state))patch={status:row.state==='cancelled'?'stopped':'failed',live:null,bankedAttempts:readTo(run,attempt.n),
   reason:row.state==='cancelled'?'You stopped it. Nothing was submitted.':'Your computer stopped before the form reached Review. Nothing was submitted.'};
  else{const now=live(row);patch={status:now.status,live:now.live};}
  return runs.publicRun(runs.update(dir,id,patch));
 }
-module.exports={EXECUTOR,pageLine,live,monthOf,monthEdit,keepCards,acceptedAnswer,sync};
+module.exports={EXECUTOR,pageLine,live,monthOf,monthEdit,keepCards,cardId,keptOf,acceptedAnswer,sync};

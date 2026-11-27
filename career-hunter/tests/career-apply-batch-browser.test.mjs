@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): the approval sheet says what Career does by itself on these sites, one sentence for each of his five switches and that a check is always his, naming no one site's senders.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN: the List's bar also offers Generate again (3), the three selected jobs that have documents (tools/career-jobs-table.js 5); Fill in several on my Chrome is still its filled button.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Store gate (Career 1.74.0): a queue read that fails is never written into My jobs' status line (it replaced New matches' Saved: after a swipe in the gate's match-deck case), and New matches does not read the queue at all. Red before the fix: the status line said the read's error.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The Table too: select all there, Fill in several on my Chrome is the bar's filled button; a job whose approval ended while it waited says so and Approve again (1) approves it again on its own sheet and puts it back in the queue.
@@ -129,6 +130,10 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
       assert.match(items[0], /^Example Freight Co · Office Manager/);
       assert.match(items[1], /Sample Freight Two · Office Manager[\s\S]*Résumé for upload forms \(Word\), uploaded · Résumé \(PDF\) · Cover letter \(PDF\)[\s\S]*Workday · example8\.wd1\.myworkdayjobs\.com/);
       assert.equal(await sheet.locator('.ab-flags li').count(), 3, 'how Career fills them in, said once');
+      const alone = await sheet.locator('.ab-help li').allInnerTexts();
+      assert.equal(alone.length, 6, 'what Career does by itself, said once');
+      assert.match(alone[4], /from the employer’s or the job site’s address\) and types the code\./);
+      assert.equal(alone[5], 'A “verify you are human” check is always yours. Career never solves or skips one.');
       assert.match(await sheet.locator('.ab-stop').innerText(), /^Career stops at each employer’s Review page/);
       assert.equal((await sheet.locator('.ab-needs').innerText()).replace(/\s+/g, ' ').trim(), '1 job you selected still needs documents, so Career leaves it out. Prepare them');
       assert.equal(await sheet.getByRole('button', { name: 'Prepare them' }).isVisible(), true, 'with a button to prepare it');

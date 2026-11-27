@@ -62,7 +62,7 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
 | **Career Coaching** | [`career-coaching/`](career-coaching/) | 0.1.2 | pending | Share a summary of your job search with your career coach for a few days, and stop sharing whenever you like. |
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.76.6 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.77.4 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
 | **Classroom** | [`classroom-experience/`](classroom-experience/) | 1.0.6 | ready | Classwork, class schedules and personal learning through existing school roles and roster rules. |
 | **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.14 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, and your LinkedIn and Facebook presence — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.2.0 | ready | Choose which connected device Career and Jarvis use when applying to jobs. |

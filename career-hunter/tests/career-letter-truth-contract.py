@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: expect recorded month precision ("Jan 2022 to Oct 2025") when an undated engagement inherits a dated parent role's span ("2022-01" to "2025-10").
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... we ironed all of these problems previously and they just keep coming back"): the engine half of the letter-truth guard, on a made-up long-form candidate (eight short field-contracting engagements in the last four years, a program role, and a first development job that used C# once). (1) letter_evidence ranks the field engagements that fit a controls posting above the first job, also when they are recorded as engagements, and still picks the first job when only it fits. (2) The prompts carry that evidence, the editor no longer reaches into "an EARLIER role", and every anti-inflation rule that held letters before is still in the prompts without any prompt_framing (guards for the earlier fixes). (3) claims_check catches an unstated C# level, a skill the records never name, inflated years, a title and an employer the records do not hold, a tool under the wrong job and a sentence drawn from the first job, and finds nothing in an honest packet. (4) The REAL generate_for and prepare_job, with only the model, the PDF renderer and the posting row replaced, hold a scripted model that overclaims as production's did: the letter is written again once with the problems named, or marked needs your review, and the documents on disk claim nothing the records do not support. Red on store main dd5cd9ed (no letter_evidence, claims_check or claims_fix; the editor's EARLIER-role rule), green here.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | A years problem no longer carries a count Career worked out ("supported"): the claims check names the claim as written and claims_fix takes the figure out, so the check that inflated years are caught reads the claim, and proves no problem carries such a count.
 """Letter-truth contract: Career's letters and résumés claim only what the records support, from the right roles."""
 from __future__ import annotations
 
@@ -203,7 +204,8 @@ def claims() -> None:
     kinds = {kind for kind, _claim in _kinds(found)}
     check("an expert C# claim is caught when the records name C# without a level",
           any(p["kind"] == "level" and p.get("term") == "csharp" for p in found))
-    check("years the dates do not add up to are caught", any(p["kind"] == "years" and p.get("supported") == 2 for p in found))
+    check("years the dates do not add up to are caught, with no count of Career's own on the problem",
+          any(p["kind"] == "years" and p["claim"] == "15 years" for p in found) and not any("supported" in p for p in found))
     check("a title the records do not hold is caught", ("title", "Principal Controls Architect") in _kinds(found))
     check("C# put under a job whose records do not name it is caught", any(p["kind"] == "attribution" and p.get("term") == "csharp" for p in found))
     check("a letter sentence drawn from the first job is caught", any(p["kind"] == "evidence" and FIRST_JOB[1] in p["claim"] for p in found))

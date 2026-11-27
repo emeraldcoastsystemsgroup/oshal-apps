@@ -5,6 +5,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... we ironed all of these problems previously and they just keep coming back"): what a generated cover letter or résumé claims, read the same way whichever model wrote it, and whether the person's records support it. A skill or tool the records never name, a level the records do not state (expert, advanced, deep, strong ...), a years count the recorded dates do not add up to, a title the records do not hold, a tool put under a role whose records do not name it, and a letter sentence drawn from work outside the chosen evidence (letter_evidence) are each a problem. claims_fix.py removes or tones them down and holds the letter.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: fix parenthetical year attribution ("Java / J2EE (9 years), Python" binds backward to Java, never forward past ')' to Python), check all skills bound to a single years phrase rather than only the first, and map J2EE under Java.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Overlay candidate-confirmed skill and career year figures (years_truth.stated_overlay) into records() so over-claim checks accept the person's own figures.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | The check's sentence to a person read "your records name it only at <project> | independent product at <project> | independent product": _where printed an entry's title and organization as recorded, and an Other experience entry made from a saved portfolio holds one label in both. _where now names each as a sentence does (label_prose.name: the text before a " | descriptor" tail) and names the entry once when its title and organization are the same text; a job still reads as its title at its employer.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | A person who states Java 11 years got "The résumé claimed 11 years; your records support about 2. Career toned it down to what your records say", and a résumé that said "2 years of Java": _years_problems held "11 years of Java and Spring" to the tool with the fewest recorded years, and claims_fix wrote that count in. A years figure is now the person's own when it equals what they stated for what the claim names (years_truth.own_figure, the rule of years_truth.enforce): it is supported and never a problem; a claim that names one of their figures with another number is left for years_truth.enforce, which writes theirs; and "9 years of Java and 2 years of Python" is read as two claims, each with its own tool. Any other figure the dated records do not add up to is still a problem, but the problem no longer carries a count of Career's own ("supported" is gone), so nothing can write one: claims_fix takes the figure out. describe() says "a years figure you have not stated" and never what the records "support".
 """The claims a generated cover letter or résumé makes, and whether the person's records support each one.
 
 Records are the profile the documents were generated from: roles (titles, employers, dates, bullets, skills, stories),
@@ -16,7 +18,7 @@ from __future__ import annotations
 import datetime
 import re
 
-from . import letter_evidence, role_plan
+from . import label_prose, letter_evidence, role_plan
 
 CLAIM_SECTIONS = ("headline", "summary", "competencies", "skills", "experience", "additional_experience", "open_source")
 _RECORD_SKIP = frozenset({"framing_notes", "gaps_to_collect", "_meta", "prompt_framing", "roles", "engagements",
@@ -542,11 +544,17 @@ def _level_problems(rec, document, path, text, terms, job) -> list:
     return out
 
 
-def _claimed_years(found) -> float:
-    raw, mod = found.group("n").lower(), (found.group("mod") or "").lower()
-    unit = (found.groupdict().get("unit") or "decade").lower()
+def _written_years(found) -> float:
+    """The number a years claim writes, without its "over", "nearly" or "+": 11 for "over 11 years", 20 for "two
+    decades", 10 for "a decade"."""
+    raw, unit = found.group("n").lower(), (found.groupdict().get("unit") or "decade").lower()
     value = float(raw) if raw.isdigit() else float(_NUMBER_WORDS.get(raw, 1 if raw in ("a", "one") else 0))
-    value *= 10 if unit.startswith("decade") else 1
+    return value * (10 if unit.startswith("decade") else 1)
+
+
+def _claimed_years(found) -> float:
+    mod, unit = (found.group("mod") or "").lower(), (found.groupdict().get("unit") or "decade").lower()
+    value = _written_years(found)
     if mod in ("nearly", "almost", "close to"):
         value -= 2 if unit.startswith("decade") else 1
     elif mod in ("over", "more than") or found.groupdict().get("plus"):
@@ -554,16 +562,24 @@ def _claimed_years(found) -> float:
     return value
 
 
+def _paren_head(text: str, start: int) -> str:
+    """The words a parenthetical years tag labels: 'Java / J2EE' for 'Java / J2EE (9 years)'; '' when the years are
+    not in such a tag."""
+    prefix = text[:start].rstrip()
+    return re.split(r"[,;:\n]", prefix[:-1])[-1] if prefix.endswith("(") else ""
+
+
 def _paren_before_terms(text: str, start: int, terms) -> list:
     """Skills immediately preceding a parenthetical years tag like 'Java / J2EE (9 years)'."""
-    prefix = text[:start].rstrip()
-    if not prefix.endswith("("):
-        return []
-    head = re.split(r"[,;:\n]", prefix[:-1])[-1]
-    return [word for word in words(head) if word in terms]
+    return [word for word in words(_paren_head(text, start)) if word in terms]
 
 
 def _years_problems(rec, document, path, text, terms) -> list:
+    """Years claims the dated records do not add up to. A figure the person stated for what the claim names is theirs
+    (years_truth.own_figure) and never a problem, whatever the dates add up to and whatever other tool the sentence
+    names; a claim naming one of their figures with another number is the years pass's, where that pass reads. A
+    problem carries the claim as written and no count of Career's own: claims_fix takes the figure out."""
+    from . import years_truth
     out = []
     for found in [*_YEARS.finditer(text), *_DECADE.finditer(text)]:
         rest, phrase = found.group("rest") or "", text[found.start():found.start("rest")].strip()
@@ -571,18 +587,26 @@ def _years_problems(rec, document, path, text, terms) -> list:
             continue
         claimed = _claimed_years(found)
         if rest.lstrip().startswith(")"):
+            subject = _paren_head(text, found.start())
             named = _paren_before_terms(text, found.start(), terms)
             orgs = []
         else:
-            clause = re.split(r"[,;)]|\b(?:who|that|which|where|while|when|whose|because|since|but|and\s+(?:I|have|has|am|was))\b",
-                              rest, maxsplit=1, flags=re.I)[0]
-            rest_words = words(clause)[:10]
+            following = [m.start() for m in (_YEARS.search(rest), _DECADE.search(rest)) if m]
+            mine = rest[:min(following)] if following else rest  # "9 years of Java and 2 years of Python": each its own
+            subject = re.split(r"[,;)]|\b(?:who|that|which|where|while|when|whose|because|since|but|and\s+(?:I|have|has|am|was))\b",
+                               mine, maxsplit=1, flags=re.I)[0]
+            rest_words = words(subject)[:10]
             named = [word for word in rest_words if word in terms]
-            orgs = [] if named else org_rows(rec, clause)
+            orgs = [] if named else org_rows(rec, subject)
+        figs, at, end = rec.get("figures"), found.start(), found.start() + len(phrase)
+        if years_truth.own_figure(figs, text, at, end, _written_years(found), subject):
+            continue  # the person's own figure for what the claim names: theirs, as written
+        if years_truth.reads(document, path[0]) and years_truth.sets_own(figs, text, at, end):
+            continue  # it names one of the person's figures: the years pass (years_truth.enforce) writes theirs there
         supported = (min(term_years(rec, term) for term in named) if named
                      else _years(row["interval"] for row in orgs) if orgs else career_years(rec))
         if claimed > supported + 0.5:
-            out.append(_problem(document, path, "years", text, claim=phrase, supported=int(supported),
+            out.append(_problem(document, path, "years", text, claim=phrase, at=found.start(),
                                 term=named[0] if named else None))
     return out
 
@@ -603,8 +627,10 @@ def _title_problems(rec, job, document, path, text, owners) -> list:
 
 
 def _where(row: dict) -> str:
-    """A recorded role as the person reads it: its title at its employer."""
-    return f'{row["title"]} at {row["org"]}' if row["title"] and row["org"] else row["title"] or row["org"]
+    """A recorded role as the person reads it: its title at its employer, each named as a sentence names it (the text
+    before a " | descriptor" tail), and once when an entry's title and organization are the same text."""
+    title, org = label_prose.name(row["title"]), label_prose.name(row["org"])
+    return f"{title} at {org}" if title and org and title.casefold() != org.casefold() else title or org
 
 
 def _evidence_problems(rec, path, text, allowed) -> list:
@@ -776,7 +802,8 @@ _KIND_WORDS = {"cover": "The cover letter", "resume": "The résumé"}
 
 def describe(problem: dict, rec: dict | None = None) -> str:
     """
-    @description One plain sentence for the person: what the document claimed and what the records say.
+    @description One plain sentence for the person: what the document claimed and what the records say. A years
+    figure is named as one the person has not stated; no count of Career's own is ever given.
     @param problem - One problem. @param rec - records() (names the roles a tool or a letter's evidence belongs to).
     @returns The sentence.
     """
@@ -787,7 +814,7 @@ def describe(problem: dict, rec: dict | None = None) -> str:
     if kind == "level":
         return f"{who} claimed “{claim}”; your records do not state that level."
     if kind == "years":
-        return f"{who} claimed {claim}; your records support about {problem.get('supported', 0)}."
+        return f"{who} said “{claim}”, a years figure you have not stated."
     if kind == "attribution":
         where = ", ".join(_where(rows[k]) for k in problem.get("where", []) if k in rows)
         return f"{who} put {claim} under the wrong job; your records name it only at {where or 'other jobs'}."
