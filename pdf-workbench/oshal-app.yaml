@@ -12,13 +12,14 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6: the workbench page is an editor layout: a top bar with the document actions, a left rail with documents and sources, the pages in the middle and a right inspector with the tools, each pane scrolling on its own.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.2 (tool parity batch 1: CREATE-TOOL-PDF-WORKBENCH-08, -05, -03): add pdf-export, pdf-delete-source and pdf-go-to-page concierge tools, surface custom ops, annotation list edit/move/delete UI and reader zoom/fit-width/page-jump/text-copy/print controls.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: keep the registered approval browser case focused through the real chat message field and preserve owner revalidation.
 name: pdf-workbench
 suite: ai-creative
 displayName: PDF Workbench
 description: >-
   Select and edit actual PDF text, images and shapes in a shared document workspace. Owned
   source assets, page organization, forms, annotations, history and native PDF exports.
-version: 0.4.2
+version: 0.4.3
 runtime: process
 lastingStorage: true
 status: active

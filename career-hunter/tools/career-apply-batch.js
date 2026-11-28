@@ -3,6 +3,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25): the panel's advance is batch work (careerBatch through CareerSubmit.request's {batch:true}) and keeps its own waiting while Career is busy; the person's own presses wait to save like any change (tools/career-pending-writes.js). Guard: tests/career-concurrent-writes.test.mjs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH, store gate: a job in the queue reads In line before it starts and Waiting for you while the run waits for him (Needs you is a retired stage name, tests/career-words.test.mjs); the counts say N waiting for you and N in line. A queue read that fails while the panel moves the queue on is tried again on the next tick and no longer written into the page's status line, where it replaced what the page had just said (New matches' Saved: after a swipe); only a press says its error.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH (Roger, 2026-11-21: "i really need to be able to post 200 resumes by monday ... these local jobs will fill up fast"): Fill in several on my Chrome, on My jobs and on a job's page. The approval sheet lists each selected job with its company, title, files (the résumé for upload forms is the one uploaded), site and engine, says How Career fills it in and what it does in his name once for the whole batch, says in words that one batch holds at most 50 jobs, and says how many selected jobs still need documents with Prepare them; Approve and start approves each job's own packet (POST /apply-batch, a few at a time) and starts the first. The queue panel shows each job's state and one line (In line, Filling in, Waiting for you, Ready for you, Submitted, Skipped, Failed), the counts, and Next job, Skip this job, Pause the queue, Go on, Stop the queue, Approve again and Clear; it moves the queue on (POST /apply-batch/advance) every few seconds while it runs, hands what he kept on a question card to Career, and stops the job on his computer through the kernel's own confirmed ticket cancel before Skip, Next job or Stop, which leaves its Chrome tab open.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0 (design career-self-improving-applications-2026-11-27 parts 1 and 3): approving a batch turns on his own career-apply-queue and career-regenerate jobs (the platform's schedules), so the queue moves on every minute with no page open and stale documents are written again; while the panel is open, each waiting question card of the job on his computer that a rule of his own record settles (POST /apply-runs/:id/record-answers) is answered on the card in his session, and the others stay his.
  */
 (()=>{'use strict';
  const API='/api/career-hunter',MOST=50,CHUNK=5,EVERY=4000,DONE=new Set(['applied','interview','offer','rejected']);
@@ -15,6 +16,25 @@
  const device=availability=>window.CareerApplyAssist?CareerApplyAssist.device(availability):{ready:false,name:''};
  /** @description His queue, or null. @returns {Promise<object|null>} */
  const read=()=>request('/apply-batch').then(answer=>answer.queue);
+ /** His own jobs that keep the queue and its documents moving with no page open (the platform's schedules). */
+ const SCHEDULES=['career-apply-queue','career-regenerate'];
+ /**
+  * @description Turn on his career-apply-queue and career-regenerate jobs, so the queue moves on every minute with no page
+  * open and stale documents are written again. A job already on is left as it is; one that cannot be turned on is logged.
+  * @returns {Promise<{on:boolean}>}
+  */
+ async function background(){
+  try{
+   const response=await fetch('/api/v1/agent/schedules',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
+   const jobs=((await response.json()).schedules||[]).filter(item=>item.app==='career-hunter'&&SCHEDULES.includes(item.name));
+   if(!jobs.some(job=>job.name===SCHEDULES[0]&&job.id))throw Error('this installation has not registered it');
+   for(const job of jobs.filter(item=>item.id&&item.status!=='active')){
+    const turned=await fetch('/api/v1/agent/schedules/'+encodeURIComponent(job.id)+'/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({class:'person',configuration:{timeoutMs:60000}})});
+    if(!turned.ok)throw Error((await turned.json().catch(()=>({}))).message||'HTTP '+turned.status);
+   }
+   return {on:true};
+  }catch(error){console.warn('career: Fill in several background job not on',error.message);return {on:false};}
+ }
  /**
   * @description Split the selected jobs: the ones with documents, the ones still needing them, and the ones already applied.
   * @param {object[]} jobs Rows from My jobs. @returns {{ready:object[],needDocs:object[],applied:object[]}}
@@ -104,6 +124,7 @@
   const {queue,refused}=await approveAll(plan.ok),names=new Map(plan.ok.map(({job})=>[job.id,job.company]));
   const not=refused.map(item=>`${names.get(item.postingId)||'Job '+item.postingId} (${String(item.why).replace(/\.$/,'')})`);
   say(`${plural(plan.ok.length-refused.length,'job is','jobs are')} in your fill-in queue.${not.length?' Not added: '+not.join('; ')+'.':''}`);
+  if(plan.ok.length>refused.length)await background();
   window.dispatchEvent(new CustomEvent('career-apply-batch',{detail:{queue}}));
   return queue;
  }
@@ -152,14 +173,22 @@
   * @returns {{refresh:Function}}
   */
  function mount(host,options){
-  const say=options.say||(()=>{}),handled=new Set();let queue=null,timer=null,busy=false,pressing=false;
+  const say=options.say||(()=>{}),handled=new Set(),asked=new Set();let queue=null,timer=null,busy=false,pressing=false;
   const moving=()=>!!queue&&(queue.state==='running'||!!queue.current);
   const draw=()=>{host.hidden=!queue;host.innerHTML=queue?panel(queue,options):'';if(options.onChange)options.onChange(queue);};
   async function handCards(){
    const current=queue?.current;if(!current||!window.CareerApplyAssist)return;
    try{const read=await CareerApplyAssist.cards(current.runId),fresh=read.kept.filter(item=>!handled.has(item.id));
-    if(fresh.length){await CareerApplyAssist.keep(current.runId,fresh);for(const item of fresh)handled.add(item.id);}}
+    if(fresh.length){await CareerApplyAssist.keep(current.runId,fresh);for(const item of fresh)handled.add(item.id);}
+    await fromRecord(current.runId,read.cards);}
    catch(error){console.warn('career: question cards unread',error.message);}
+  }
+  /** Each waiting card a rule of his record settles is answered on the card in his own session; the others stay his. */
+  async function fromRecord(runId,cards){
+   const open=cards.filter(card=>!asked.has(card.id));if(!open.length)return;
+   for(const card of open)asked.add(card.id);
+   const reply=await request('/apply-runs/'+encodeURIComponent(runId)+'/record-answers',{cards:open.map(card=>({id:card.id,questionId:card.ask?.questionId,question:card.ask?.question,options:card.ask?.options||[]}))},{batch:true});
+   for(const item of reply.answers||[])await CareerApplyAssist.answerCard(item.card,Number.isInteger(item.option)?{option:item.option}:{answer:item.answer}).catch(error=>console.warn('career: record answer not taken',error.message));
   }
   async function tick(){
    clearTimeout(timer);if(busy)return;busy=true;

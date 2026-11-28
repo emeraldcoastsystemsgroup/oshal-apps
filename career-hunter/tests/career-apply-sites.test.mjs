@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G, Roger 2026-11-21: "are you fixing all posts or just workday"): which form an assisted application fills, through Career's real routes on a made-up person's real store. Red on store main e0a9e4c9: every host but Workday, Greenhouse, Lever and Ashby was refused as site_unsupported. Proved: an employer site Career has no rules for is the generic site (lib/apply-profiles/generic.json), approved at its own address, with the approval screen saying Career stops before any button that sends the application; a company careers page that embeds Greenhouse, Lever, Ashby or SmartRecruiters is approved at that engine's own form address, from the company's engine and token and the posting's engine id (or the page's gh_jid or ashby_jid), with the page it came from named, and never at a guessed address when the id is not the engine's; each of SAP SuccessFactors, IBM Kenexa BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS, Oracle Recruiting Cloud and Oracle Taleo is recognised by its own host and gets its own rules (an iCIMS posting at its in_iframe address, an amazon.jobs posting at its application on account.amazon.jobs); every profile keeps the closed shape, names no submit word as a press, signs nothing for him and maps a State field only to the state.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5 (BAE Systems' BrassRing Acknowledgment page, 2026-11-27): BrassRing's rules name its signature line (Full Legal Name, Date, on a page of questions), the one line a profile past Workday, Greenhouse, Lever and Ashby names; a made-up person's BrassRing packet carries it beside attest.selfIdSignature, and the approval's Attestations words say that switch covers it, off and on.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -101,6 +102,26 @@ test('each named engine is recognised by its own host and filled in its own rule
   }
 });
 
+test('a BrassRing packet names its Acknowledgment page’s signature line, and the approval says the signature switch covers it, off and on', async () => {
+  // BAE Systems' BrassRing application, 2026-11-27: an Acknowledgment page signed in two required boxes, Full Legal Name
+  // and Date. The kernel signs the line the rules name, on the page kind they name, only with attest.selfIdSignature.
+  const url = 'https://sjobs.brassring.com/TGnewUI/Search/home/HomeWithPreLoad?partnerid=1&siteid=2&PageType=JobDetails&jobid=346';
+  const line = { page: 'questions', name: ['Full Legal Name'], date: ['Date'] };
+  const off = await approve('dana-brassring-sign', { url });
+  assert.equal(off.review.site.id, 'brassring');
+  assert.deepEqual([off.input.task.rules.signature, off.input.task.attest], [line, { terms: false, selfIdSignature: false }], 'the approved input names the line, switch off');
+  assert.equal(off.review.attestLines[1], 'You sign the self-identification form, and an application’s signature line that asks for your name and the date (such as an acknowledgment), yourself. Career hands them back to you there.');
+  const erin = h.person('erin-brassring-sign', { url }), saved = (await h.call('GET', '/saved-answers', null, erin.sub)).body;
+  assert.equal((await h.call('POST', '/saved-answers', { revision: saved.revision, attest: { selfIdSignature: true } }, erin.sub)).code, 200);
+  const on = (await h.call('GET', '/apply-review/7', null, erin.sub)).body;
+  assert.equal(on.attestLines[1], 'Career signs the self-identification form, and an application’s signature line that asks for your name and the date (such as an acknowledgment), with your name and today’s date, in your name.');
+  assert.equal(on.attestLines[0], off.review.attestLines[0], 'the terms switch says what it said');
+  const approved = await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: on.packetDigest, approved: true }, erin.sub);
+  assert.equal(approved.code, 200, JSON.stringify(approved.body));
+  const input = frozen(erin, approved.body.run.id);
+  assert.deepEqual([input.task.rules.signature, input.task.attest], [line, { terms: false, selfIdSignature: true }], 'the approved input carries the line and the switch together');
+});
+
 test('an installation may name a host for any named engine; an engine Career does not name is refused loudly', async () => {
   const previous = process.env.CAREER_APPLY_SITE_HOSTS;
   try {
@@ -116,8 +137,10 @@ test('an installation may name a host for any named engine; an engine Career doe
   } finally { if (previous === undefined) delete process.env.CAREER_APPLY_SITE_HOSTS; else process.env.CAREER_APPLY_SITE_HOSTS = previous; }
 });
 
-test('every profile keeps the closed shape, never presses a submit word, signs nothing and maps State only to the state', () => {
+test('every profile keeps the closed shape, never presses a submit word, signs no line its site does not show and maps State only to the state', () => {
   const submit = /submit|send application|complete application|finish/i;
+  // BrassRing's Acknowledgment page (BAE Systems, 2026-11-27) is the one signature line a profile here names.
+  const lines = { brassring: { page: 'questions', name: ['Full Legal Name'], date: ['Date'] } };
   for (const file of fs.readdirSync(PROFILES).filter((name) => name.endsWith('.json'))) {
     const profile = rules(file.replace(/\.json$/, ''));
     assert.deepEqual(Object.keys(profile).sort(), ['decline', 'document', 'equivalents', 'fields', 'groups', 'id', 'press', 'signature', 'steps', 'upload', 'version']);
@@ -127,7 +150,7 @@ test('every profile keeps the closed shape, never presses a submit word, signs n
     assert.ok(states.every((rule) => rule.slot === 'address.state'), `${file}: a field labelled State takes only the state`);
     if (['workday', 'greenhouse', 'lever', 'ashby'].includes(profile.id)) continue;
     assert.deepEqual([profile.steps, profile.groups], [{}, []], `${file}: no page kinds or entry groups guessed`);
-    assert.deepEqual(profile.signature, { page: 'questions', name: [], date: [] }, `${file}: no signature line is signed`);
+    assert.deepEqual(profile.signature, lines[profile.id] || { page: 'questions', name: [], date: [] }, `${file}: no signature line is signed but the one its site shows`);
     assert.ok(!profile.fields.some((rule) => rule.match.label.some((label) => /^(name|full name|signature|date)$/i.test(label.trim()))), `${file}: no bare Name, Full Name, Signature or Date, which can be a signature line`);
     assert.deepEqual(profile.equivalents.Florida, ['Florida', 'FL'], `${file}: a state list of abbreviations takes his state`);
   }

@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | PDF Workbench 0.3.0 (the oshal design standard): the proofs upload through the Originals sheet, rotate through the Pages sheet, fill forms through the Form fields sheet, select shapes on the page and, on a phone, adjust through the Edit mode's Format sheet; Save shows only while there is something to save.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The AI cases ask in the window through the fixture's stand-in kernel: the person's words alone reach pdf-editor as PDF Workbench, with the automatically saved revision and the selected object on the context, and the answer shows in the window. The approval-card case shows the card in the window, bound to the saved revision, while native inline and form edits stay local and nothing runs before Approve; it no longer asserts that a native edit retires the waiting card: the new pane has no card retirement (its invalidate is empty on kernel 0ed7f44b), so that guard went with the old pane. Each card has its own id, as the window presents an id once.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The concierge each case opens is asserted by its address (the coordinator's rule after Roger's 2026-11-17 02:22Z report, where a concierge opened as another application's): the one chat window, /api/jarvis/?concierge=pdf-workbench&bot=pdf-editor, read with scripts/one-chat-window/today-host.mjs windowAddress.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Return to the chat through its message field before inspecting a waiting card; the shared window revalidates approvals when focus returns.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -95,7 +96,10 @@ test('an approval card waits in the window, bound to the saved revision, while n
  await textObject(page).click();
  // The nth turn's own answer (the earlier one has the same words), then its card's Approve.
  const ask=async n=>{const chat=await concierge(page),{ask}=await sendInWindow(chat,'Change the selected text.',click,f.kernel);
-  await chat.locator('#convo .msg.bot .bx').filter({hasText:'Review the selected text change.'}).nth(n-1).waitFor();await chat.getByRole('button',{name:'Approve',exact:true}).waitFor();return{chat,ask};};
+  await chat.locator('#convo .msg.bot .bx').filter({hasText:'Review the selected text change.'}).nth(n-1).waitFor();
+  // Return to this window before inspecting its held card; approvals revalidate after focus returns.
+  await chat.getByRole('textbox',{name:'Message Jarvis',exact:true}).click();
+  await chat.getByRole('button',{name:'Approve',exact:true}).waitFor();return{chat,ask};};
  let {chat,ask:turn}=await ask(1);
  assert.deepEqual([turn.bot,turn.context.app,turn.context.recordId,turn.context.fields.revision,turn.message],['pdf-editor','pdf-workbench',id,1,'Change the selected text.'],'the card is asked for this saved document at revision 1');
  await textObject(page).dblclick();await page.getByRole('textbox',{name:'Edit selected PDF text'}).fill('A still local inline edit');await page.getByRole('textbox',{name:'Edit selected PDF text'}).press('Escape');

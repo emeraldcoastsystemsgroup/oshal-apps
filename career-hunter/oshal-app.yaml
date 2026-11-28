@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 207 | maintainer@emeraldcoastsystemsgroup.com | Unreleased (lane CAREER-LOCATION): career_resume_patch sets a job's location
 # 206 | maintainer@emeraldcoastsystemsgroup.com | Unreleased (lane CAREER-CONCURRENT): staticFiles lists tools/career-pending-writes.js, the door every Career page's changes go through, so a change made while a résumé is written waits and saves by itself
+# 232 | maintainer@emeraldcoastsystemsgroup.com | 1.79.0: Answers to review (CHANGELOG.md 232)
 # 217 | maintainer@emeraldcoastsystemsgroup.com | 1.76.10 (CHANGELOG.md 217)
 # 218 | maintainer@emeraldcoastsystemsgroup.com | 1.76.11 (CHANGELOG.md 218)
 # 219 | maintainer@emeraldcoastsystemsgroup.com | 1.76.12 (CHANGELOG.md 219)
@@ -16,6 +17,9 @@
 # 226 | maintainer@emeraldcoastsystemsgroup.com | 1.77.2 (CHANGELOG.md 226)
 # 227 | maintainer@emeraldcoastsystemsgroup.com | 1.77.3 (CHANGELOG.md 227)
 # 228 | maintainer@emeraldcoastsystemsgroup.com | 1.77.4 (CHANGELOG.md 228)
+# 229 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5: a confirmation naming no job; BrassRing's signature line (CHANGELOG.md 229)
+# 230 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (CHANGELOG.md 230)
+# 231 | maintainer@emeraldcoastsystemsgroup.com | 1.78.0: applications that improve themselves (CHANGELOG.md 231)
 # 211 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4 (CHANGELOG.md 211)
 # 210 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3 (CHANGELOG.md 210)
 # 209 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2 (CHANGELOG.md 209)
@@ -44,24 +48,24 @@
 # 186 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: direct inline editing of tailored résumés and letters (CHANGELOG.md 186)
 # 185 | maintainer@emeraldcoastsystemsgroup.com | 1.68.16: the page reader refuses redirects to private addresses (CHANGELOG.md 185)
 # 184 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: résumé typography cleanup and per-skill tenure (CHANGELOG.md 184)
-# 183 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: preserve recorded month/year precision across generation and cloned packet snapshots without inventing months, add Professional Word/PDF export inside My résumé's More menu, and offer Word/PDF/RTF format downloads beside generated packet/cover views while keeping submitted PDFs exact.
+# 183 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14 (CHANGELOG.md 183)
 # 182 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: Work history places direct Tab in, Tab out and Add sub-engagement controls beside existing actions, preserving explicit one-level links, independent entries, drafts and revision-checked Save/Undo.
 # 181 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: explicitly group client engagements under one employer with revision-checked links, preserved independent records and consistent document indentation.
-# 180 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11: declare `approvals:` (`/api/career-hunter/applications`, `/approvals`, with pinned `/approve` and `/deny` action templates) so applications in `approval_required` state appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`).
-# 179 | maintainer@emeraldcoastsystemsgroup.com | 1.68.10: Career's apply action reads the person's chosen Job Apply connected device from GET /api/apply-operator/workers (including Open Swarm Orbit computers alongside browser workers), names the chosen device on Step 3 · Send ("Applies from: <Device> · Change device"), the exact-packet approval screen, and My jobs' bulk Send dialog, and surfaces plain-words offline/control-off refusals from Job Apply device routing. Guards: tests/career-job-apply-device.test.mjs.
+# 180 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11 (CHANGELOG.md 180)
+# 179 | maintainer@emeraldcoastsystemsgroup.com | 1.68.10 (CHANGELOG.md 179)
 # 178 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9 (CHANGELOG.md 178)
-# 177 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z, at 412 right after a restart: "Career's Concierge did not show the chat window"; the same class Roger reported, a concierge button that does nothing). The bar draws Concierge before Career's concierge has mounted (career-concierge.mjs and the shared assistant still on their way, seconds on a busy or just-started installation), and a press then reached no handler. A press before the concierge is ready is now kept and the concierge opens as soon as it mounts; the button says it is busy meanwhile (tools/career-frame.js, tools/career-concierge.mjs). No route, role, tool or persona change.
+# 177 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (CHANGELOG.md 177)
 # 176 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7: saved portfolio (`oss_portfolio`) Edit form with revision-checked main-résumé save and Undo (full notes in CHANGELOG.md).
-# 175 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: My jobs posting sheet reads missing descriptions (`POST /jobs/:id/details`) and one-employer backfill script (full notes in CHANGELOG.md).
-# 174 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5: evidence-ranked cover-letter prompts (`letter_evidence.py`) and post-model overclaim rewrite/review check (`claims_check.py`) (full notes in CHANGELOG.md).
-# 173 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4: Work history Expanded experience (`project_ledger` and `named_accounts`) read and revision-checked edit with Undo (full notes in CHANGELOG.md).
-# 172 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1: Prepare application and bulk Prepare ask for Other experience selection before generating résumés (full notes in CHANGELOG.md).
-# 171 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: Table view across board stages with location/distance/stage filters and bounded bulk Prepare/Send queue (full notes in CHANGELOG.md).
-# 170 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4: posting location, workplace type, and straight-line distance from Matching area home on My jobs (full notes in CHANGELOG.md).
-# 169 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3: carry current roles and roles within 20 years on every generated or tailored résumé (`role_plan.py`) (full notes in CHANGELOG.md).
-# 168 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2: compact 52px phone document bar and folded AI Office header on My résumé (full notes in CHANGELOG.md).
+# 175 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (CHANGELOG.md 175)
+# 174 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (CHANGELOG.md 174)
+# 173 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (CHANGELOG.md 173)
+# 172 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (CHANGELOG.md 172)
+# 171 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (CHANGELOG.md 171)
+# 170 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (CHANGELOG.md 170)
+# 169 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (CHANGELOG.md 169)
+# 168 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (CHANGELOG.md 168)
 # 167 | maintainer@emeraldcoastsystemsgroup.com | 1.67.1 (CHANGELOG.md 167)
-# 166 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: per-employer confirmed-sent counts and badge, deterministic tracked-application age fields, 4,096-character work-history bullet preservation and inline glyph splitting, and My résumé Main vs Tailored banner (full notes in CHANGELOG.md).
+# 166 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0 (CHANGELOG.md 166)
 # Earlier entries: see career-hunter/CHANGELOG.md.
 # -----------------------------------------------------------------------------
 name: career-hunter
@@ -116,6 +120,11 @@ rating:
       tier: T2
       generation: none
       degrade: template
+    - id: application-answers
+      unit: written application answer draft
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: Intelligent Career
 description: >-
   Search employers' public job feeds, score selected recent openings against your private career
@@ -126,7 +135,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.77.4
+version: 1.79.0
 
 localEditing:
   itemId: master
@@ -1644,6 +1653,15 @@ schedules:
     report: true
     # The original activated source administrator receives owner-bound decision tickets; no schedule is activated here.
     description: For Career administrators. Each morning, tell you what last night's source maintenance newly left for a person. Prepare or reconcile your own human approval tickets for current source decisions, and tell you what last night left for a person or developer. A confirmed decision waits for the next pull; this job never writes the shared corpus or approves a ticket.
+  - id: career-answers-review
+    cron: "*/5 * * * *"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/career-hunter/answers-to-review/refresh
+    method: POST
+    timeoutSeconds: 60
+    description: While a job waits on a question only you can answer, keep it on Answers to review, have Career's specialist write the written ones from your record, and put jobs back in Fill in several once you answered. Submits nothing.
   - id: career-regenerate
     cron: "* * * * *"
     timezone: America/Chicago
@@ -1653,6 +1671,15 @@ schedules:
     method: POST
     timeoutSeconds: 60
     description: While Generate again has jobs in line, write the next job's résumé and cover letter with that job's own notes and choices, one job at a time. Does nothing when none wait. Submits nothing.
+  - id: career-apply-queue
+    cron: "* * * * *"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/career-hunter/apply-batch/tick
+    method: POST
+    timeoutSeconds: 60
+    description: While Fill in several has jobs, start the next approved job once the one on your computer has ended, and keep the questions it met so later approvals answer them from your record. Does nothing when none wait.
 
 surface:
   ops: [context, custom, notify]
@@ -1972,6 +1999,8 @@ staticFiles:
       - career-apply-batch.js
       - career-apply-receipt.js
       - career-bulk-queue.js
+      - career-didnt-go-through.js
+      - career-answers-review.js
       - career-regenerate.js
       - career-change-bar.js
       - career-concierge.css

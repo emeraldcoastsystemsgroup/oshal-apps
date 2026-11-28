@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Live browser preview for v1 and v2 timelines: pitch-preserved speed, color looks, stabilization margin, chroma-key/remove-bg RGBA compositing over lower video tracks, SVG sticker overlays, timed captions and multitrack audio clips.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Sync #previewScreen aspect ratio and #compositeCanvas dimensions with the project's aspectRatio (16:9, 9:16, 1:1).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep title preview font size and single-line fitting proportional to the rendered canvas, including resize.
  */
 import { PROFILE, aspectDimensions, resolveAspectRatio, timelineFrames } from './timeline-validation.mjs';
 import { locateFrame } from './timeline-model.mjs';
@@ -14,6 +15,7 @@ import { mediaUrl } from './editor-api.mjs';
 import { clock } from './timeline-view.mjs';
 import { STABILIZE_MODES, applyPreviewMatte, clipDurationFrames, cssFilterForClip } from './editor-effects.mjs';
 import { stickerDataUri, stickerPoseAt } from './editor-stickers.mjs';
+import { titleFontSize } from './title-layout.mjs';
 
 function activeVisualLayers(doc, at, total) {
   if (doc.version === 1) {
@@ -35,13 +37,16 @@ function activeVisualLayers(doc, at, total) {
 }
 
 function renderOverlays(nodes, doc, at) {
+  const dimensions = aspectDimensions('preview', resolveAspectRatio(doc));
+  const scale = (nodes.screen?.clientWidth || dimensions.width) / dimensions.width;
+  const font = (node, text) => { node.style.fontSize = `${titleFontSize(text.text, text.size, dimensions.width, dimensions.height) * scale}px`; };
   const title = doc.titles.find(item => at >= item.start && at < item.end);
   nodes.overlay.hidden = !title;
-  if (title) { nodes.overlay.textContent = title.text; nodes.overlay.dataset.position = title.position; nodes.overlay.dataset.size = title.size; }
+  if (title) { nodes.overlay.textContent = title.text; nodes.overlay.dataset.position = title.position; nodes.overlay.dataset.size = title.size; font(nodes.overlay, title); }
   if (nodes.captions) {
     const cue = doc.captions?.find(item => at >= item.start && at < item.end);
     nodes.captions.hidden = !cue;
-    if (cue) { nodes.captions.textContent = cue.text; nodes.captions.dataset.position = cue.position; nodes.captions.dataset.size = cue.size; }
+    if (cue) { nodes.captions.textContent = cue.text; nodes.captions.dataset.position = cue.position; nodes.captions.dataset.size = cue.size; font(nodes.captions, cue); }
   }
   if (nodes.stickers) {
     const active = (doc.stickers ?? []).filter(st => at >= st.start && at < st.end);
@@ -98,6 +103,7 @@ export function createPlayer(nodes, documentOf, onFrame) {
   let frame = 0, playing = false, started = 0, showing = null, underShowing = null, raf = 0;
   const trackAudios = new Map();
   const total = () => timelineFrames(documentOf());
+  if (nodes.screen && typeof ResizeObserver !== 'undefined') new ResizeObserver(() => renderOverlays(nodes, documentOf(), frame)).observe(nodes.screen);
   nodes.viewer.addEventListener('error', () => { nodes.noPicture.hidden = false; });
   nodes.viewer.addEventListener('loadeddata', () => { nodes.noPicture.hidden = true; drawMatteFrame(nodes, activeTop()?.clip, nodes.viewer.style.filter, nodes.viewer.style.transform); });
   const activeTop = () => activeVisualLayers(documentOf(), frame, total()).at(-1) ?? null;

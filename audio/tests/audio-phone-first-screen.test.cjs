@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.2 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16: Audio Studio's first track started 617 px down a 915 px phone, 67%, under the app bar, the section tabs, a transport on three rows, six formula macros on four rows and the status line). The real studio page with its own scripts (the default five-stem arrangement the page builds itself) in a stand-in for Today (tests/browser/today-phone-fixture.cjs), every write refused: at 412x915, 390x844 and 360x780 with touch the first track starts within the top 30% of the screen, the transport (Play, Pause, Stop, Record Take, the time) is one row whose buttons keep their names, the formula macros are one row, the kicker is not drawn, nothing scrolls the page sideways and nothing to tap sits under the floating Jarvis button at the end; at 1440x900 the desktop keeps its kicker, its one transport bar with the LUFS meter and its macros. Red on 1.2.1.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve the genuine extracted session controller in the read-only phone fixture.
  */
 'use strict';
 const test = require('node:test');
@@ -16,6 +17,7 @@ const FILES = {
   '/api/audio/ui': path.join(PKG, 'tools', 'audio.html'),
   '/api/audio/audio.css': path.join(PKG, 'tools', 'audio.css'),
   '/api/audio/audio.js': path.join(PKG, 'tools', 'audio.js'),
+  '/api/audio/ui/audio-session.js': path.join(PKG, 'tools', 'audio-session.js'),
   '/api/audio/audio-ui-helpers.js': path.join(PKG, 'tools', 'audio-ui-helpers.js'),
   '/api/audio/dsp_engine.js': path.join(PKG, 'lib', 'dsp_engine.js'),
   '/api/audio/dsp_synth.js': path.join(PKG, 'lib', 'dsp_synth.js'),

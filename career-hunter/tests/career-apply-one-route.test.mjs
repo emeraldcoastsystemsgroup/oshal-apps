@@ -9,6 +9,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Remove picks through the existing owner board dismissal, retain application and native ticket history, and verify reload and refusal behavior.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25): the kernel's busy answer (409 career_run_in_progress, nothing ran) is no longer a refusal on these pages: the change waits and saves by itself (tools/career-pending-writes.js). The Remove refusal cases now use a refusal of the route's own (the job changed on another screen), so they still prove a refused Remove brings its row back; the phone Pass case proves a Pass answered busy waits, says so and lands once, with Undo then offered.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: the phone Pass that Career refuses while it is working says so in plain words ("Not passed: Career is working on your account. Try again when it finishes. … is back on top."), not the refusal's code, which is what this case used to wait for. It read the lead card's id from an attribute the card never had, so both reads were empty and equal; it reads the card's own id now, and checks that Undo has nothing to undo and that the Pass was sent once.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "have a new tab that listas the failed aplications and what went wrong"): My jobs' stage row gains Didn’t go through after Getting ready; the expected row follows.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -75,7 +76,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
     try {
       await page.locator('.job-row[data-job-id="21"]').waitFor();
       const stages = page.getByRole('tablist', { name: 'Application stages' });
-      assert.deepEqual((await stages.locator('a[role=tab]').allTextContents()).map((text) => text.replace(/\d+$/, '')), ['New matches', 'Saved', 'Getting ready', 'Removed']);
+      assert.deepEqual((await stages.locator('a[role=tab]').allTextContents()).map((text) => text.replace(/\d+$/, '')), ['New matches', 'Saved', 'Getting ready', 'Didn’t go through', 'Removed']);
       assert.equal(await page.getByText('To approve').count(), 0, 'no stage, tab or link is called To approve');
       assert.deepEqual(await rowsOf(page), [
         [21, 'Career picked this for you', ['Prepare application', 'Remove']],

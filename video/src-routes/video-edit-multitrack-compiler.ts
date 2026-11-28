@@ -2,9 +2,12 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Compile bounded v2 video/audio tracks with overlays, color, fades, integer keyframes and sample-aligned mixing through fixed FFmpeg filters.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Support per-clip speed/atempo, named color looks, stabilization, chroma key, background matting, keyframed stickers and 720p/1080p/4K 30/60fps export profiles.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Derive multitrack output width and height from document.aspectRatio (16:9, 9:16, 1:1) and size drawtext proportionally to the shorter canvas side.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Fit multitrack titles with the shared browser and export layout contract.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Reuse the compiler's native-compatible shared title helper.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve Unicode endings in multitrack titles and captions.
  */
 import {
-  TimelineCompileError, appendStickerGraph, atempoStages, clipDuration30, compileClipVisualFilters, resolveCompileSpec,
+  TimelineCompileError, titleFontSize, renderTitleText, appendStickerGraph, atempoStages, clipDuration30, compileClipVisualFilters, resolveCompileSpec,
   type ClipChromaKey, type ClipLook, type ClipRemoveBg, type CompileInput, type CompiledTimeline, type ResolvedCompileSpec,
 } from './video-edit-compiler';
 
@@ -126,11 +129,11 @@ function titlesAndStickers(graph: Graph, input: CompileInput, video: string, tot
     for (const [index, title] of entries.entries()) {
       const start30 = int(title.start, 0, total30 - 1), end30 = int(title.end, start30 + 1, total30);
       if (typeof title.text !== 'string' || title.text.length > 240 || /[\u0000-\u001f]/.test(title.text)) failInvalid();
-      const divisor = { small: 24, medium: 16, large: 10 }[title.size];
-      if (!divisor || !['top', 'center', 'bottom'].includes(title.position)) failInvalid();
+      const fontSize = titleFontSize(title.text, title.size, spec.width, spec.height);
+      if (!fontSize || !['top', 'center', 'bottom'].includes(title.position)) failInvalid();
       const margin = Math.round(spec.height / 12), y = title.position === 'top' ? String(margin) : title.position === 'center' ? '(h-text_h)/2' : `h-text_h-${margin}`;
-      const name = `title-${index}.txt`; files.push({ name, text: title.text });
-      filters.push(`drawtext=textfile=${name}:expansion=none:fontfile=${input.fontFile}:fontsize=${Math.round(Math.min(spec.width, spec.height) / divisor)}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=${y}:enable='between(n,${start30 * spec.fpsScale},${end30 * spec.fpsScale - 1})'`);
+      const name = `title-${index}.txt`; files.push({ name, text: renderTitleText(title.text) });
+      filters.push(`drawtext=textfile=${name}:expansion=none:fontfile=${input.fontFile}:fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=${y}:enable='between(n,${start30 * spec.fpsScale},${end30 * spec.fpsScale - 1})'`);
     }
     if (!hasStickers) { graph.parts.push(`[${stage}]${filters.join(',')},format=yuv420p[vout]`); return files; }
     graph.parts.push(`[${stage}]${filters.join(',')}[vtitled]`);

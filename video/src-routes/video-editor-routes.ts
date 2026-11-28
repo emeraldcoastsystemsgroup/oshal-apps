@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: admit editor-concierge-early.js in EDITOR_ASSETS so Video's editor screen claims Today's concierge entry synchronously before its ES module graph finishes loading.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: accept optional aspectRatio (16:9, 9:16, 1:1) on POST /editor/agent-projects and advertise aspectRatios in GET /editor/capabilities.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6: add GET /editor/media for owned media discovery and POST /editor/projects/:id/revisions/restore for non-destructive revision restore.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Serve the shared package-local title layout module through the existing editor asset route.
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
@@ -46,6 +47,7 @@ export interface VideoEditorOptions { dataRoot?: string; prober?: MediaProber; e
 const EDITOR_ASSETS: Readonly<Record<string, string>> = Object.freeze({
   'artifact-import.mjs': 'text/javascript; charset=utf-8', 'editor-concierge-early.js': 'text/javascript; charset=utf-8', 'editor-foundation-adapter.mjs': 'text/javascript; charset=utf-8', 'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
   'editor-player.mjs': 'text/javascript; charset=utf-8', 'editor-export.mjs': 'text/javascript; charset=utf-8',
+  'title-layout.mjs': 'text/javascript; charset=utf-8',
   'editor-effects.mjs': 'text/javascript; charset=utf-8', 'editor-stickers.mjs': 'text/javascript; charset=utf-8',
   'editor-rp-sheets.mjs': 'text/javascript; charset=utf-8',
   'timeline-view.mjs': 'text/javascript; charset=utf-8', 'timeline-model.mjs': 'text/javascript; charset=utf-8',

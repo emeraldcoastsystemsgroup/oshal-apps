@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | An employer's automatic confirmation was recorded as a rejection and its job set to rejected (production, 2026-11-26: "Thank you for applying to <employer>!" three seconds after the application, and "Hello from <employer>! We have your application." five seconds before Career's own record of it). The reader now takes a confirmation as an acknowledgement, a rejection only from a statement, and nothing dated within five minutes of applied_at as a rejection of that application; the next read relabels a stored wrong event and puts its job back. Real SQLite with the engine's schema, the real state files, a scripted mailbox; the employers and the person are made up.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5 (production, 2026-11-27: six applications, all six employers confirmed within two seconds, two confirmations linked to nothing): a Workday-hosted confirmation whose words did not read as one, and a SmartRecruiters-hosted one that named the employer and no job. Both shapes link to the one application at that employer from that hour; two applications there leave the confirmation for review; a confirmation three hours later, and a rejection, interview or offer that names only the employer, link to nothing; the receipt words never turn a rejection into an acknowledgement; and the first check after the change reads again, once, the newest fifty messages it had linked to nothing, in the room its own reading leaves. The mailbox answers 404 for a message it does not hold, as Gmail does for a deleted one, and a fixture message may carry a From header (the reader does not read it).
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,9 +18,10 @@ const QUILL={id:12,company:'Quillstone Inc',title:'Staff Software Engineer',stat
 const applied=job=>mail.timestamp(job.applied_at);
 const b64=text=>Buffer.from(text,'utf8').toString('base64url');
 /** One mailbox message as the mail API returns it: a subject, a snippet and plain or HTML parts. */
-function message(id,subject,at,{text='',html='',snippet=''}={}){
+function message(id,subject,at,{text='',html='',snippet='',from=''}={}){
   const parts=[text&&{mimeType:'text/plain',body:{data:b64(text)}},html&&{mimeType:'text/html',body:{data:b64(html)}}].filter(Boolean);
-  return {id,threadId:'t-'+id,internalDate:String(at),snippet,payload:{mimeType:'multipart/alternative',headers:[{name:'Subject',value:subject}],parts}};
+  const headers=[{name:'Subject',value:subject},...(from?[{name:'From',value:from}]:[])];
+  return {id,threadId:'t-'+id,internalDate:String(at),snippet,payload:{mimeType:'multipart/alternative',headers,parts}};
 }
 /** The same sentence as a mail program writes it in HTML: source lines broken inside it, two words emphasised, a link. */
 const CONDITION_IN_HTML='<div>\n<p>Hi there,</p>\n\n<p>We have received your application for the <b>Platform Engineer</b> role at Lanternworks. If you are\n\n  <strong>not selected</strong>\n\n  for this position, continue to keep an eye on our <a href="https://careers.example.test">careers page</a>.</p>\n</div>';
@@ -35,6 +37,19 @@ const rejectionAfterThanks=at=>message('lantern-rejection','Thank you for applyi
   text:'Thank you for applying to Lanternworks and for the time you put into the Platform Engineer application.\n\nAfter careful consideration, we have decided not to move forward with your application at this time, but if another role fits we would be glad to hear from you.'});
 /** A message about the first application whose whole text is the given sentences. */
 const about=(text,at=applied(LANTERN)+3*DAY,subject='Lanternworks: Platform Engineer')=>message('m',subject,at,{text});
+/** Two of the six applications of 2026-11-27, made up: each employer's automatic confirmation came within two seconds and named the employer and no job. */
+const HARBOR={id:21,company:'Harborline Inc',title:'Senior Data Engineer',status:'applied',applied_at:'2026-11-27T14:05:10.000Z'};
+const BRIGHT={id:22,company:'Brightwater Analytics',title:'Solutions Architect',status:'applied',applied_at:'2026-11-27 14:31:47'};
+/** The Workday-hosted confirmation's paragraphs, as it was written. */
+const HARBOR_TEXT=['Dear Avery,','Thank you for taking the time to submit an application! We just wanted to confirm that we have received it along with your resume and any supporting materials you\u2019ve shared.',
+  'We will be reviewing your submission as the next step in the process and get back to you if we are able to move forward.',
+  'Thanks again for taking the time to consider us in your job search. We really appreciate it!','Regards,\nHarborline Talent Acquisition'];
+/** It came from the employer's Workday address, in plain text and in the HTML a Workday message carries. */
+const harborConfirmation=(at,id='harbor-confirmation')=>message(id,'Thank you for your job application with us!',at,{from:'harborline@myworkday.com',text:HARBOR_TEXT.join('\n\n'),
+  html:'<html><body>'+HARBOR_TEXT.map(paragraph=>'<p>'+paragraph.replace('\u2019','&#39;').replace('\n','<br>')+'</p>').join('\n')+'</body></html>'});
+/** The SmartRecruiters-hosted confirmation: the employer's name several times, no job. */
+const brightConfirmation=(at,id='bright-confirmation')=>message(id,'Thank you for applying to Brightwater Analytics',at,{from:'Brightwater Analytics <notification@brightwater.example>',
+  text:'Hi Avery,\n\nThank you for your interest in Brightwater Analytics. We have received your application and will evaluate your resume against the requirements of the role. If your experience is a good match, a member of the Brightwater Analytics recruiting team will contact you.\n\nWe appreciate your interest in Brightwater Analytics.\n\nBrightwater Analytics Talent Acquisition'});
 
 test('an employer confirmation that says what happens to people who are not selected is an acknowledgement',()=>{
   // As they arrived: seconds from the application. And two days later, where only the words decide.
@@ -110,6 +125,61 @@ test('a message dated before five minutes after applied_at is not a rejection of
   assert.equal(mail.match(lanternConfirmation(applied(LANTERN)-5*MINUTE-1),[LANTERN]),null);
 });
 
+test('a Workday-hosted confirmation that names the employer and no job is linked to the one application there from that hour',()=>{
+  const jobs=[LANTERN,QUILL,HARBOR,BRIGHT];
+  // As it arrived: two seconds after the application.
+  const harbor=mail.match(harborConfirmation(applied(HARBOR)+2000),jobs);
+  assert.equal(harbor?.kind,'acknowledged');assert.equal(harbor.postingId,21);assert.equal(harbor.needsReview,false);assert.deepEqual(harbor.candidateIds,[21]);
+  assert.equal(harbor.subject,'Thank you for your job application with us!');
+  // Its words confirm receipt in the subject alone, the reading the repair makes, and in the body alone.
+  assert.equal(mail.reading('Thank you for your job application with us!','').kind,'acknowledged');
+  assert.equal(mail.reading('',HARBOR_TEXT.join('\n\n')).kind,'acknowledged');
+  // From five minutes before applied_at to an hour after it, and no further: three hours later it is linked to nothing.
+  for(const [offset,linked] of [[-5*MINUTE,true],[-5*MINUTE-1,false],[60*MINUTE,true],[60*MINUTE+1,false],[3*60*MINUTE,false]])
+    assert.equal(mail.match(harborConfirmation(applied(HARBOR)+offset),jobs)?.postingId??null,linked?21:null,String(offset));
+  // An earlier application at the same employer, outside that hour, is not a candidate.
+  const earlier={...HARBOR,id:23,title:'Data Engineer II',applied_at:'2026-11-20T09:00:00.000Z'};
+  assert.deepEqual(mail.match(harborConfirmation(applied(HARBOR)+2000),[earlier,HARBOR]).candidateIds,[21]);
+  // A message that names the job is that job's, as before, whenever it came; the Workday words now say what it is.
+  const named=mail.match(message('m','Thank you for your job application with us!',applied(HARBOR)+2*DAY,{text:'Harborline Inc: Senior Data Engineer. Regards, Harborline Talent Acquisition'}),[earlier,HARBOR]);
+  assert.equal(named.kind,'acknowledged');assert.equal(named.postingId,21);
+});
+
+test('a SmartRecruiters-hosted confirmation that names the employer and no job is linked to the one application there from that hour',()=>{
+  const jobs=[LANTERN,QUILL,HARBOR,BRIGHT];
+  // As it arrived: within a second of the application, on either side of Career's record of it.
+  for(const offset of [-900,900]){
+    const bright=mail.match(brightConfirmation(applied(BRIGHT)+offset),jobs);
+    assert.equal(bright?.kind,'acknowledged',String(offset));assert.equal(bright.postingId,22);assert.equal(bright.needsReview,false);assert.deepEqual(bright.candidateIds,[22]);
+  }
+  for(const [offset,linked] of [[-5*MINUTE,true],[-5*MINUTE-1,false],[60*MINUTE,true],[60*MINUTE+1,false],[3*60*MINUTE,false]])
+    assert.equal(mail.match(brightConfirmation(applied(BRIGHT)+offset),jobs)?.postingId??null,linked?22:null,String(offset));
+});
+
+test('two applications at that employer in that hour leave its confirmation for review',()=>{
+  const second={...HARBOR,id:24,title:'Analytics Engineer',applied_at:new Date(applied(HARBOR)+10*MINUTE).toISOString()};
+  const event=mail.match(harborConfirmation(applied(second)+2000),[LANTERN,HARBOR,second,BRIGHT]);
+  assert.equal(event.kind,'acknowledged');assert.equal(event.postingId,null);assert.equal(event.needsReview,true);assert.deepEqual([...event.candidateIds].sort(),[21,24]);
+  // An hour and a minute after the first, only the second is in its hour.
+  assert.equal(mail.match(harborConfirmation(applied(HARBOR)+61*MINUTE),[HARBOR,second]).postingId,24);
+});
+
+test('a rejection, an interview or an offer that names only the employer is linked to nothing',()=>{
+  const jobs=[HARBOR,BRIGHT],only=(subject,text,at)=>mail.match(message('m',subject,at,{text,from:'harborline@myworkday.com'}),jobs);
+  for(const at of [applied(HARBOR)+2000,applied(HARBOR)+30*MINUTE,applied(HARBOR)+3*DAY]){
+    assert.equal(only('Thank you for your job application with us!','Dear Avery, thank you for applying to Harborline. Unfortunately, we have decided not to move forward with your application.\n\nRegards, Harborline Talent Acquisition',at),null,'rejection '+at);
+    assert.equal(only('Your application to Harborline','We just wanted to confirm that we have received it. Other candidates were a closer match for this role.\n\nHarborline Talent Acquisition',at),null,'rejection words '+at);
+    assert.equal(only('Harborline: next steps','Thank you for applying to Harborline. We would like to schedule an interview with you.',at),null,'interview '+at);
+    assert.equal(only('Harborline','We are pleased to offer you the role at Harborline.',at),null,'offer '+at);
+  }
+  // The receipt words never set rejection words aside: what read as a rejection before reads as one still.
+  for(const words of ['Thank you for your job application with us!','We just wanted to confirm that we have received it.','Thank you for taking the time to submit an application!'])
+    for(const text of ['Other candidates were a closer match for this role.','The position has been filled.','We will not be extending an invitation this time.','Unfortunately, we have decided not to move forward with your application.']){
+      assert.equal(mail.reading(words,text).kind,'rejected',words+' '+text);
+      assert.equal(mail.match(about(words+' '+text),[LANTERN]).kind,'rejected',words+' '+text);
+    }
+});
+
 test('an offer and an interview invitation read as before',()=>{
   const at=applied(LANTERN)+3*DAY;
   assert.equal(mail.match(about('Thank you for applying. We are pleased to offer you the role; your offer letter is attached.',at),[LANTERN]).kind,'offer');
@@ -119,12 +189,12 @@ test('an offer and an interview invitation read as before',()=>{
   assert.equal(mail.match(about('Our monthly newsletter',at),[LANTERN]),null);
 });
 
-/** A made-up person's store: the engine's own schema, the two applications, and the submission mailbox on the résumé. */
-function store(){
+/** A made-up person's store: the engine's own schema, the applications (the two of 2026-11-26 unless others are given), and the submission mailbox on the résumé. */
+function store(applications=[LANTERN,QUILL]){
   const dir=mkdtempSync(join(tmpdir(),'career-mail-updates-')),db=new DatabaseSync(':memory:');
   db.exec("ATTACH DATABASE ':memory:' AS corpus");
   for(const name of ['CORPUS_SCHEMA','USER_SCHEMA'])db.exec(engine.match(new RegExp(name+'\\s*=\\s*"""([\\s\\S]*?)"""'))[1]);
-  for(const job of [LANTERN,QUILL]){
+  for(const job of applications){
     db.prepare('INSERT INTO corpus.companies(id,name)VALUES(?,?)').run(job.id,job.company);
     db.prepare("INSERT INTO corpus.postings_corpus(id,company_id,ats_job_id,title,description,active,target_role,remote,state,posted_date)VALUES(?,?,?,?,'',1,0,1,'','2026-11-20')").run(job.id,job.id,'req-'+job.id,job.title);
     db.prepare("INSERT INTO user_signals(posting_id,status,applied_at,application_source)VALUES(?,?,?,'verified-submission')").run(job.id,job.status,job.applied_at);
@@ -133,13 +203,15 @@ function store(){
   const status=id=>db.prepare('SELECT status FROM user_signals WHERE posting_id=?').get(id).status;
   return {dir,db,status,close(){db.close();rmSync(dir,{recursive:true});}};
 }
-/** A scripted mailbox: its address, one page of message ids, each message whole. It records every call. */
+/** A scripted mailbox: its address, one page of message ids, each message whole, and 404 for a message it does not hold, as the mail API answers for a deleted one. It records every call. */
 function mailbox(messages,calls=[]){
   return async(url,options)=>{
     calls.push([url,options]);let data;
     if(url.endsWith('/profile'))data={emailAddress:'applicant@example.test'};
-    else if(url.includes('/messages/'))data=messages.find(m=>m.id===decodeURIComponent(url.split('/messages/')[1].split('?')[0]));
-    else data={messages:messages.map(m=>({id:m.id}))};
+    else if(url.includes('/messages/')){
+      data=messages.find(m=>m.id===decodeURIComponent(url.split('/messages/')[1].split('?')[0]));
+      if(!data)return {ok:false,status:404,json:async()=>({error:{code:404}})};
+    }else data={messages:messages.map(m=>({id:m.id}))};
     return {ok:true,status:200,json:async()=>data};
   };
 }
@@ -244,6 +316,74 @@ test('an event matched to more than one application is relabelled and changes no
     await mail.check(person.dir,person.db,mailbox([]),NOW);
     // 06:10:03 is before both applications' five minutes; the second event names a job the person has no record of.
     assert.deepEqual(mail.read(person.dir).events.map(e=>e.kind),['acknowledged','rejected']);assert.equal(person.status(11),'rejected');
+  }finally{person.close();}
+});
+
+/** Message ids the check fetched whole, in order. */
+const fetched=calls=>calls.map(([url])=>url).filter(url=>url.includes('/messages/')).map(url=>decodeURIComponent(url.split('/messages/')[1].split('?')[0]));
+/** The state the earlier rules wrote after the six applications: the confirmations they linked, and what they read and linked to nothing. */
+function earlierState(seen,events,more={}){return {version:1,mailbox:'applicant@example.test',expectedMailbox:'applicant@example.test',status:'connected',
+  startedAt:'2026-11-20T00:00:00.000Z',lastSuccessAt:'2026-11-27T14:45:00.000Z',seen,events,...more};}
+const LATER=Date.parse('2026-11-27T15:07:00Z');
+
+test('the first check after this change reads again, once, what the earlier rules linked to nothing',async()=>{
+  const person=store([LANTERN,QUILL,HARBOR,BRIGHT]),calls=[];
+  try{
+    const lantern=lanternConfirmation(applied(LANTERN)+3000),harbor=harborConfirmation(applied(HARBOR)+2000),bright=brightConfirmation(applied(BRIGHT)+900);
+    const alert=message('job-alert','New jobs for you',applied(HARBOR)-DAY,{text:'Ten new roles match your application profile.'});
+    // An interview invitation for the first application, dated after both confirmations, is already stored: what is read again goes in date order before it.
+    const invite={...mail.match(about('We would like to schedule an interview with you.',Date.parse('2026-11-27T14:50:00Z')),[LANTERN]),messageId:'invite',mailbox:'applicant@example.test'};
+    const linked=[{...mail.match(lantern,[LANTERN]),mailbox:'applicant@example.test'},invite];
+    mail.write(person.dir,earlierState(['job-alert','lantern-confirmation','deleted-since','harbor-confirmation','bright-confirmation','invite'],linked));
+    const box=[alert,lantern,harbor,bright];
+    // The very next check: its own reading finds only what it has read, which leaves it room for the two newest.
+    let result=await mail.check(person.dir,person.db,mailbox(box,calls),LATER);
+    assert.equal(result.status,'connected');
+    assert.deepEqual(fetched(calls),['bright-confirmation','harbor-confirmation']);
+    let state=mail.read(person.dir);
+    assert.deepEqual(state.events.filter(e=>e.kind==='acknowledged').map(e=>[e.messageId,e.postingId,e.needsReview]),
+      [['lantern-confirmation',11,false],['harbor-confirmation',21,false],['bright-confirmation',22,false]]);
+    assert.deepEqual(state.events.map(e=>e.date),[...state.events.map(e=>e.date)].sort(),'read again in date order among the stored events');
+    assert.equal(state.events.at(-1).messageId,'invite');
+    assert.equal(mail.decorate(state,{id:21}).emailUpdates[0].kind,'acknowledged');assert.equal(mail.decorate(state,{id:22}).emailUpdates[0].subject,'Thank you for applying to Brightwater Analytics');
+    // Then the rest, a message deleted since is passed over, and never again.
+    for(let frame=1;frame<6;frame++)result=await mail.check(person.dir,person.db,mailbox(box,calls),LATER+frame*15*MINUTE);
+    assert.equal(result.status,'connected');
+    assert.deepEqual(fetched(calls),['bright-confirmation','harbor-confirmation','deleted-since','job-alert']);
+    state=mail.read(person.dir);
+    assert.equal(state.readAgain,undefined);assert.equal(state.events.length,4);
+    for(const id of [11,12,21,22])assert.equal(person.status(id),'applied');
+    // New mail is read as before: an interview invitation for the Workday application moves it on.
+    const next=message('harbor-invite','Harborline: Senior Data Engineer interview',LATER+3*60*MINUTE,{text:'We would like to schedule an interview with you.'});
+    await readAll(person,mailbox([...box,next],calls),LATER+4*60*MINUTE);
+    assert.deepEqual(fetched(calls).slice(4),['harbor-invite']);assert.equal(person.status(21),'interview');
+    assert.ok(calls.every(([,options])=>options.method==='GET'),'the mailbox is only read');
+  }finally{person.close();}
+});
+
+test('reading again is bounded, takes only the room the check leaves, and records only an acknowledgement',async()=>{
+  const person=store([LANTERN,QUILL,HARBOR,BRIGHT]),calls=[];
+  try{
+    // A rejection of the Workday application, named in full, that the earlier reading linked to nothing (here: the job was recorded after the message was read). Reading it again records nothing and changes no status.
+    const rejection=message('harbor-rejection','Harborline: Senior Data Engineer',applied(HARBOR)+3*60*MINUTE,{text:'Unfortunately, we have decided not to move forward with your application.'});
+    const old=Array.from({length:58},(_,index)=>'old-'+index);
+    mail.write(person.dir,earlierState([...old,'harbor-confirmation','harbor-rejection'],[]));
+    // Two new messages wait: the check reads them first and has no room left to read again.
+    const fresh=[brightConfirmation(applied(BRIGHT)+900,'fresh-1'),message('fresh-2','Your weekly digest',LATER-MINUTE,{text:'Application tips.'})];
+    const box=[...fresh,harborConfirmation(applied(HARBOR)+2000),rejection];
+    await mail.check(person.dir,person.db,mailbox(box,calls),LATER);
+    assert.deepEqual(fetched(calls),['fresh-1','fresh-2']);
+    assert.equal(mail.read(person.dir).readAgain.length,50,'the newest fifty it linked to nothing');
+    assert.deepEqual(mail.read(person.dir).events.map(e=>[e.messageId,e.postingId]),[['fresh-1',22]]);
+    for(let frame=1;frame<40&&mail.read(person.dir).readAgain;frame++)await mail.check(person.dir,person.db,mailbox(box,calls),LATER+frame*15*MINUTE);
+    const again=fetched(calls).slice(2);
+    assert.deepEqual(again,['harbor-rejection','harbor-confirmation',...old.slice(-48).reverse()],'newest first, fifty in all, each once');
+    const state=mail.read(person.dir);
+    assert.deepEqual(state.events.map(e=>[e.messageId,e.kind,e.postingId]),[['harbor-confirmation','acknowledged',21],['fresh-1','acknowledged',22]]);
+    assert.equal(person.status(21),'applied');
+    // A state this reader starts has nothing to read again.
+    const fresher=store([HARBOR]),none=[];
+    try{await mail.check(fresher.dir,fresher.db,mailbox([],none),LATER);assert.equal(mail.read(fresher.dir).readAgain,undefined);assert.deepEqual(fetched(none),[]);}finally{fresher.close();}
   }finally{person.close();}
 });
 

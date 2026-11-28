@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday; his 251 open jobs need Generate résumé & cover letter again, and one at a time that is 251 presses): Generate again, the routes, every one the signed-in person's own. GET /regenerate/older lists his open jobs whose documents are older than today's Career. POST /regenerate puts the jobs he chose in his queue (at most 300 in one run; a job applied or later, removed, closed by its employer or held by an approved or submitted application is refused with its reason). POST /regenerate/advance moves the queue on one step: it settles the job Career wrote last (done, or failed with its reason and tried once more), takes the next job, and in the step after starts it through the job page's own Generate (startGeneration in src-routes/career-board-routes.ts: the job's tailoring notes, its Other experience choice, its draft), one job at a time and never while any Career run of his holds his store. A job is taken in one step and started in the next because on the native kernel a background run's writes are kept only when it succeeds: the take is saved first, so a run that is lost still counts as a try. A job he generated himself after the queue took it is skipped: his press wins. The page calls advance every few seconds; the career-regenerate schedule calls it every minute, so it goes on with no Career page open. GET /regenerate reads the queue; /pause, /go-on, /stop and /clear change it.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0 (production 2026-11-27: Generate again finished 0 of 249 jobs; its one job taken ended "The generation stopped before it finished, so nothing was saved" without ever being started): a job taken and not started within three minutes was judged a lost run, but on the native kernel every advance is refused before Career runs (career_run_in_progress) while any run of the person's holds the store, and 45 document runs held it back to back that afternoon, so the take only aged. A take is now judged lost only when no other run of the person's finished after it and it is younger than any run lasts; otherwise it is taken again as it is (no try counted) and started in the next step. Documents take turns with Fill in several (career-documents-turn.js): no job's documents start while three or more approved jobs wait to be filled in; the queue says so and goes on when fewer wait. Guard: tests/career-regenerate-route.test.mjs.
  */
 'use strict';
 const {randomUUID}=require('node:crypto');
@@ -8,7 +9,7 @@ const {callerSub,findUserPaths,openUserDb}=require('../routes/career-user-store'
 const board=require('./career-board-state'),drafts=require('./career-application-draft'),runs=require('./career-apply-runs');
 const submissions=require('./career-submission-queue'),experienceBank=require('./career-experience-bank');
 const workflowRoutes=require('./career-workflow-routes'),pasted=require('./career-pasted-details');
-const q=require('./career-regenerate');
+const q=require('./career-regenerate'),turn=require('./career-documents-turn');
 const logger=createChildLogger({module:'career-regenerate-routes'});
 /** A job taken this long ago and still not started was started by a run that was lost (or nothing came to start it). */
 const CLAIM_FRESH_MS=3*60*1000;
@@ -136,9 +137,35 @@ function busy(started){
  const said=String(started.body?.error||'');
  return started.status===429||started.body?.error==='career_run_in_progress'||started.status===409&&/already running/i.test(said);
 }
+/**
+ * @description Whether another Career run of the person's finished after this job was taken: its receipt is newer than the
+ * take. While a run holds the person's store the kernel refuses every other write of theirs (career_run_in_progress) before
+ * Career runs, so a take that sat through other runs was never started; a run that was lost leaves no such receipt.
+ * @param {string} dir @param {object} entry @returns {boolean}
+ */
+function othersFinishedSince(dir,entry){
+ const taken=Date.parse(entry.claimedAt||'');
+ return Object.entries(board.readBoardState(dir).jobs||{}).some(([id,job])=>Number(id)!==entry.postingId&&Date.parse(job?.completedAt||'')>taken);
+}
+/**
+ * @description A take older than a start would leave it: a start that was lost counts as a try ("stopped before it
+ * finished"); a take nothing could start (other runs held the store, or nobody moved the queue for longer than any run
+ * lasts) is taken again, as it is, and started in the next step. @returns {boolean} True when it was handled here.
+ */
+function staleTake(dir,state,entry,now){
+ const age=now-Date.parse(entry.claimedAt);
+ if(!(age>CLAIM_FRESH_MS))return false;
+ if(age>RUN_LIMIT_MS||othersFinishedSince(dir,entry)){
+  Object.assign(entry,{claimedAt:q.iso(now),note:W.waiting});
+  logger.info({postingId:entry.postingId,ageMs:Math.round(age)},'regenerate take kept: nothing had started it');
+  return true;
+ }
+ failed(state,entry,'stopped',now);
+ return true;
+}
 /** @description Start the job taken in the step before, through the job page's own Generate. */
 async function startTaken(sub,dir,state,entry,deps,now){
- if(now-Date.parse(entry.claimedAt)>CLAIM_FRESH_MS){failed(state,entry,'stopped',now);return;}
+ if(staleTake(dir,state,entry,now))return;
  const row=jobRows(sub,[entry.postingId]).get(entry.postingId);
  if(!takeable(dir,state,entry,row,heldIds(dir),now))return;
  if(await deps.runInFlight(sub)){Object.assign(entry,{note:W.waiting,claimedAt:q.iso(now)});return;}
@@ -163,8 +190,10 @@ async function advance(sub,dir,deps){
   const running=state.entries.find(entry=>entry.state==='running');
   if(running&&await settle(sub,dir,state,running,deps,now))return q.publicQueue(q.write(dir,state,now));
   if(state.state==='running'){
-   const taken=state.entries.find(entry=>entry.state==='claimed');
-   if(taken)await startTaken(sub,dir,state,taken,deps,now);else claimNext(sub,dir,state,now);
+   const taken=state.entries.find(entry=>entry.state==='claimed'),turnNow=turn.documentsMayRun(dir);
+   // Documents take turns with Fill in several: none is started while three or more approved jobs wait to be filled in.
+   if(!turnNow.may){state.reason=turn.turnWords(turnNow.waiting);if(taken)Object.assign(taken,{claimedAt:q.iso(now),note:state.reason});}
+   else{state.reason='';if(taken)await startTaken(sub,dir,state,taken,deps,now);else claimNext(sub,dir,state,now);}
   }
   if(!q.open(state).length&&state.state!=='stopped')Object.assign(state,{state:'done',reason:''});
   return q.publicQueue(q.write(dir,state,now));

@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com | End-to-end internal dev shim test driving Audio Studio through the oshal host-process bridge runner over stdio JSON-RPC.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Remove local home-directory paths, add zero-dependency catalog parser fallback for standalone CI runners, and verify every HTTP/UI/DSP route binding.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | Include studio and editor resources plus routes/application.mjs in fallback catalog parser so bridge runner seal() and native lasting-storage SQLite are always exercised.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Verify the saved-session helper through the native authorized UI asset route.
  */
 'use strict';
 
@@ -237,7 +238,7 @@ test('Host-process bridge runner (runner.js) JSON-RPC integration when kernel br
     assert.equal(smoke.status, 200);
     assert.equal(smoke.body.version, String(manifest.version || '1.2.1'));
 
-    for (const asset of ['audio.css', 'audio.js', 'audio-ui-helpers.js', 'dsp_engine.js', 'dsp_synth.js', 'editor-handoff.mjs']) {
+    for (const asset of ['audio.css', 'audio.js', 'audio-session.js', 'audio-ui-helpers.js', 'dsp_engine.js', 'dsp_synth.js', 'editor-handoff.mjs']) {
       const assetRes = await shim.callHttp('GET', `/api/audio/ui/${asset}`);
       assert.equal(assetRes.status, 200, `Asset /ui/${asset} must resolve cleanly through bridge shim`);
     }

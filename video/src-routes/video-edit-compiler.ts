@@ -7,9 +7,17 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Support per-clip speed with pitch-preserving atempo, named color looks, stabilization, chroma key, background matting, captions, procedural RGBA stickers and 720p/1080p/4K 30/60fps export profiles.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Derive even-pixel output width and height from document.aspectRatio (16:9, 9:16, 1:1) across preview, 720p, 1080p and 4K.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Fit title text within the canvas safe area using the same sizing contract as the browser preview.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve the existing admitted timeline helper in the fixed native sandbox as well as the package layout.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Preserve complete Unicode title endings in the fixed renderer without changing saved text.
  */
 
 import { compileMultitrack, type TimelineTrack } from './video-edit-multitrack-compiler';
+// The native renderer flattens its admitted helpers under /helpers. Both layouts load the same canonical module.
+export const { titleFontSize, renderTitleText } = require(__dirname === '/helpers' ? './timeline-validation.mjs' : '../tools/editor/timeline-validation.mjs') as {
+  titleFontSize: (text: string, size: TimelineTitle['size'], width: number, height: number) => number;
+  renderTitleText: (text: string) => string;
+};
 
 export interface ClipLook { id: string; strength: number }
 export interface ClipChromaKey { enabled: boolean; color: string; similarity: number; blend: number }
@@ -61,7 +69,6 @@ export const SAMPLE_RATE = 48000;
 export const SAMPLES_PER_FRAME = SAMPLE_RATE / TIMELINE_FPS;
 export const OUTPUT_NAME = 'output.mp4';
 const MAX_FRAMES_30 = 1800;
-const TITLE_DIVISORS = Object.freeze({ small: 24, medium: 16, large: 10 });
 const FONT_PATH = /^\/[A-Za-z0-9/_.-]{1,255}\.(?:ttf|otf)$/;
 
 const LOOKS: Readonly<Record<string, { sat: number; con: number; bri: number; rs: number; gs: number; bs: number }>> = Object.freeze({
@@ -306,11 +313,11 @@ function titleChain(graph: Graph, input: CompileInput, total30: number, spec: Re
   const filters = entries.map((title, index) => {
     const start30 = checkInt(title.start, 0, total30 - 1), end30 = checkInt(title.end, start30 + 1, total30);
     if (typeof title.text !== 'string' || title.text.length > 240 || /[\u0000-\u001f]/.test(title.text)) failInvalid();
-    const size = Math.round(Math.min(spec.width, spec.height) / TITLE_DIVISORS[title.size]);
+    const size = titleFontSize(title.text, title.size, spec.width, spec.height);
     if (!size || !['top', 'center', 'bottom'].includes(title.position)) failInvalid();
     const y = title.position === 'top' ? `${margin}` : title.position === 'center' ? '(h-text_h)/2' : `h-text_h-${margin}`;
     const name = `title-${index}.txt`;
-    files.push({ name, text: title.text });
+    files.push({ name, text: renderTitleText(title.text) });
     return `drawtext=textfile=${name}:expansion=none:fontfile=${input.fontFile}:fontsize=${size}:fontcolor=white:borderw=3:bordercolor=black:`
       + `x=(w-text_w)/2:y=${y}:enable='between(n,${start30 * spec.fpsScale},${end30 * spec.fpsScale - 1})'`;
   });

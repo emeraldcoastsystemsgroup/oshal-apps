@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The words a judge asked Career to retire stay retired (report 2026-11-11, changes 1 and 5). Over the pages and scripts a route serves, with their comments left out: no line names the vendor's own project or one person's field as an example; saving a job is Save, Saved and Unsave, never a star or a shortlist; résumé is never written without its accents outside the screen named Resume Studio; and the stage names are the ones career-stages.js defines (Getting ready, Closed, Removed, Needs your answer). tools/career-board.html is served by no route (routes/career-surface-routes.js) and is not read here; the home page, the frame and the Companies page are held by their own tests.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: the stages are My jobs (New matches, Saved, Getting ready, Removed) and Applications (Applied, Interviewing, Offer, Closed); To approve, Document records and Queued for documents are named on no served page.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: no served page sends a person to a button the one application route no longer has (Customize documents, Continue to submission review, Connect submission browser), and Settings describes that route with the buttons it has.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "have a new tab that listas the failed aplications and what went wrong"): My jobs' stage row gains Didn’t go through after Getting ready (its status is its own name, which no feed answers); Home's pipeline is unchanged.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,7 +53,7 @@ test('the stages carry the names a job seeker reads', () => {
   // My jobs, then Applications (judge's report, changes 6 and 9): To approve is not a stage and there is no More menu.
   // 1.68.18: Applied filters strictly to status='applied' so Interviewing/Offer/Closed do not stay in Applied.
   assert.deepEqual(STAGES.map((stage) => [stage.id, stage.label, stage.status, stage.side]), [
-    ['matches', 'New matches', '', 'jobs'], ['saved', 'Saved', 'saved', 'jobs'], ['preparing', 'Getting ready', 'queue', 'jobs'], ['dismissed', 'Removed', 'dismissed', 'jobs'],
+    ['matches', 'New matches', '', 'jobs'], ['saved', 'Saved', 'saved', 'jobs'], ['preparing', 'Getting ready', 'queue', 'jobs'], ['didnt-go-through', 'Didn’t go through', 'didnt-go-through', 'jobs'], ['dismissed', 'Removed', 'dismissed', 'jobs'],
     ['applied', 'Applied', 'applied', 'applications'], ['interviewing', 'Interviewing', 'interview', 'applications'], ['offer', 'Offer', 'offer', 'applications'], ['closed', 'Closed', 'rejected', 'applications']]);
   assert.deepEqual(PIPELINE.map((stage) => stage.label), ['New matches', 'Saved', 'Getting ready', 'Applied', 'Interviewing', 'Offer'], 'Home\'s pipeline');
   assert.equal(globalThis.CareerStages.MORE, undefined);

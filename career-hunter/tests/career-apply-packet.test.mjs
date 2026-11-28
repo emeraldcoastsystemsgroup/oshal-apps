@@ -14,6 +14,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome): the approval packet of an assisted application, through Career's real routes over HTTP on a made-up person's real store. Red on store main 75fa525e (no /apply-review or /apply-runs route; career-submission-native review refuses anything but two PDFs). It carries this job's Word résumé rendered by the real docx_resume.py with the same digest on every render (or the packet's own Resume_ATS.docx byte for byte), the PDF résumé and cover letter, only the roles on this job's résumé with their recorded dates (a year stays a year), education, the facts and the site's rules; approval publishes the frozen browser-task version 2 before any kernel call; bind, start, a lost acknowledgement and Go on send exactly the approved bytes; another person, no person, a changed packet and a site Career has no rules for are refused.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | task.assist carries only the switches the kernel acts on (signIn, createAccount, mailCodes): Remember each employer site and Look at the page before moving on are not available yet, so no packet carries them and a request to switch one on is refused. Red before: both rode in every packet as true.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.77.1: Workday's attest.terms rule names Create Account's privacy box (createAccountCheckbox) beside Voluntary Disclosures' terms box.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5: the signature switch's words, off and on, say it also covers an application's signature line that asks for the name and the date, such as an acknowledgment (BrassRing's rules name one); the on sentence is now checked too.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -245,7 +246,7 @@ test('the Attestations switches ride in the packet under the approval digest; a 
   const off = (await h.call('GET', '/apply-review/7', null, dana.sub)).body;
   assert.deepEqual(off.attest, { terms: false, selfIdSignature: false });
   assert.deepEqual(off.attestLines, ['You tick the employer’s terms box yourself. Career hands it back to you there.',
-    'You sign the self-identification form yourself. Career hands it back to you there.']);
+    'You sign the self-identification form, and an application’s signature line that asks for your name and the date (such as an acknowledgment), yourself. Career hands them back to you there.']);
   await h.call('POST', '/saved-answers', { revision: (await read()).body.revision, attest: { terms: true } }, dana.sub);
   const on = (await h.call('GET', '/apply-review/7', null, dana.sub)).body;
   assert.deepEqual(on.attest, { terms: true, selfIdSignature: false });
@@ -258,6 +259,7 @@ test('the Attestations switches ride in the packet under the approval digest; a 
   assert.equal((await h.call('POST', '/apply-runs', { postingId: 7, packetDigest: on.packetDigest, approved: true }, dana.sub)).code, 428, 'the digest he approved no longer approves the changed packet');
   const changed = (await h.call('GET', '/apply-review/7', null, dana.sub)).body;
   assert.deepEqual(changed.attest, { terms: false, selfIdSignature: true });
+  assert.equal(changed.attestLines[1], 'Career signs the self-identification form, and an application’s signature line that asks for your name and the date (such as an acknowledgment), with your name and today’s date, in your name.');
   assert.notEqual(changed.packetDigest, on.packetDigest, 'a changed switch is a different packet to approve');
 });
 

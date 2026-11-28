@@ -62,7 +62,7 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
 | **Career Coaching** | [`career-coaching/`](career-coaching/) | 0.1.2 | pending | Share a summary of your job search with your career coach for a few days, and stop sharing whenever you like. |
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.77.4 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.79.0 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
 | **Classroom** | [`classroom-experience/`](classroom-experience/) | 1.0.6 | ready | Classwork, class schedules and personal learning through existing school roles and roster rules. |
 | **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.14 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, and your LinkedIn and Facebook presence — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.2.0 | ready | Choose which connected device Career and Jarvis use when applying to jobs. |
@@ -88,23 +88,23 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Animatronics** | [`animatronics/`](animatronics/) | 0.2.7 | ready | The motion layer for a Halloween prop or any servo animatronic. |
-| **Audio Studio** | [`audio/`](audio/) | 1.2.2 | pending | Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant. |
+| **Animatronics** | [`animatronics/`](animatronics/) | 0.2.8 | ready | The motion layer for a Halloween prop or any servo animatronic. |
+| **Audio Studio** | [`audio/`](audio/) | 1.2.3 | pending | Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant. |
 | **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.4.3 | ready | Edit and save brand briefs with an AI partner, render motion clips in your brand kit or the Open Swarm look, preview and download MP4s, and hand source into document and video editing. |
-| **Camera Ops** | [`camera/`](camera/) | 1.2.2 | ready | Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and drive it: start/stop recording, take photos, switch modes, change settings, and run a low-latency preview. |
+| **Camera Ops** | [`camera/`](camera/) | 1.2.3 | ready | Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and drive it: start/stop recording, take photos, switch modes, change settings, and run a low-latency preview. |
 | **Create** | [`create/`](create/) | 1.20.5 | ready | Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace. |
 | **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.5.2 | ready | Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs. |
 | **Dungeon Master** | [`dnd/`](dnd/) | 0.22.10 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
 | **Game Show** | [`game-show/`](game-show/) | 0.13.3 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |
 | **Games** | [`games/`](games/) | 1.1.1 | ready | A focused cockpit toolbar with direct launchers for the AI Dungeon Master and Game Show. |
 | **LoRA Studio** | [`lora/`](lora/) | 1.10.6 | ready | Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training. |
-| **Motion Studio** | [`motion-studio/`](motion-studio/) | 0.4.4 | ready | Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos. |
-| **PDF Workbench** | [`pdf-workbench/`](pdf-workbench/) | 0.4.2 | pending | Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports. |
+| **Motion Studio** | [`motion-studio/`](motion-studio/) | 0.4.5 | ready | Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos. |
+| **PDF Workbench** | [`pdf-workbench/`](pdf-workbench/) | 0.4.3 | pending | Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports. |
 | **Portrait Studio** | [`portrait-studio/`](portrait-studio/) | 1.17.10 | ready | Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. |
 | **Publishing Studio** | [`publishing-studio/`](publishing-studio/) | 0.5.6 | pending | Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history. |
-| **Pumpkin** | [`pumpkin/`](pumpkin/) | 1.4.1 | ready | Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. |
+| **Pumpkin** | [`pumpkin/`](pumpkin/) | 1.4.2 | ready | Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. |
 | **Scene Studio** | [`scene-studio/`](scene-studio/) | 0.4.5 | ready | Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects. |
-| **Video Studio** | [`video/`](video/) | 1.14.6 | ready | Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor. |
+| **Video Studio** | [`video/`](video/) | 1.14.9 | ready | Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor. |
 | **Vids Studio** | [`vids/`](vids/) | 1.6.8 | ready | Saved editable video briefs with native AI source operations, recorded clip preview and handoff to the Video editor. |
 
 ### AI Home & Lifestyle
@@ -134,7 +134,7 @@ All **90 packages**, shelved by ADR-097 suite. Versions and status come from
 |---|---|---|---|---|
 | **Aero Lab** | [`aero-lab/`](aero-lab/) | 1.4.7 | ready | Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). |
 | **AI Bake-Off** | [`bake-off/`](bake-off/) | 1.1.9 | ready | Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar. |
-| **CAD Studio** | [`cad-studio/`](cad-studio/) | 0.5.5 | ready | Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports. |
+| **CAD Studio** | [`cad-studio/`](cad-studio/) | 0.5.6 | ready | Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports. |
 | **Capability Ideator** | [`capability-ideator/`](capability-ideator/) | 1.1.9 | ready | Discover sourced tools and integration opportunities for business processes, grounded in installed applications and explicit connection requirements. |
 | **Circuit Lab** | [`circuit-lab/`](circuit-lab/) | 0.9.6 | ready | A local circuit and mechanism lab the swarm can drive. |
 | **Cloud** | [`cloud/`](cloud/) | 1.3.1 | ready | Inspect and operate your Google Cloud by chat. |

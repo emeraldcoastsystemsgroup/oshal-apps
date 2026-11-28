@@ -1,11 +1,13 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register unit/acceptance and host-process bridge dev-shim test cases for Audio Studio (audio).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: register phone-first-screen (lane mobilesweep1).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register real source browser persistence, refusal and decoded desktop/phone artifact workflows.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register explicit installed native-session acceptance for a dedicated empty original-owner account.
 version: 1
 cases:
   - id: audio-acceptance
     name: Audio Studio multitrack editing, DSP mixdown, TTS personas, concierge surface bridge, and tenant isolation
-    purpose: Verify smoke readiness, home summary, RBAC, editing contract, optimistic revision locking, CAS deduplication, stereo mixdown rendering, TTS personas, live modulation, concierge adjustments, and screen standard compliance.
+    purpose: With real disposable SQLite/DSP and explicit caller/TTS fixtures, verify smoke readiness, home summary, RBAC, editing contract, optimistic revision locking, CAS deduplication, stereo mixdown rendering, TTS personas, live modulation, concierge adjustments, and screen standard compliance.
     level: integration
     runner:
       kind: node-test
@@ -19,11 +21,61 @@ cases:
       - Studio workbench UI adheres to OSHAL Screen Standard (data-theme="midnight", surface-themes.css, table.js, zero stray hex colors).
     prerequisites:
       - runner:node-test
-    sideEffects: none
+    sideEffects: fixture-write
     isolation:
       mode: disposable
     limits:
       timeoutMs: 30000
+    installation: never
+  - id: studio-workflow-browser
+    name: Audio saved sessions and decoded desktop and phone exports
+    purpose: Drive the actual Audio page, routes, SQLite and CAS; authenticate only through explicit local header/cookie fixtures and serve genuine kernel shared UI assets. Source proof does not qualify installed admission or a provider.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audio-workflow-browser.test.cjs
+    expected:
+      - Removed saved tracks stay absent after save/reopen; empty and new sessions clear previous tracks while first Save preserves an imported draft.
+      - A concurrent newly added stem survives explicit deletion, denied saves retain pending edits for retry, and oversized revisions refuse without silent truncation.
+      - Zero reverb and channel edits persist; real WAV and MP3 downloads independently decode to one-second stereo audio whose channel energy follows desktop and touch-phone pan edits.
+    prerequisites: [runner:node-test, runtime:chromium, runtime:kernel-shared-ui, runtime:ffmpeg-ffprobe]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the fixture browser/server/SQLite and remove only the unique audio-workflow temporary directory. Explicit review proof copies are retained only when requested by the proof-directory environment variable. No production data or account is used.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: installed-studio-workflow
+    name: Installed Audio authoring and verified stereo exports
+    purpose: >-
+      With an explicitly designated dedicated empty Audio editor owner, run
+      node audio/tests/installed-workflow-acceptance.mjs --execute using
+      OSHAL_AUDIO_ACCEPTANCE_BASE_URL, OSHAL_AUDIO_ACCEPTANCE_TOKEN,
+      OSHAL_AUDIO_ACCEPTANCE_DISPOSABLE_OWNER=1, OSHAL_AUDIO_ACCEPTANCE_OUTPUT
+      and STORE_CI_TOOLCHAIN. Mint a real native session, use actual desktop/phone
+      controls, independently decode outputs and clean only captured test resources.
+      The script cannot create people or grant roles.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/installed-workflow-acceptance.mjs
+    expected:
+      - RESULT reports pass only after native admission, actual create/import/edit/save/reopen, desktop WAV/MP3 and phone MP3 download with measured codec, duration, channels, peak and audible saved pan.
+      - Exact captured projects read back as 404, the dedicated owner's orphan metadata is cleaned, captured blob access reads 404, and the minted native session is revoked. Any incomplete cleanup fails the case; a private recovery journal is retained.
+    prerequisites: [runner:node, credential:audio-test-owner, install:audio, runtime:chromium, runtime:ffmpeg-ffprobe]
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: Require a dedicated empty test owner; delete only captured projects and their dedicated-owner orphan metadata, revoke only the minted native session and close headless browsers. Retain measured artifacts/results; keep the private recovery journal if cleanup fails. Caller manages the test account and role lifecycle.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
     installation: never
 
   - id: audio-dev-shim
@@ -41,7 +93,7 @@ cases:
       - Unprivileged calls fail closed with 403 application_resource_denied.
     prerequisites:
       - runner:node-test
-    sideEffects: none
+    sideEffects: fixture-write
     isolation:
       mode: disposable
     limits:

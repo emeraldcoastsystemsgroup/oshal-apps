@@ -22,6 +22,7 @@
 # 54 | maintainer@emeraldcoastsystemsgroup.com | 1.76.1: before the years pass, _tailored_packet drops a job the model wrote twice (role_plan.drop_repeats) and records the count as roles_carried.repeated.
 # 55 | maintainer@emeraldcoastsystemsgroup.com | 1.76.2 (Roger's Honeycomb letter, made 6:17 PM Central on 2026-11-25, was dated "November 26, 2026"): the letter's date is the calendar day in Career's time zone (America/Chicago, the zone its schedules run on; CAREER_TIME_ZONE overrides), not the server's UTC day.
 # 56 | maintainer@emeraldcoastsystemsgroup.com | A cover letter read "In my own open-source work on <project> | independent product, I designed ...": the model copied a recorded label with its " | descriptor" tail into a sentence. After the term pass and before the review is judged again, _tailored_packet runs label_prose.rewrite (_plain_labels): in the letter's paragraphs and the résumé's summary and bullets, a label the person's records hold with such a tail is written as the name before the bar; heading fields and lines of columns stay. It runs last because the cover editor, the letter's second writing and the résumé reviewer can each write the label back. The claims receipt's letter fingerprint follows the letter when this pass changed it, so a letter marked needs your review stays marked, and application.json records what was rewritten as label_prose.
+# 57 | maintainer@emeraldcoastsystemsgroup.com | 1.78.0: application.json also records documents_revision (documents_revision.py DOCUMENTS_REVISION), the revision of how documents are written, right after career_version so a reader finds it in the first bytes. A release moves career_version; only a change to how documents are written moves the revision, and only that (or a letter dated an earlier day) makes Fill in several write a job's documents again. rerender_packet keeps the recorded revision, as it keeps the version: it writes no new content.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -43,6 +44,7 @@ from . import (
     claims_fix,
     config,
     db,
+    documents_revision,
     docx_parse,
     docx_resume,
     enrich,
@@ -854,7 +856,8 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         paths = _packet_files(outdir, data, ctx, family=template_family, roles=prof_doc.get("roles"))
 
         (outdir / "application.json").write_text(
-            json.dumps({"posting_id": posting_id, "career_version": career_version.current(), "req": row["ats_job_id"],
+            json.dumps({"posting_id": posting_id, "career_version": career_version.current(),
+                        "documents_revision": documents_revision.DOCUMENTS_REVISION, "req": row["ats_job_id"],
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
                         "template_family": paths["template_family"],
                         "additional_experience": [{"id":e["id"],"title":e["title"]}for e in selected],

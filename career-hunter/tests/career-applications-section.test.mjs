@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Open the phone List view from its Filters sheet while preserving save and stage-count checks.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep actionable match counts and links distinct from dated scoring activity while preserving saved and pipeline records.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: Applications stages act as mutually exclusive workflow filters — Applied (?view=status) requests status=applied and excludes Interviewing, Offer, and Closed applications with matching stage counts.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "have a new tab that listas the failed aplications and what went wrong"): My jobs' stage row gains Didn’t go through after Getting ready; the row My jobs draws follows. Applications' row is unchanged.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -108,7 +109,7 @@ test('computer: Applications opens the jobs a person has applied to, the bar mar
     // 1.68.18: Applied (?view=status) filters strictly to status='applied' (mutually exclusive workflow stage).
     ['?view=status', 'Applications', ['Applied', 'Interviewing', 'Offer', 'Closed'], 'applied'], ['?view=interviewing', 'Applications', null, 'interview'],
     ['?view=offer', 'Applications', null, 'offer'], ['?view=closed', 'Applications', null, 'rejected'],
-    ['', 'My jobs', ['New matches', 'Saved', 'Getting ready', 'Removed'], 'saved'], ['?view=queue', 'My jobs', null, 'queue'], ['?view=dismissed', 'My jobs', null, 'dismissed'], ['?view=approve', 'My jobs', null, 'saved'],
+    ['', 'My jobs', ['New matches', 'Saved', 'Getting ready', 'Didn’t go through', 'Removed'], 'saved'], ['?view=queue', 'My jobs', null, 'queue'], ['?view=dismissed', 'My jobs', null, 'dismissed'], ['?view=approve', 'My jobs', null, 'saved'],
   ]) {
     const { page, context, calls } = await board({}, DESKTOP, query);
     try {

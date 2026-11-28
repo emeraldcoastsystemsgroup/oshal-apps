@@ -7,6 +7,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the approval screen says each Attestations switch in words under What Career does in your name (ticks the terms box for you / you tick it yourself; signs the self-identification form with your name and today's date / you sign it yourself).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: a run approved but not started on the computer (its start was refused) reads Not started yet with Go on, instead of Opening the form forever.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.1): what Step 3 · Send shows of an assisted application. Fill it in on my Chrome is offered when the person's Job Apply device (the one they chose, else their only connected Open Swarm Orbit computer that can) reports the feature browser-apply. Its approval screen lists the exact files with their versions and which one is uploaded, the facts Career may type, the jobs on this résumé with their dates (a year alone says Career asks for the months), education, the saved answers Career may use, the site, the computer and the stop at Review, then Approve and start. A run reads as one line each: Opening the form, Waiting for you to sign in, Uploading your résumé, My Information: 3 fixed, Needs your answer (the kernel's question card inline, read from GET /api/apply/cards in the person's own session: the card's exact words, its options or a text box, Keep this answer for next time, Answer and I'll answer it on the page; what he kept is handed to Career's POST /apply-runs/:id/kept), Ready for you to submit, Submitted by you, Not seen yet, Paused (Go on), Stopped (why); Stop ends it through the kernel's own ticket cancel.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0: answerCard(id, {option}|{answer}) gives a card the answer the person's own record settled (POST /apply-runs/:id/record-answers), in their own session, without Keep: it is read from the record again each time.
  */
 (()=>{'use strict';
  const API='/api/career-hunter',MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -129,5 +130,7 @@
   if(!cancelled.ok)throw Error('Career could not stop this run. Close the Chrome window Career opened; nothing is submitted without your press.');
   return sync(run.id);
  }
- window.CareerApplyAssist={POLLING,SHOWN,device,offer,review,state,latest,approve,sync,goOn,stop,cards,keep,answer,onPage};
+ /** @description Give one card an answer the person's record settled ({option} or {answer}), in the person's own session. @returns {Promise<object>} */
+ const answerCard=(id,body)=>press(id,'/answer',{...body,keep:false});
+ window.CareerApplyAssist={POLLING,SHOWN,device,offer,review,state,latest,approve,sync,goOn,stop,cards,keep,answer,answerCard,onPage};
 })();

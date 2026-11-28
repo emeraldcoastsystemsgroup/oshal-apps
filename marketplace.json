@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.77.4",
+      "version": "1.79.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1063,7 +1063,7 @@
       "suite": "ai-creative",
       "displayName": "Camera Ops",
       "description": "Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and drive it: start/stop recording, take photos, switch modes, change settings, and run a low-latency preview. A control concierge turns natural language into one validated command; a human confirms anything destructive. Sim engine built in, real GoPro (Open GoPro HTTP) at the camera node. Does not read SmartThings devices, smart-home cameras, or refrigerator/appliance interior cameras (Smart Home handles those).",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1195,7 +1195,7 @@
       "suite": "ai-creative",
       "displayName": "Pumpkin",
       "description": "Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. The public browser demo has locally interactive control, projector, voice, saved looks, and same-device remote tabs without server writes or AI spend; signed-in mode adds owner-scoped cross-device pairing and autonomous pumpkin-bot replies.",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1373,7 +1373,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
-      "version": "1.14.6",
+      "version": "1.14.9",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -2672,7 +2672,7 @@
       "suite": "ai-engineering",
       "displayName": "CAD Studio",
       "description": "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports.",
-      "version": "0.5.5",
+      "version": "0.5.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2810,7 +2810,7 @@
       "suite": "ai-creative",
       "displayName": "Animatronics",
       "description": "The motion layer for a Halloween prop or any servo animatronic. Describe the rig — servos with calibration and software limits, grouped into an eye gimbal, eyelids, a neck, a jaw or an arm — build a pose library (LOOK_LEFT, BLINK, JAW_OPEN) and timed scenarios, and the server compiles them to a 50 Hz frame stream, rehearses them on rate-limited servos with a supply budget, and streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always. The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3840,7 +3840,7 @@
       "suite": "ai-creative",
       "displayName": "Motion Studio",
       "description": "Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos.",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3873,7 +3873,7 @@
       "suite": "ai-creative",
       "displayName": "PDF Workbench",
       "description": "Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -4017,7 +4017,7 @@
       "suite": "ai-creative",
       "displayName": "Audio Studio",
       "description": "Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant.",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "theme": "deep-space",
       "dependencies": {
         "apps": [],

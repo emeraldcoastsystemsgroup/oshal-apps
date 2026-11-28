@@ -1,4 +1,7 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner per-press evidence reads to career.read.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 1.78.0, applications that improve themselves: bind POST /apply-batch/tick (the career-apply-queue schedule's step, which moves the queue on as /apply-batch/advance does) to career.execute, as advance is, and POST /apply-runs/:id/record-answers (the person's page hands the waiting cards it read; Career keeps their questions and says which its record settles) to career.change, as /apply-runs/:id/kept is. No new permission and no role change.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6, Didn't go through on My jobs (lib/career-didnt-go-through.js): bind GET /didnt-go-through, the signed-in person's own read of what Career tried to apply to and did not submit, to career.read, as its neighbours GET /apply-runs and GET /apply-batch are. No new permission and no role change.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 1.79.0, Answers to review (lib/career-answers-review-routes.js): each route bound once to the permission its neighbour of the same kind has. The page (GET /answers-to-review-ui) needs app.open; reading what it shows (GET /answers-to-review) needs career.read; Skip and Review again (POST /answers-to-review/skip, /reopen) change a question's state and need career.change; refresh (POST /answers-to-review/refresh, also the career-answers-review schedule's step) may ask Career's specialist for drafts and puts jobs back in Fill in several, and approve (POST /answers-to-review/approve) keeps the answer and approves each waiting job again into Fill in several, so both need career.change and career.execute, as POST /apply-batch does. No new permission and no role change.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | The smart build of Fill it in on my Chrome (lib/career-apply-codes.js): bind POST /apply-code, the lookup of one verification code in the person's own mailbox for the kernel's own run of his approved application, to career.change, the permission the scheduled mailbox check (POST /jobs/updates/check) already needs. No new permission and no role change.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN, Generate again (lib/career-regenerate-routes.js): each new route bound once to the permission its single-job neighbour has. Reading the queue and the jobs with older documents (GET /regenerate, /regenerate/older) needs career.read; queueing jobs (POST /regenerate) needs career.change and career.execute, as saving a job's tailoring and generating it do; moving it on and Go on (POST /regenerate/advance, /go-on), which start the next job's generation, need career.execute, as POST /jobs/:id/generate does; Pause, Stop and Clear (POST /regenerate/pause, /stop, /clear) need career.change. No new permission and no role change.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH, Fill in several on my Chrome (lib/career-apply-batch-routes.js): each new route bound once to the permission its single-job neighbour has. Reading the queue (GET /apply-batch) needs career.read; approving jobs into it (POST /apply-batch) needs career.change and career.execute, as approving and starting one job do; moving it on and Go on (POST /apply-batch/advance, /go-on), which start the next job, need career.execute; Pause, Stop, Skip, Next job and Clear (POST /apply-batch/pause, /stop, /skip, /next, /clear) need career.change. No new permission and no role change.
@@ -106,18 +109,27 @@ bindings:
     - { id: apply-go-on, method: POST, path: /apply-runs/:id/go-on, allOf: [career.execute] }
     - { id: apply-sync, method: POST, path: /apply-runs/:id/sync, allOf: [career.change] }
     - { id: apply-kept, method: POST, path: /apply-runs/:id/kept, allOf: [career.change] }
+    - { id: apply-record-answers, method: POST, path: /apply-runs/:id/record-answers, allOf: [career.change] }
     - { id: apply-receipt, method: GET, path: /apply-runs/:id/receipt, allOf: [career.read] }
     - { id: apply-picture, method: GET, path: /apply-runs/:id/picture/:attempt/:n, allOf: [career.read] }
     - { id: apply-confirmation, method: GET, path: /apply-runs/:id/confirmation, allOf: [career.read] }
     - { id: apply-batch-read, method: GET, path: /apply-batch, allOf: [career.read] }
     - { id: apply-batch-approve, method: POST, path: /apply-batch, allOf: [career.change, career.execute] }
     - { id: apply-batch-advance, method: POST, path: /apply-batch/advance, allOf: [career.execute] }
+    - { id: apply-batch-tick, method: POST, path: /apply-batch/tick, allOf: [career.execute] }
     - { id: apply-batch-go-on, method: POST, path: /apply-batch/go-on, allOf: [career.execute] }
     - { id: apply-batch-pause, method: POST, path: /apply-batch/pause, allOf: [career.change] }
     - { id: apply-batch-stop, method: POST, path: /apply-batch/stop, allOf: [career.change] }
     - { id: apply-batch-skip, method: POST, path: /apply-batch/skip, allOf: [career.change] }
     - { id: apply-batch-next, method: POST, path: /apply-batch/next, allOf: [career.change] }
     - { id: apply-batch-clear, method: POST, path: /apply-batch/clear, allOf: [career.change] }
+    - { id: didnt-go-through, method: GET, path: /didnt-go-through, allOf: [career.read] }
+    - { id: answers-to-review-ui, method: GET, path: /answers-to-review-ui, allOf: [app.open] }
+    - { id: answers-to-review, method: GET, path: /answers-to-review, allOf: [career.read] }
+    - { id: answers-to-review-refresh, method: POST, path: /answers-to-review/refresh, allOf: [career.change, career.execute] }
+    - { id: answers-to-review-approve, method: POST, path: /answers-to-review/approve, allOf: [career.change, career.execute] }
+    - { id: answers-to-review-skip, method: POST, path: /answers-to-review/skip, allOf: [career.change] }
+    - { id: answers-to-review-reopen, method: POST, path: /answers-to-review/reopen, allOf: [career.change] }
     - { id: regenerate-read, method: GET, path: /regenerate, allOf: [career.read] }
     - { id: regenerate-older, method: GET, path: /regenerate/older, allOf: [career.read] }
     - { id: regenerate-start, method: POST, path: /regenerate, allOf: [career.change, career.execute] }

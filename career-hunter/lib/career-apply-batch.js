@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH (Roger, 2026-11-21: "i really need to be able to post 200 resumes by monday ... these local jobs will fill up fast"): Fill in several on my Chrome, the person's own queue of assisted applications, apply-batch.json beside apply-runs.json in his store. Each job in it is one approved run (career-apply-runs, one packet and digest per job, exactly as a single approval), and the queue starts the next job only when the one on his computer has ended: submitted, stopped, failed, paused, or Ready at Review that he left open with Next job. A run waiting for him (sign-in, a question card) keeps the queue waiting. No other run of his may be on the computer when the next starts, so two never run at once. A job whose 24-hour approval ended is not started (it asks for approval again); a job applied meanwhile is skipped. At most 50 jobs wait at once. Every change is under one lock file, so a second tab, a reload or a retry never starts a job twice; the queue survives a reload and a kernel restart because the next advance reads it from the store and resumes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0: WAIT_MS, five minutes, the wait for the person each run of the queue is approved with (career-apply-packet.js input waitMs): a job waiting for a sign-in, a check or a question nobody answers pauses by itself and the queue starts the next, with no page open.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -7,6 +8,8 @@ const {createChildLogger}=require('@/shared/logger');
 const queue=require('./career-submission-queue'),runs=require('./career-apply-runs');
 const logger=createChildLogger({module:'career-apply-batch'});
 const FILE='apply-batch.json',LOCK='apply-batch.lock',MOST=50,MAX_ENTRIES=200,MAX_BYTES=1024*1024,LOCK_MS=120000;
+/** How long a job of the queue waits for the person before its run pauses by itself and the queue goes on (a single run waits 30 minutes). */
+const WAIT_MS=5*60*1000;
 const ID=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 /** Each job's place in the queue, as the panel names it. */
 const STATES=new Set(['waiting','filling','needs-you','ready','submitted','skipped','failed']);
@@ -103,4 +106,4 @@ function fromRun(run){
  return {state,reason,ended};
 }
 function end(entry,state,reason,now){Object.assign(entry,{state,reason:words(reason),active:false,endedAt:iso(now)});}
-module.exports={FILE,MOST,ON_COMPUTER,DONE,read,write,locked,open,publicQueue,fromRun,end,words,iso,fail};
+module.exports={FILE,MOST,WAIT_MS,ON_COMPUTER,DONE,read,write,locked,open,publicQueue,fromRun,end,words,iso,fail};

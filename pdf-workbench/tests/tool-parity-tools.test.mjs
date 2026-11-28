@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Unit and HTTP contract verification for pdf-workbench 0.4.2 tool parity (CREATE-TOOL-PDF-WORKBENCH-08, -05, -03): pdf-export, pdf-delete-source, pdf-go-to-page, surface ops, and update-annotation geometry remapping.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Follow the manifest patch version while retaining tool and route behavior coverage.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,11 +17,11 @@ const { createPdfRoutes } = await import('../routes/application.mjs');
 
 const PKG_DIR = resolve(import.meta.dirname, '..');
 
-test('manifest 0.4.2 declares pdf-export, pdf-delete-source, pdf-go-to-page and surface custom ops', () => {
+test('manifest 0.4.3 declares pdf-export, pdf-delete-source, pdf-go-to-page and surface custom ops', () => {
   const manifest = yaml.load(fs.readFileSync(resolve(PKG_DIR, 'oshal-app.yaml'), 'utf8'));
   const auth = yaml.load(fs.readFileSync(resolve(PKG_DIR, 'authorization.yaml'), 'utf8'));
 
-  assert.equal(manifest.version, '0.4.2');
+  assert.equal(manifest.version, '0.4.3');
   assert.ok(Array.isArray(manifest.surface?.ops) && manifest.surface.ops.includes('custom'));
 
   const byName = new Map(manifest.tools.map((t) => [t.name, t]));

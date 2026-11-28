@@ -7,10 +7,11 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin the two guards that keep a hung suite from holding a push: a step whose workflow names a service address fails in seconds, before its suite starts, when the variable is unset or nothing answers there (and --allow-skips does not accept it); and a suite that never exits fails at the deadline with no process of it left running. Two pushes on 2026-11-03 waited 15,214 s and 8,377 s on exactly that shape.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin which skips block: a LEGACY step or a suite's own LEGACY cases pass the push and stay printed, and a skipped case with any other reason still blocks it.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve a middle-of-suite failed assertion and complete private failure evidence while retaining the original nonzero verdict.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Pin the multi-browser concurrency cap: browser suites exceeding STORE_CI_BROWSER_CONCURRENCY are capped, non-browser suites stay uncapped, explicit --test-concurrency flags are preserved, and timeout failures still fail on the first run without retry.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -89,7 +90,8 @@ function runRunner(root, args = [], extra = {}) {
   // and exits 0 regardless, which would make both assertions below pass vacuously.
   const {
     OSHAL_ROOT: _r, OSHAL_CORE_DIR: _c, NODE_TEST_CONTEXT: _n, STORE_CI_TOOLCHAIN: _t,
-    OSHAL_TEST_POSTGRES: _p, OSHAL_TEST_SEARCH: _s, STORE_CI_CHECK_DEADLINE_SECONDS: _d, STORE_CI_FAILURE_LOG_DIR: _e, ...env
+    OSHAL_TEST_POSTGRES: _p, OSHAL_TEST_SEARCH: _s, STORE_CI_CHECK_DEADLINE_SECONDS: _d,
+    STORE_CI_FAILURE_LOG_DIR: _e, STORE_CI_BROWSER_CONCURRENCY: _b, ...env
   } = process.env;
   const result = spawnSync(process.execPath, [RUNNER, ...args], {
     env: { ...env, ...extra, STORE_CI_LOCAL_ROOT: root },
@@ -492,6 +494,101 @@ test('an existing failure-evidence directory is refused without overwriting its 
     assert.notEqual(status, 0, output);
     assert.match(output, /EEXIST/);
     assert.equal(readFileSync(join(evidence, 'check-001.log'), 'utf8'), 'retained original evidence');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/**
+ * @description Build a 6-file fixture suite where each file records live process overlap in pkg/events/.
+ * @param {{browser:boolean,command?:string,failIndex?:number}} opts Suite options.
+ * @returns {string} Fixture store root.
+ */
+function buildConcurrencyFixture({ browser, command = 'node --test "tests/*.test.js"', failIndex = -1 }) {
+  const root = buildFixture();
+  const workflow = WORKFLOW.split('  needs-compiler:')[0].replace('node --test "tests/*.test.js"', command);
+  writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), workflow);
+  rmSync(join(root, 'pkg', 'tests', 'a.test.js'));
+  mkdirSync(join(root, 'pkg', 'active'), { recursive: true });
+  mkdirSync(join(root, 'pkg', 'peaks'), { recursive: true });
+  const header = browser ? "// simulates a Playwright chromium browser suite\n" : "// pure unit suite\n";
+  for (let index = 0; index < 6; index += 1) {
+    const body = index === failIndex
+      ? [
+        header,
+        "const test=require('node:test'),fs=require('node:fs'),path=require('node:path');",
+        "test('fails immediately without retry',()=>{",
+        "  fs.appendFileSync(path.join(__dirname,'..','runs.log'),'1\\n');",
+        "  const e=new Error('locator.waitFor: Timeout 30000ms exceeded.'); e.name='TimeoutError'; throw e;",
+        "});",
+      ].join('\n')
+      : [
+        header,
+        "const test=require('node:test'),fs=require('node:fs'),path=require('node:path');",
+        `test('worker-${index}',async()=>{`,
+        "  const active=path.join(__dirname,'..','active'),peaks=path.join(__dirname,'..','peaks');",
+        `  const me=path.join(active,'w-${index}-'+process.pid);`,
+        "  fs.writeFileSync(me,'1');",
+        "  try {",
+        "    let peak=0;",
+        "    for(let i=0;i<8;i++){peak=Math.max(peak,fs.readdirSync(active).length);await new Promise(r=>setTimeout(r,45));}",
+        `    fs.writeFileSync(path.join(peaks,'w-${index}.txt'),String(peak));`,
+        "  } finally { fs.rmSync(me,{force:true}); }",
+        "});",
+      ].join('\n');
+    writeFileSync(join(root, 'pkg', 'tests', `case-${index}.test.js`), body);
+  }
+  return root;
+}
+
+/** @description Read the highest concurrent worker count observed by a concurrency fixture. */
+function maxObservedOverlap(root) {
+  const peaks = join(root, 'pkg', 'peaks');
+  return Math.max(...readdirSync(peaks).map((name) => Number(readFileSync(join(peaks, name), 'utf8').trim())));
+}
+
+test('multi-browser node:test steps are capped to STORE_CI_BROWSER_CONCURRENCY', () => {
+  const root = buildConcurrencyFixture({ browser: true });
+  try {
+    const { status, output } = runRunner(root, [], { STORE_CI_BROWSER_CONCURRENCY: '2' });
+    assert.equal(status, 0, output);
+    const peak = maxObservedOverlap(root);
+    assert.equal(peak, 2, `expected browser suite concurrency capped at 2, observed ${peak}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('non-browser suites are not capped by STORE_CI_BROWSER_CONCURRENCY', () => {
+  const root = buildConcurrencyFixture({ browser: false });
+  try {
+    const { status, output } = runRunner(root, [], { STORE_CI_BROWSER_CONCURRENCY: '2' });
+    assert.equal(status, 0, output);
+    const peak = maxObservedOverlap(root);
+    assert.ok(peak > 2, `expected non-browser suite to stay uncapped (>2), observed ${peak}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an explicit --test-concurrency flag in the workflow is never overridden', () => {
+  const root = buildConcurrencyFixture({ browser: true, command: 'node --test --test-concurrency=1 "tests/*.test.js"' });
+  try {
+    const { status, output } = runRunner(root, [], { STORE_CI_BROWSER_CONCURRENCY: '3' });
+    assert.equal(status, 0, output);
+    assert.equal(maxObservedOverlap(root), 1, 'explicit --test-concurrency=1 must stand');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a browser timeout failure still fails immediately on the first run without retry', () => {
+  const root = buildConcurrencyFixture({ browser: true, failIndex: 2 });
+  try {
+    const { status, output } = runRunner(root, [], { STORE_CI_BROWSER_CONCURRENCY: '2' });
+    assert.notEqual(status, 0, output);
+    assert.match(output, /Timeout 30000ms exceeded/);
+    assert.equal(readFileSync(join(root, 'pkg', 'runs.log'), 'utf8').trim().split('\n').length, 1, 'must not retry');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

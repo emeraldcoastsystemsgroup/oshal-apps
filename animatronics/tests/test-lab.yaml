@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register surface-views (Perform and Rig setup, phone sheets, one primary per view, 44px pose actions, in-page Delete rig confirm).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Quote the case animatronics-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.2.8: release the already-quoted Test Lab catalog so installed cases are visible in production.
 # -----------------------------------------------------------------------------
 version: 1
 cases:

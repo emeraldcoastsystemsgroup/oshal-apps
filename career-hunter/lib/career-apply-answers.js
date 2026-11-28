@@ -5,6 +5,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6 (Roger, 2026-11-25: "just set this information ... add my preferences to my profile"): three more standing self-identification answers, gender (Male, Female), Hispanic or Latino (Yes, No) and race (the EEO-1 categories), kept as gender, hispanic_latino and race, each closed to its choices and blank meaning Career declines the question on the form, as veteran and disability already were.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): What Career does by itself on an employer's site, five switches kept as apply_help beside the Attestations and read with the rest (career-apply-help.js; all on unless he switched one off). setHelp changes them with the revision the page read and keeps Undo, as the Attestations do.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Career banks card answers itself now (career-apply-sync.js), from runs that may end in any order, so a kept answer replaces the one saved for its question only when it was given later: an answer older than the saved one changes nothing, and a newer one replaces it with the earlier file kept for Undo, as every save does.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0, Answers to review: an answer approved there is kept here by its question (saveReviewed): the exact words, the question id the run looks up, the other ids the same words take (also: another field kind, or the same question at another employer) and the folded key of its words, from review or answered automatically, replacing a saved answer under any of those ids, with Undo. One switch beside the Attestations, kept as written_answers.auto and off unless he switched it on (setWritten): Answer written questions without my review.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -16,7 +17,9 @@ const STANDING=[['workAuthorization','work_authorization'],['sponsorship','requi
 /** Self-identification standing answers and the only words each may hold; a blank one is declined on the form. */
 const CLOSED={veteranStatus:['Yes','No'],disabilityStatus:['Yes','No'],hispanicLatino:['Yes','No'],gender:['Male','Female'],
  race:['White','Black or African American','Asian','American Indian or Alaska Native','Native Hawaiian or Other Pacific Islander','Two or more races']};
-const ID=/^question:[a-f0-9]{64}$/,HASH=/^[a-f0-9]{64}$/,BACKUPS='apply-profile-backups',KEEP_BACKUPS=10;
+const ID=/^question:[a-f0-9]{64}$/,HASH=/^[a-f0-9]{64}$/,KEY=/^k:[a-f0-9]{32}$/,BACKUPS='apply-profile-backups',KEEP_BACKUPS=10,MAX_ALSO=8;
+/** Where a kept answer came from: a card's Keep, this page, Answers to review, or a draft used without review. */
+const SOURCES=new Set(['card','review','automatic']);
 const ATTEST=[['terms','terms'],['selfIdSignature','self_id_signature']];
 const fail=(code,message,status=409)=>{throw new queue.SubmissionError(code,message,status);};
 const clean=(value,limit)=>typeof value==='string'?value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]+/g,' ').trim().slice(0,limit):'';
@@ -36,6 +39,8 @@ function load(dir){
  return {raw,text};
 }
 const revisionOf=text=>crypto.createHash('sha256').update(text).digest('hex');
+/** @description The other question ids a kept answer also answers, at most eight, never its own. @param {object} item @returns {string[]} */
+const alsoOf=item=>[...new Set((Array.isArray(item?.also)?item.also:[]).filter(id=>ID.test(id)&&id!==item.id))].slice(0,MAX_ALSO);
 /**
  * @description The person's Saved answers: the standing ones and every kept answer, with the file's revision.
  * @param {string} dir The person's own store. @returns {{revision:string,standing:object,answers:object[],attest:object,flags:object,help:object,undo:string|null}}
@@ -44,9 +49,10 @@ function read(dir){
  const {raw,text}=load(dir),standing={},revision=revisionOf(text),last=lastSave(dir),flags=flagsOf.read(raw);
  for(const [key,field] of STANDING){const value=raw[field];standing[key]=typeof value==='boolean'?(value?'Yes':'No'):clean(value,MAX_VALUE);}
  const answers=(Array.isArray(raw.answers)?raw.answers:[]).filter(item=>ID.test(item?.id||'')&&clean(item.text,MAX_TEXT)&&clean(item.value,MAX_VALUE))
-  .map(item=>({id:item.id,text:clean(item.text,MAX_TEXT),type:clean(item.type,40),value:clean(item.value,MAX_VALUE),source:item.source==='card'?'card':'settings',savedAt:clean(item.savedAt,40)}));
+  .map(item=>({id:item.id,text:clean(item.text,MAX_TEXT),type:clean(item.type,40),value:clean(item.value,MAX_VALUE),source:SOURCES.has(item.source)?item.source:'settings',savedAt:clean(item.savedAt,40),
+   ...(KEY.test(item.key||'')?{key:item.key}:{}),...(alsoOf(item).length?{also:alsoOf(item)}:{})}));
  const attest=Object.fromEntries(ATTEST.map(([key,field])=>[key,raw.attest?.[field]===true]));
- return {revision,standing,answers,attest,flags,help:helpOf.read(raw),undo:last?.after===revision?last.before:null};
+ return {revision,standing,answers,attest,flags,help:helpOf.read(raw),written:{auto:raw.written_answers?.auto===true},undo:last?.after===revision?last.before:null};
 }
 function writeAtomic(file,bytes){
  const temp=file+'.'+crypto.randomUUID()+'.tmp';
@@ -139,6 +145,30 @@ function setAttest(dir,revision,values){
  raw.attest=attest;return save(dir,raw);
 }
 /**
+ * @description Set Answer written questions without my review (written_answers.auto) from the Saved answers page.
+ * @param {string} dir @param {string} revision The revision the page read. @param {{auto:boolean}} values @returns {object} The saved answers now.
+ */
+function setWritten(dir,revision,values){
+ if(!values||typeof values!=='object'||Array.isArray(values)||Object.keys(values).join()!=='auto'||typeof values.auto!=='boolean')
+  fail('answers_invalid','Switch Answer written questions without my review on or off.',400);
+ const raw=current(dir,revision);raw.written_answers={auto:values.auto};return save(dir,raw);
+}
+/**
+ * @description Keep an answer approved on Answers to review (or used without review) as the saved answer to its question:
+ * under the question id the run looks up and every other id the same question takes, replacing a saved answer under any
+ * of them, with the earlier file kept for Undo. @param {string} dir @param {{ids:string[],text:string,value:string,key:string,source?:string}} entry
+ * @returns {object} The saved answers now.
+ */
+function saveReviewed(dir,{ids,text,value,key,source='review'}){
+ const wanted=[...new Set((Array.isArray(ids)?ids:[]).filter(id=>ID.test(id)))],words=clean(text,MAX_TEXT),answer=clean(value,MAX_VALUE);
+ if(!wanted.length||!words||!answer||!KEY.test(key||'')||!['review','automatic'].includes(source))fail('answers_invalid','Give the question, its answer and its ids.',400);
+ const {raw}=load(dir),list=(Array.isArray(raw.answers)?raw.answers:[]).filter(item=>ID.test(item?.id||''));
+ const kept=list.filter(item=>!wanted.includes(item.id)&&item.key!==key);
+ kept.push({id:wanted[0],text:words,type:'',value:answer,source,key,also:wanted.slice(1,1+MAX_ALSO),savedAt:new Date().toISOString()});
+ if(kept.length>MAX_ANSWERS)fail('answers_full','Saved answers are full. Remove some before keeping more.');
+ raw.answers=kept;return save(dir,raw);
+}
+/**
  * @description Undo: put the Saved answers back as they were before the last save, only while nothing changed after it.
  * @param {string} dir @param {string} revision The revision the page read. @param {string} restore The revision to put back.
  * @returns {object} The saved answers now.
@@ -178,4 +208,4 @@ function setHelp(dir,revision,values){
 const standingFacts=saved=>({heard:saved.standing.heard,phoneType:saved.standing.phoneType,veteranStatus:saved.standing.veteranStatus,
  disabilityStatus:saved.standing.disabilityStatus,citizenship:saved.standing.citizenship,gender:saved.standing.gender,
  hispanicLatino:saved.standing.hispanicLatino,race:saved.standing.race});
-module.exports={FILE,questionId,read,setStanding,setAttest,setFlags,setHelp,undo,remove,keep,standingFacts};
+module.exports={FILE,questionId,read,setStanding,setAttest,setFlags,setHelp,setWritten,saveReviewed,undo,remove,keep,standingFacts};

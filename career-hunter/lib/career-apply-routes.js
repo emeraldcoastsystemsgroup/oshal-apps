@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0, Answers to review: its routes (lib/career-answers-review-routes.js: the page GET /answers-to-review-ui, GET /answers-to-review, POST /answers-to-review/refresh, /approve, /skip, /reopen) are mounted on this router with its signed-in wrapper and the approval, the material and the job's row, so an answer puts each job that stopped on it back in Fill in several exactly as an approval there does. POST /saved-answers also switches Answer written questions without my review ({revision, written:{auto}}), with Undo.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: Fill in several on my Chrome. The approval answers the form's site too ({site}), approve, bind, start, Go on, Career's writers and the job's row are exported, and the queue's routes (lib/career-apply-batch-routes.js: GET/POST /apply-batch, /advance, /pause, /go-on, /stop, /skip, /next, /clear) are mounted on this router with its signed-in wrapper, so each queued job is approved and started exactly as a single one.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3 (Roger's Honeycomb run, 2026-11-25: approved before a Job Apply computer was chosen, the kernel refused the start and failed the run's ticket; Go on then failed with "a failed ticket has no phase to dispatch", Stop could not cancel it, and a new approval of the job was refused for a day): Go on on a run that never started, whose ticket has ended, binds a fresh ticket and starts the same approved input on it.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: POST /saved-answers also changes How Career fills in a form ({revision, flags}: input, window, submit), with Undo; the packet reads the settings into task.flags.
@@ -9,19 +10,24 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.1 to 5.4): the routes of an assisted application, every one the signed-in person's own. GET /apply-review/:postingId shows the exact packet (this job's Word and PDF résumé and its cover letter with their versions, the facts that may be typed, the résumé's roles with dates, education, the saved answers, the site and the stop at Review) and changes nothing. POST /apply-runs approves that exact packet and publishes its frozen input before any kernel call; /bind makes the career-apply ticket; /start starts the published attempt on executor orbit-apply-v1; /go-on publishes and starts the next attempt of a paused run while its approval lasts; /sync reads the kernel's record (career-apply-sync.js); /kept takes what the person's page read of the kernel's card route (GET /api/apply/cards `kept`, lane D) and writes it with Career's own writers. GET /apply-runs, /apply-runs/:id/receipt, /picture/:n and /confirmation read what was kept, each picture checked against its digest. GET and POST /saved-answers and the page GET /saved-answers-ui are Saved answers under Settings. A Word résumé is the packet's own Resume_ATS.docx when it has one, else rendered by docx_resume.py, which now gives the same bytes every time.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.76.14: the material of an application carries the generated cover letter's words (application.json generated.cover), for a site whose form takes the letter in a text box.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0 and 2.4): POST /saved-answers also changes What Career does by itself on an employer's site ({revision, help}: the five switches), with Undo; the packet reads the switches into task.assist. POST /apply-code is the lookup of one verification code in the person's own mailbox (lib/career-apply-codes.js), answered only to the kernel's own run of his approved application: a request without the kernel's mark, such as any browser's, is refused before anything is read.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6: GET /didnt-go-through (lib/career-didnt-go-through.js), the signed-in person's own list of what Career tried to apply to and did not submit, for My jobs' Didn't go through tab, is mounted on this router; it is handed LIMITS.wall_ms, the longest one attempt runs, so a run past its approval and that limit is read as no longer on the computer. It reads only and changes nothing here.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0 (design career-self-improving-applications-2026-11-27 parts 1 and 3): the material of an approval carries the answers the person's own record gives the questions their runs met (recordAnswers: career-apply-question-bank.js over career-apply-record-person.js), so the run answers them before asking; the job's row carries its place (location, lat, lon, remote) and generated_at. approve() takes the queue's shorter wait for the person ({waitMs}). POST /apply-runs/:id/record-answers takes the waiting cards the person's own page read for that run, keeps their questions and answers each one a rule of their record settles, for the page to give on the card in their own session (the kernel answers a card only there).
  */
 'use strict';
 const {Router}=require('express'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {createChildLogger}=require('@/shared/logger');
 const queue=require('./career-submission-queue'),drafts=require('./career-application-draft'),docx=require('./career-docx-export');
 const packet=require('./career-apply-packet'),runs=require('./career-apply-runs'),answers=require('./career-apply-answers'),applySync=require('./career-apply-sync'),codes=require('./career-apply-codes');
-const batchRoutes=require('./career-apply-batch-routes');
+const batchRoutes=require('./career-apply-batch-routes'),didntGoThrough=require('./career-didnt-go-through');
+const questionBank=require('./career-apply-question-bank'),recordPerson=require('./career-apply-record-person');
+const {readJobSearchScope}=require('../routes/career-search-scope');
 const {callerSub,userPaths,openUserDb}=require('../routes/career-user-store');
 const {loadAutofillProfile}=require('../routes/career-autofill-routes');
 const {resolveContainedRegularFile}=require('../routes/career-resume-preview');
 const {registerCareerAuthorization}=require('../routes/career-authorization');
 const {runCareerCliAwait}=require('../routes/career-engine-dispatch');
 const {createCareerToolFileHandler}=require('../routes/career-surface-routes');
+const answersReview=require('./career-answers-review-routes');
 const logger=createChildLogger({module:'career-apply-routes'});
 const DONE=['applied','interview','offer','rejected'],MAX_DOCUMENT=350000,MAX_RECORD=4*1024*1024;
 const LIMITS={wall_ms:2*60*60*1000,output_tokens:16000,artifact_bytes:12*1024*1024};
@@ -44,7 +50,7 @@ async function wordResume(folder,dir){
 function postingRow(sub,id){
  if(!Number.isSafeInteger(id)||id<1)fail('invalid_posting','Select one job.',400);
  const db=openUserDb(sub);if(!db)fail('no_data','Prepare an application first.',404);
- try{return db.prepare(`SELECT p.id,p.title,p.url,p.active,p.ats_job_id AS atsJobId,c.name AS company,c.ats_type AS atsType,c.ats_token AS atsToken,s.status,s.resume_path,s.cover_path
+ try{return db.prepare(`SELECT p.id,p.title,p.url,p.active,p.ats_job_id AS atsJobId,p.location,p.lat,p.lon,p.remote,c.name AS company,c.ats_type AS atsType,c.ats_token AS atsToken,s.status,s.resume_path,s.cover_path,s.generated_at
   FROM user_signals s JOIN corpus.postings_corpus p ON p.id=s.posting_id JOIN corpus.companies c ON c.id=p.company_id WHERE s.posting_id=?`).get(id);}finally{db.close();}
 }
 /**
@@ -58,10 +64,23 @@ async function material(sub,id){
  const {userDir}=userPaths(sub);drafts.assertReady(userDir,id,{status:posting.status,has_resume:!!posting.resume_path,has_cover:!!posting.cover_path});
  const resumePdf=contained(posting.resume_path,userDir);if(!resumePdf)fail('packet_unavailable','Generate and review both the résumé and cover letter first.');
  const folder=path.dirname(resolveContainedRegularFile(posting.resume_path,userDir)),record=json(path.join(folder,'application.json'),userDir);
- const saved=answers.read(userDir);
- return {posting,folder,profile:await loadAutofillProfile(sub),standing:answers.standingFacts(saved),answers:saved.answers,
-  careerDb:json(path.join(userDir,'career_db.json'),userDir)||{},resume:record?.generated?.resume||{},cover:record?.generated?.cover||null,
-  attest:saved.attest,flags:saved.flags,help:saved.help,resumeDocx:await wordResume(folder,userDir),resumePdf,coverPdf:posting.cover_path?contained(posting.cover_path,userDir):null};
+ const saved=answers.read(userDir),profile=await loadAutofillProfile(sub),careerDb=json(path.join(userDir,'career_db.json'),userDir)||{},cover=record?.generated?.cover||null;
+ return {posting,folder,profile,standing:answers.standingFacts(saved),answers:saved.answers,careerDb,resume:record?.generated?.resume||{},cover,
+  attest:saved.attest,flags:saved.flags,help:saved.help,recordAnswers:recordAnswers(userDir,{profile,saved,careerDb,cover,posting}),
+  resumeDocx:await wordResume(folder,userDir),resumePdf,coverPdf:posting.cover_path?contained(posting.cover_path,userDir):null};
+}
+/** @description The person's Matching area, or none when it is missing or cannot be read. @param {string} dir @returns {object|null} */
+function homeOf(dir){try{return readJobSearchScope(dir);}catch(error){logger.error({err:error},'matching area unreadable for answers from the record');return null;}}
+/**
+ * @description The answers the person's own record gives the questions their runs met (career-apply-question-bank.js), for
+ * this job's packet. A bank that cannot be read gives none and is logged: the approval goes on with Saved answers alone.
+ * @returns {object[]} [{id, text, value, rule}]
+ */
+function recordAnswers(dir,{profile,saved,careerDb,cover,posting}){
+ try{
+  const person=recordPerson.view({profile,standing:saved.standing,saved:saved.answers,attest:saved.attest,careerDb,cover,posting,home:homeOf(dir)});
+  return questionBank.answersFor(dir,person,new Set(saved.answers.map(item=>item.id)));
+ }catch(error){logger.error({err:error,postingId:posting?.id},'answers from the record unavailable for this packet');return [];}
 }
 /** Career's own writers for a run: the main résumé's revision-checked edit, the application's row, the job's folder. */
 function writers(ctx,sub,dir,run){
@@ -88,12 +107,12 @@ const isId=value=>/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value||''
  * @description Approve one job's exact packet: the digest the person reviewed must be the packet as it is now. Publishes
  * the first attempt's frozen input; starts nothing. @returns {Promise<object>} {ok, deduped, run}
  */
-async function approve(dir,sub,body){
+async function approve(dir,sub,body,{waitMs}={}){
  if(Object.keys(body||{}).some(key=>!['postingId','packetDigest','approved'].includes(key)))fail('invalid_request','Only the job and the exact packet you reviewed are accepted.',400);
  const found=await material(sub,Number(body?.postingId)),built=packet.build(found);
  if(body.approved!==true||body.packetDigest!==built.packetDigest)fail('packet_review_required','Review this job, its documents and the facts Career may type before approving.',428);
  const {run,deduped}=runs.approve(dir,built,found.posting);
- if(!run.attempts.length)runs.publish(dir,run.id,packet.input({id:run.id,attempt:1,expiresAt:Date.parse(run.expiresAt),task:built.task}));
+ if(!run.attempts.length)runs.publish(dir,run.id,packet.input({id:run.id,attempt:1,expiresAt:Date.parse(run.expiresAt),task:built.task,waitMs}));
  return {ok:true,deduped,run:runs.publicRun(runs.get(dir,run.id)),site:{id:built.site.id,name:built.site.name}};
 }
 /** @description Bind the run's own career-apply ticket; making it starts nothing. @returns {Promise<object>} */
@@ -182,9 +201,9 @@ function registerAnswers(router,run){
  router.get('/saved-answers',run(async(_req,res,_sub,dir)=>res.json(answers.read(dir))));
  router.post('/saved-answers',run(async(req,res,_sub,dir)=>{
   const body=req.body||{},keys=Object.keys(body);
-  const actions=['standing','remove','attest','flags','help','undo'].filter(key=>key in body);
-  if(keys.some(key=>key!=='revision'&&!actions.includes(key))||actions.length!==1)fail('invalid_request','Change your standing answers, attestations, how Career fills in a form or what it does by itself, remove one saved answer, or undo the last change.',400);
-  const action=actions[0],writer={standing:answers.setStanding,remove:answers.remove,attest:answers.setAttest,flags:answers.setFlags,help:answers.setHelp,undo:answers.undo}[action];
+  const actions=['standing','remove','attest','flags','help','written','undo'].filter(key=>key in body);
+  if(keys.some(key=>key!=='revision'&&!actions.includes(key))||actions.length!==1)fail('invalid_request','Change your standing answers, attestations, how Career fills in a form, what it does by itself or how it answers written questions, remove one saved answer, or undo the last change.',400);
+  const action=actions[0],writer={standing:answers.setStanding,remove:answers.remove,attest:answers.setAttest,flags:answers.setFlags,help:answers.setHelp,written:answers.setWritten,undo:answers.undo}[action];
   res.json(writer(dir,body.revision,body[action]));
  }));
 }
@@ -232,8 +251,17 @@ function createCareerApplyRoutes(ctx){
   const saved=runs.get(dir,req.params.id),keptCards=await applySync.keepCards(dir,saved,body.kept,writers(ctx,sub,dir,saved));
   res.json({ok:true,run:runs.publicRun(runs.update(dir,saved.id,{keptCards}))});
  }));
+ router.post('/apply-runs/:id/record-answers',run(async(req,res,sub,dir)=>{
+  const body=req.body||{};
+  if(Object.keys(body).some(key=>key!=='cards')||!Array.isArray(body.cards)||body.cards.length>50)fail('invalid_request','Send only this application’s waiting question cards.',400);
+  const saved=runs.get(dir,req.params.id);
+  const person=await recordPerson.forJob(sub,dir,saved.postingId,{profile:loadAutofillProfile,posting:postingRow,home:homeOf});
+  res.json({ok:true,answers:questionBank.cardAnswers(dir,saved,body.cards,person)});
+ }));
  registerEvidence(router,run);registerAnswers(router,run);registerCodes(router,run);
  batchRoutes.register(router,run,{ctx,approve,bind,start,goOn,writers,postingRow});
+ didntGoThrough.register(router,{wallMs:LIMITS.wall_ms});
+ answersReview.register(router,run,{ctx,approve,material,postingRow});
  return router;
 }
 module.exports={createCareerApplyRoutes,material,approve,bind,start,goOn,writers,postingRow};

@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the actual manual page over real HTTP/PG/compositor and verify visible timing, keyframes, undo and stale-preview isolation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0 layout: the native New, Add and Add-key forms sit behind the first layer, + Add and the property diamonds, so these proofs submit the same forms directly (native(), the 640×360, 5 s composition they always used), open a saved composition through its select (choose()), choose a layer from its timeline row and read a key's time from its diamond's title.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Exercise the actual catalog-generated command form with numeric composition ids and duration through the real native engine.
  */
 import {test,before,after} from 'node:test';import assert from 'node:assert/strict';
 import {startApplicationFixture,chromium} from './application-fixture.mjs';
@@ -14,6 +15,29 @@ const choose=(page,id)=>page.locator('#projects').evaluate((select,id)=>{select.
 async function create(page,name){await native(page,'new',{title:name,width:'640',height:'360',duration:'5'});await page.locator('#revision').filter({hasText:name}).filter({hasText:'revision 1'}).waitFor();await page.locator('#status').filter({hasText:'Saved'}).waitFor();}
 async function revision(page,n){await page.locator('#revision').filter({hasText:'revision '+n}).waitFor();await page.locator('#status').filter({hasText:'Saved'}).waitFor();}
 async function pixel(page,x,y){return page.locator('#preview').evaluate(async(img,{x,y})=>{await img.decode();const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);return [...ctx.getImageData(x,y,1,1).data];},{x,y});}
+
+test('the actual catalog command form saves numeric composition settings instead of refusing string ids',async t=>{
+ const value=await page(t),p=value.page;
+ await create(p,'Native command form');
+ const projectId=await p.locator('#projects').inputValue(),compId=await p.locator('#comps').inputValue();
+ await p.getByRole('button',{name:'More',exact:true}).click();
+ await p.getByRole('menuitem',{name:'More editing commands…',exact:true}).click();
+ await p.locator('#commands').selectOption('comp.settings');
+ await p.locator('#params [name=comp]').fill(compId);
+ await p.locator('#params [name=duration]').fill('2');
+ await p.locator('#params [name=name]').fill('Renamed native composition');
+ await p.locator('#params [name=preserveFrameRate]').fill('false');
+ await p.locator('#advanced button').click();
+ await revision(p,2);
+ assert.equal(Number(await p.locator('#time').getAttribute('max')),2);
+ await p.getByRole('button',{name:'Done',exact:true}).click();
+ await p.reload();
+ await p.locator('#status').filter({hasText:'Ready'}).waitFor();
+ await choose(p,projectId);await revision(p,2);
+ assert.equal(Number(await p.locator('#time').getAttribute('max')),2,'duration persisted after reopening');
+ assert.match(await p.locator('#comps').innerText(),/Renamed native composition/);
+ assert.deepEqual(value.errors,[]);
+});
 
 test('manual composition/solid/keyframes/scrub/undo work without an AI provider',async t=>{const value=await page(t),p=value.page;await create(p,'Manual animation');assert.equal(Number(await p.locator('#time').getAttribute('max')),5);
  await native(p,'add',{kind:'solid',text:'Editable logo'});await revision(p,2);assert.match(await p.locator('#layers').innerText(),/Editable logo/);

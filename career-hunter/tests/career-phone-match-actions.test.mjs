@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise real phone match-action hit targets above the frame bar, unobscured status, accessible filters/view controls and nearby navigation over synthetic local fixtures.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Await the visible post-resize control placement rather than racing the browser's asynchronous matchMedia event.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6: My jobs has five stage tabs (Didn’t go through after Getting ready), and every one still fits at 360 px with a 44 px target and no sideways scrolling.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -84,7 +85,7 @@ test('phone match search and view controls live in Filters and return on a compu
 test('all My jobs stage tabs remain visible at 360 px without sideways scrolling',{timeout:12000},async()=>{
   const state=fixture(),t=await matches(state,phone(360,800));
   try{
-    const tabs=t.page.locator('#careerStages [role="tab"]');assert.equal(await tabs.count(),4);
+    const tabs=t.page.locator('#careerStages [role="tab"]');assert.equal(await tabs.count(),5);
     for(const tab of await tabs.all()){const b=await tab.boundingBox();assert.ok(b.height>=44);assert.ok(b.x>=0&&b.x+b.width<=360,await tab.innerText());}
     assert.ok(await t.page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
   }finally{await t.context.close();}

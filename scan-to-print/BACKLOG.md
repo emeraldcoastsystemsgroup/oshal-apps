@@ -513,7 +513,7 @@ real run of a few seconds, not a sub-second decline under load.
 
 When it can run: the runner image's Chromium requests `/favicon.ico` and logs a 404 as a console error, so the fixture server must answer it (204), as animatronics' and circuit-lab's fixtures do - otherwise every "no page errors" assertion fails in the sandbox and passes on a host browser.
 
-## B18 — Agent identity for the print service under enforce-mode application authorization
+## B18 — Agent identity for the print service under enforce-mode application authorization — DONE in 0.7.0 (live print tracked in B19)
 
 **Status: built in 0.7.0 and installed on the operator's box (2026-10-06); the live print is B19.**
 The print tools moved to core's package-tool executor with an `authorization:` catalog
@@ -542,7 +542,7 @@ Bambu printer whose owner turned auto-start on: the submission row reads `reques
 `state: printing`, and the printer reports the job, while the same call with the grant at ask waits
 for approval and with auto-start off records `state: uploaded`.
 
-## B19 — Live print test: an agent prints on the operator's P2S through oshal
+## B19 — Live print test: an agent prints on the operator's P2S through oshal — DEFERRED (2026-10-06)
 
 **Status: deferred by the operator on 2026-10-06** ("backlog the testing to print"), after printing
 `michael_myers_tekky_linkage_revA` and `revB` from the printer screen; both files were on its USB stick. Everything up to the start command is live-proven on that P2S: certificate probe and

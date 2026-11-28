@@ -4,6 +4,8 @@
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
+  8 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0, Answers to review: a Written questions card under the Attestations, in their style, with one switch, Answer written questions without my review (off unless he switched it on), saved at once with the revision the page read and with Undo; it says what Career does on and off and links to Answers to review. A kept answer says where it came from: an application card, Answers to review, answered automatically, or this page.
+  7 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5: the signature switch's label and description say it also covers an application's signature line that asks for the name and the date, such as an acknowledgment (BrassRing's rules name one), as the approval screen says, so what he switches on here is what a run does.
   6 | maintainer@emeraldcoastsystemsgroup.com | Remember each employer site and Look at the page before moving on are not available yet (the kernel does not act on them: career-apply-help.js NOT_YET): each shows off, cannot be switched, and says "Not available yet, so it stays off."; the other three are on unless he switches one off.
   5 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0; Roger, 2026-11-26): What Career does by itself on an employer's site, five switches, all on unless he switched one off, each saved at once with Undo like the Attestations above them: Remember each employer site; Look at the page before moving on; Sign in with the login Chrome saved; Create an account with Chrome's suggested password (only with sign-in on, so it greys with a line saying why when sign-in is off); Read a verification code from my mail. Each says in plain words what Career does and what it never sees or keeps. Under the switches, always: a "verify you are human" check is always yours.
   4 | maintainer@emeraldcoastsystemsgroup.com | 1.76.6: Standing answers lists gender, Hispanic or Latino and race beside veteran and disability, each a closed list whose blank choice declines the question on the form.
@@ -106,8 +108,14 @@
     <h2 id="attestTitle">Attestations</h2>
     <p class="note">Some employers ask you to agree to their terms and to sign their self-identification form. Career does these for you only when you switch them on here, only on a form you approved, and always in your name.</p>
     <label class="switch" for="attestTerms"><input type="checkbox" role="switch" id="attestTerms"><span><b>Tick the employer’s terms box for me</b><small>Career ticks the box that says you agree to the employer’s terms, in your name. Off, Career stops there and you tick it yourself.</small></span></label>
-    <label class="switch" for="attestSign"><input type="checkbox" role="switch" id="attestSign"><span><b>Sign the self-identification form with my name and today’s date</b><small>Career types your name and today’s date as your signature on the employer’s self-identification form, in your name. Off, Career stops there and you sign it yourself.</small></span></label>
+    <label class="switch" for="attestSign"><input type="checkbox" role="switch" id="attestSign"><span><b>Sign the self-identification form and signature lines with my name and today’s date</b><small>Career types your name and today’s date as your signature on the employer’s self-identification form, and on an application’s signature line that asks for your name and the date (such as an acknowledgment), in your name. Off, Career stops there and you sign it yourself.</small></span></label>
     <div class="actions"><span class="note" id="attestSaved" role="status"></span><button type="button" class="ck-btn" id="attestUndo" hidden>Undo</button></div>
+  </section>
+  <section class="card" id="written" hidden aria-labelledby="writtenTitle">
+    <h2 id="writtenTitle">Written questions</h2>
+    <p class="note">Some employers ask a question you answer in your own words, such as “What platform have you built from scratch?”. Career drafts an answer from your record and the cover letter it wrote for that job, and lists it on <a href="/api/career-hunter/answers-to-review-ui">Answers to review</a>.</p>
+    <label class="switch" for="writtenAuto"><input type="checkbox" role="switch" id="writtenAuto"><span><b>Answer written questions without my review</b><small>On, Career uses its draft straight away and puts the job back in Fill in several; the answer is still listed on Answers to review as answered automatically, for you to change. Off, each draft waits for you to approve it.</small></span></label>
+    <div class="actions"><span class="note" id="writtenSaved" role="status"></span><button type="button" class="ck-btn" id="writtenUndo" hidden>Undo</button></div>
   </section>
   <section class="card" id="flags" hidden aria-labelledby="flagsTitle">
     <h2 id="flagsTitle">How Career fills in a form</h2>
@@ -146,6 +154,7 @@
   const API = '/api/career-hunter', $ = (id) => document.getElementById(id), FIELDS = ['workAuthorization', 'sponsorship', 'heard', 'phoneType', 'veteranStatus', 'disabilityStatus', 'citizenship', 'gender', 'hispanicLatino', 'race'];
   const FLAGS = { input: 'flagInput', window: 'flagWindow', submit: 'flagSubmit' };
   const HELP = { siteMemory: 'helpSiteMemory', screen: 'helpScreen', signIn: 'helpSignIn', createAccount: 'helpCreateAccount', mailCodes: 'helpMailCodes' };
+  const FROM = { card: 'Kept from an application card', review: 'Approved on Answers to review', automatic: 'Answered automatically from Career’s draft' };
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let current = null;
   /** @description One request to the Saved answers route; a refusal says why in words. @returns {Promise<object>} */
@@ -162,6 +171,7 @@
     for (const key of FIELDS) $(key).value = data.standing[key] || '';
     $('attestTerms').checked = data.attest.terms === true;
     $('attestSign').checked = data.attest.selfIdSignature === true;
+    $('writtenAuto').checked = data.written?.auto === true;
     for (const [key, name] of Object.entries(FLAGS)) for (const box of document.getElementsByName(name)) box.checked = box.value === data.flags[key];
     for (const box of document.getElementsByName('flagWindow')) if (box.value === 'background') box.disabled = data.flags.input === 'person-like';
     for (const [key, id] of Object.entries(HELP)) $(id).checked = data.help[key] === true;
@@ -169,11 +179,12 @@
     $('helpCreateWhy').hidden = data.help.signIn === true;
     $('standing').hidden = false;
     $('attest').hidden = false;
+    $('written').hidden = false;
     $('flags').hidden = false;
     $('help').hidden = false;
     $('keptCard').hidden = false;
-    $('kept').innerHTML = data.answers.length ? data.answers.map((item) => `<li><div><p class="question">${esc(item.text)}</p><p class="answer">${esc(item.value)}</p><p class="from">${item.source === 'card' ? 'Kept from an application card' : 'Saved here'}${when(item.savedAt) ? ' · ' + esc(when(item.savedAt)) : ''}</p></div><button type="button" class="ck-btn" data-remove="${esc(item.id)}" aria-label="Remove the answer to ${esc(item.text)}">Remove</button></li>`).join('')
-      : '<li><p class="note">None yet. When you tick Keep this answer for next time on a question card, the answer is listed here.</p></li>';
+    $('kept').innerHTML = data.answers.length ? data.answers.map((item) => `<li><div><p class="question">${esc(item.text)}</p><p class="answer">${esc(item.value)}</p><p class="from">${FROM[item.source] || 'Saved here'}${when(item.savedAt) ? ' · ' + esc(when(item.savedAt)) : ''}</p></div><button type="button" class="ck-btn" data-remove="${esc(item.id)}" aria-label="Remove the answer to ${esc(item.text)}">Remove</button></li>`).join('')
+      : '<li><p class="note">None yet. An answer you keep on a question card with Keep this answer for next time, or approve on Answers to review, is listed here.</p></li>';
     $('status').textContent = '';
   }
   $('standing').addEventListener('submit', async (event) => {
@@ -185,7 +196,7 @@
     } catch (error) { $('status').textContent = error.message; } finally { $('save').disabled = false; }
   });
   /** @description Say a save worked, and offer Undo while it is the last change. @returns {void} */
-  function saved(line, undo, words) { $(line).textContent = words; $(undo).hidden = !current.undo; for (const other of ['savedUndo', 'attestUndo', 'flagsUndo', 'helpUndo']) if (other !== undo) $(other).hidden = true; }
+  function saved(line, undo, words) { $(line).textContent = words; $(undo).hidden = !current.undo; for (const other of ['savedUndo', 'attestUndo', 'writtenUndo', 'flagsUndo', 'helpUndo']) if (other !== undo) $(other).hidden = true; }
   async function flag(key, box) {
     for (const other of document.getElementsByName(FLAGS[key])) other.disabled = true;
     try { draw(await call({ revision: current.revision, flags: { [key]: box.value } })); saved('flagsSaved', 'flagsUndo', 'Saved.'); }
@@ -206,6 +217,13 @@
     finally { box.disabled = key === 'createAccount' && current.help.signIn !== true; }
   }
   for (const [key, id] of Object.entries(HELP)) $(id).addEventListener('change', () => help(key, $(id)));
+  /** @description Save Answer written questions without my review at once; a refusal puts the switch back and says why. */
+  async function written(box) {
+    box.disabled = true;
+    try { draw(await call({ revision: current.revision, written: { auto: box.checked } })); saved('writtenSaved', 'writtenUndo', box.checked ? 'Saved. Career uses its drafts without asking you.' : 'Saved. Each draft waits for you.'); }
+    catch (error) { box.checked = !box.checked; $('writtenSaved').textContent = error.message; } finally { box.disabled = false; }
+  }
+  $('writtenAuto').addEventListener('change', () => written($('writtenAuto')));
   $('attestTerms').addEventListener('change', () => attest('terms', $('attestTerms')));
   $('attestSign').addEventListener('change', () => attest('selfIdSignature', $('attestSign')));
   async function undo(line, button) {
@@ -215,6 +233,7 @@
   }
   $('attestUndo').addEventListener('click', () => undo('attestSaved', $('attestUndo')));
   $('flagsUndo').addEventListener('click', () => undo('flagsSaved', $('flagsUndo')));
+  $('writtenUndo').addEventListener('click', () => undo('writtenSaved', $('writtenUndo')));
   $('helpUndo').addEventListener('click', () => undo('helpSaved', $('helpUndo')));
   $('savedUndo').addEventListener('click', () => undo('saved', $('savedUndo')));
   $('kept').addEventListener('click', async (event) => {

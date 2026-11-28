@@ -1,3 +1,9 @@
+# 146 | maintainer@emeraldcoastsystemsgroup.com | 1.78.0 (applications that improve themselves, parts 1 and 3): register record-answers (the record rules on two made-up people answering each family both ways, the whole-word option matcher, ranges, and what is never answered by rule), question-bank (questions learned from the kernel's work record under the id each open card confirms, kept once, answered for the next approval) and apply-queue-schedule (the career-apply-queue tick over the real routes: the queue moved on with no page open, the five-minute wait for the person, a question learned and its job stepped past, answered from the record at the next approval, a busy tick changing nothing, a lost start sent again, documents written again before approval only for a letter dated an earlier day or an older documents revision, never for a plain Career version bump, the page's cards answered only for the person's own run), documents-staleness (the two staleness rules, the letter's own date in its zone, the recorded revision against the engine's); regenerate-routes also expects the production case of 2026-11-27 and documents taking turns with Fill in several.
+# 145 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6: didnt-go-through and didnt-go-through-page also expect the fill-in queue's Skip of a job that waited for the person (a question card, a sign-in) to keep what it waited for on the entry and its run, an advance that finds the run stopped first to keep it too, and the tab to show those words before and after the queue is cleared.
+# 147 | maintainer@emeraldcoastsystemsgroup.com | 1.79.0, Answers to review: register answers-to-review (the routes over Career's real routes on made-up people's stores, the drafts written by the real drafting module with fixture inference), answers-to-review-drafts (the drafting engine's contract on a real owner store, and the launcher's answers-draft verb) and answers-to-review-page (the page, Didn't go through and Saved answers in Chromium at 1440x900 and 412x915).
+# 144 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6: register didnt-go-through (GET /didnt-go-through over Career's real routes on made-up people's stores: every way an application did not go through, newest first, one row per job, with Career's words and the next step) and didnt-go-through-page (the Didn't go through tab of My jobs in Chromium at 1440x900 and 412x915).
+# 143 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5: assisted-application expects BrassRing's rules to name its Acknowledgment page's signature line (Full Legal Name and Date, BAE Systems, 2026-11-27) beside Workday's, entered only with the signature switch on; until now it expected no profile to sign.
+# 142 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5: email-confirmation-not-rejection also expects an employer's confirmation that names the employer and no job (the Workday-hosted and SmartRecruiters-hosted shapes of 2026-11-27) to link to the one application there from that hour, two there to wait for review, a rejection, interview or offer naming only the employer to link to nothing, and the one-time re-read of what the earlier rules linked to nothing.
 # 141 | maintainer@emeraldcoastsystemsgroup.com | assisted-application also runs career-apply-bank: Career banks the answers the person kept on question cards itself when a run's attempt ends (POST /apply-runs/:id/sync, no page open) under the question id the kernel computed, the next packet carries them, once per card, newest answer kept with Undo, his own runs only, and an attempt that ended before this version is read once.
 # 140 | maintainer@emeraldcoastsystemsgroup.com | assisted-application also runs career-apply-help (what Career does by itself on an employer's site: only the switches the kernel acts on reach a run) and career-apply-codes (the lookup of one verification code in the person's own mailbox, against a stand-in Gmail).
 # 139 | maintainer@emeraldcoastsystemsgroup.com | Register email-confirmation-not-rejection: an employer's automatic confirmation was recorded as a rejection and its job set to rejected (production, 2026-11-26, two applications confirmed within seconds). The mail reader takes a confirmation as an acknowledgement, a rejection only from a statement outside any condition, and nothing dated earlier than five minutes after applied_at as a rejection of that application; the next check relabels a stored wrong event and puts its job back, leaving a rejection the person recorded or a real one stored.
@@ -4321,7 +4327,7 @@ cases:
     level: integration
     runner: {kind: node-test, scope: package, files: [tests/career-apply-packet.test.mjs, tests/career-apply-sync.test.mjs, tests/career-apply-sites.test.mjs, tests/career-apply-ashby-profile.test.mjs, tests/career-apply-lever-profile.test.mjs, tests/career-apply-workday-profile.test.mjs, tests/career-apply-brassring-profile.test.mjs, tests/career-apply-eightfold-profile.test.mjs, tests/career-apply-help.test.mjs, tests/career-apply-codes.test.mjs, tests/career-apply-bank.test.mjs]}
     expected:
-      - Any public employer site is filled, never refused as site_unsupported. A site Career names no engine for is the generic site (careful general rules, no page kinds guessed, Next or Continue to move, a stop before any button that sends); a company page embedding Greenhouse, Lever, Ashby or SmartRecruiters is approved at that engine's own form address from the source's engine, token and job id (or gh_jid / ashby_jid), never a guessed one; SAP SuccessFactors, BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS (at its in_iframe address), Oracle Recruiting Cloud and Taleo are recognised by host and get their own rules; no profile presses a submit word, signs for him or maps State to anything but the state.
+      - Any public employer site is filled, never refused as site_unsupported. A site Career names no engine for is the generic site (careful general rules, no page kinds guessed, Next or Continue to move, a stop before any button that sends); a company page embedding Greenhouse, Lever, Ashby or SmartRecruiters is approved at that engine's own form address from the source's engine, token and job id (or gh_jid / ashby_jid), never a guessed one; SAP SuccessFactors, BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS (at its in_iframe address), Oracle Recruiting Cloud and Taleo are recognised by host and get their own rules; no profile presses a submit word or maps State to anything but the state, and only Workday's (its self-identification page) and BrassRing's (its Acknowledgment page's Full Legal Name and Date) name a signature line, entered only with his signature switch on.
       - The packet's Word résumé is the parse résumé (its own Resume_Parse.docx byte for byte, else the same digest from docx_resume.py --kind parse; never Resume_ATS.docx), which every site's rules upload; the PDF résumé and cover letter, only the roles on this job's résumé with their recorded dates (a year alone stays a year), education, facts and the site's rules; approval publishes the frozen input before any kernel call.
       - Bind, start, a lost acknowledgement and Go on send exactly the approved bytes on executor orbit-apply-v1, never a second start of one attempt; another person, no person, a changed packet and a site without rules are refused.
       - A job's recorded location is on its Location line in the packet's Word résumé and a job with none has no such line; the typed work-history rows hold only the keys the kernel reads; documents made before a location was saved are refused as out of date.
@@ -4379,6 +4385,162 @@ cases:
     prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+  - id: record-answers
+    name: Answers from the person's own record, before asking
+    purpose: >-
+      Prove lib/career-apply-record-rules.js on two made-up people whose records answer each question the other way: the
+      answer an employer's question takes from the signed-in person's own facts, roles, standing and saved answers,
+      Attestations, Matching area, the job and its letter, and nothing written for one person.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-record-rules.test.mjs]}
+    expected:
+      - Options are matched as whole words ("No" is never found inside "Now") and long-worded options by what they mean (yes, no, prefer not); pay and years fall inside the option whose range holds them.
+      - Work authorization, sponsorship, citizenship, 18 or older (only when the record proves it) and a clearance (from a saved answer) are answered from each person's own answers, and a question about another country or two questions in one stay theirs.
+      - Self-identification takes the standing answers, else the form's prefer-not option; questions no standing answer covers are declined, or left when the form offers no prefer-not.
+      - Relocation, office days and "within N miles" follow the Matching area and the job's distance; country, state, time zone (only for a state in one zone), listed states, sanctioned countries and where they work from follow the record.
+      - Names, current employer, past employment at this employer, an area the record names, profile links and pay from a saved answer are answered; years with one skill, a preferred name and a missing fact are not.
+      - Terms and acknowledgements only under the Attestations switch; marketing, text-message and recording consents are a no; "why us" is the job's own letter; how they heard is their standing answer, else the employer's site.
+      - A check that a person is human, a start date, a notice period, time off and a non-compete are never answered by rule, and an empty record answers nothing.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "No fixtures are created."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never
+  - id: question-bank
+    name: The questions the person's runs met, kept and answered for the next approval
+    purpose: Prove lib/career-apply-question-bank.js on a made-up person's real store folder, with the kernel's card id derivation recomputed as the kernel makes it.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-question-bank.test.mjs]}
+    expected:
+      - The questions the job on the computer waits on are learned from the kernel's work record (the waiting words and open card ids), each under the question id whose card id the kernel derives from that run, words holding " / " included, and nothing a card id does not confirm.
+      - Each question is kept once, owner-only, with the longest options any card listed and the jobs it stopped; a malformed entry is never kept.
+      - The record answers kept questions for the next approval with an option's exact words, never what Saved answers already answer, and leaves a bot check and an unsettled question out; another person's record answers them their way.
+      - The cards a page reads are kept and answered only when they are this run's.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary store folder."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never
+  - id: documents-staleness
+    name: Documents are written again only for an earlier letter date or an older documents revision
+    purpose: >-
+      Prove lib/career-documents-turn.js staleWhy on made-up packets: the only two reasons Fill in several writes a
+      job's documents again before approving it, so a Career release never makes every person's documents be written
+      again, one at a time.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-documents-turn.test.mjs]}
+    expected:
+      - Documents written today by an earlier Career (1.77.6, no revision recorded) stay fresh under this Career; a plain Career version bump makes nothing stale.
+      - A bump of the documents revision makes every packet that records an older one (or none) stale, and one that records the current revision stays fresh.
+      - A letter dated an earlier day than today in the letter's zone is stale, read from the letter itself, else from when the documents were last written; a letter written late in the evening is still today in that zone.
+      - The revision is read from the engine's documents_revision.py, and from a packet's first bytes or, failing that, its whole record.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary packet folders."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never
+  - id: apply-queue-schedule
+    name: Fill in several moving on every minute with no page open
+    purpose: Prove the career-apply-queue schedule's step (POST /apply-batch/tick) over Career's real routes on a made-up person's real store, with the kernel's ticket port stood in at the harness boundary as a work record per ticket.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-tick.test.mjs]}
+    expected:
+      - With no page open the tick starts the next approved job once the one before ended; each queue run waits five minutes for the person, a single approval thirty.
+      - A job waiting on a question card has its question learned under the id its open card confirms; when its run pauses at that wait the tick ends it with what it waited for and starts the next.
+      - The next approval answers that question from the person's own record before asking (the review's fromRecord and the packet's answers).
+      - A tick that finds the queue's lock held changes nothing and the next moves it on; a start whose acknowledgement was lost is sent again, once.
+      - A job written today by an earlier Career goes into the queue as it is; one whose cover letter is dated an earlier day, or whose documents were written under an older documents revision, is refused before approval with that reason and put in Generate again.
+      - The page's waiting cards are answered from the record only for the person's own run; another person's tick and a tick with words change nothing.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: didnt-go-through
+    name: Didn't go through, the list of applications Career tried and did not submit
+    purpose: Prove GET /didnt-go-through through Career's real routes (the assisted application's, the fill-in queue's and the new list's) on made-up people's real stores, with the kernel's ticket port stood in at the harness boundary as a work record per ticket.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-didnt-go-through.test.mjs]}
+    expected:
+      - A run that failed, paused, was stopped, was not seen or was left open at Review is listed with Career's own words and the next step (Go on, Approve again, or open the job), newest first, one row per job with company, title, site and host.
+      - A job sent, one still going, one he applied to himself and one he removed are not listed; what is on his computer now is named apart.
+      - With time moved on, an approval that ended before it started, a run never started, and a run left waiting or at Review past its approval and the wall limit are listed; Go on is not offered once the approval ended.
+      - Fill in several's ended jobs say the queue's words (left open, failed, skipped, approval ended); a job in line or on the computer is not listed.
+      - The latest attempt wins (Go on after the queue failed it, a newer approval, Generate again after an application and the reverse); Generate again's failed job and one skipped because its posting closed are listed.
+      - Another person, a person with no store and a signed-out caller see nothing of anyone's, and a source that cannot be read leaves the others listed and is named.
+      - The queue's Skip of a job that waited for him (its run stopped through its ticket) keeps what it waited for on the entry and its run, an advance that finds the run stopped first keeps it too, any other Skip says what it said, and the list shows those words before and after the queue is cleared.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: didnt-go-through-page
+    name: Didn't go through on My jobs at 1440x900 and 412x915
+    purpose: Prove the Didn't go through tab on the shipped My jobs page in Chromium at 1440x900 and 412x915 for made-up people, every list, queue and run call going to Career's real routes on the person's real store; the counts, the person and the kernel's own routes are stood in.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-didnt-go-through-browser.test.mjs]}
+    expected:
+      - My jobs' stage row has Didn't go through after Getting ready with its count, on Saved too; Applications' row does not.
+      - The tab has no search, filters, Table or pager, and lists the jobs newest first, each with its title linking to the job's page, company, site, when it ended, What went wrong and What to do next, and one filled button.
+      - Approve again opens the fill-in queue's approval sheet for that job and, approved, the job leaves the list and the count goes down.
+      - Go on is refused while another job is being filled in on his computer, and otherwise goes on with the same approval and opens the job's page.
+      - With nothing listed the tab reads Nothing to fix with Open Getting ready; nothing is wider than the screen.
+      - A job the queue skipped while it waited for an answer reads Skipped while it waited for you with the question, and Approve again.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
+  - id: answers-to-review
+    name: Answers to review, the written questions and the facts only the person can answer
+    purpose: Prove Answers to review through Career's real routes (the assisted application's, the fill-in queue's, Saved answers and the new ones) on made-up people's real stores, with the kernel's ticket port stood in as a work record per ticket and the engine's background start running the real drafting module with fixture inference.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-answers-review.test.mjs]}
+    expected:
+      - A run waiting on a written question card and a run that paused on it (its receipt's card id) list one question with both jobs, the one on the computer marked.
+      - Career asks its specialist for a draft only of a written question (never a check or a fact no record holds), once while it is ready, never while another Career run holds the person's store, and at most three times when the record does not support it; the draft names the role it drew on.
+      - Approve keeps the answer in Saved answers under the exact id and the other ids its words take, puts the paused job back in Fill in several approved again with that answer in its packet, and names the card still waiting for the page to answer.
+      - The same question at another employer goes back with the saved answer by itself, at most twice a job; then it is the person's again.
+      - A plain question and a check take the person's answer; a check is never kept; an answer over 2,000 characters is refused.
+      - Skip and Review again; another person never sees or answers it, and a card of another person's run is not taken.
+      - Answer written questions without my review is off by default; on, a ready draft is used straight away, still listed as answered automatically, and a later edit replaces it.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port and the background start are scripted stand-ins."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: answers-to-review-drafts
+    name: Career drafts a written answer only from the person's record
+    purpose: Prove the drafting engine (jobhunter.written_answers) on a real owner SQLite store with fixture inference through enrich.complete, and the launcher's answers-draft verb.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-written-answers.test.mjs]}
+    expected:
+      - A written question gets a two-to-five-sentence first-person draft from the record and the job's cover letter, with the role it drew on, through one enrich.complete call.
+      - A check that a person is human and a fact no record holds cost no model call and are never drafted.
+      - A tool the record never names, one sentence, a third-person answer, an answer with nothing recorded behind it and the model's none are refused with their reason; a rail that stops answering ends the run's model calls.
+      - The open-source work reaches the prompt only for a job whose documents opted it in; the drafts file is the person's own (0600, refused through a link).
+      - The launcher maps answers-draft to jobhunter.written_answers.run with the request in CH_ANSWER_DRAFTS.
+    prerequisites: [runner:node-test, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "The contract removes its temporary owner store."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: answers-to-review-page
+    name: Answers to review, Didn't go through and Saved answers at 1440x900 and 412x915
+    purpose: Prove the shipped Answers to review page, My jobs' Didn't go through and Saved answers in Chromium for made-up people, every Career call going to Career's real routes on the person's real store; the kernel's card routes, the person and the counts are stood in.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-answers-review-browser.test.mjs]}
+    expected:
+      - The page lists the written question with the jobs waiting on it, Career's draft read-only with the role it drew on, and Approve, Edit then Approve, Write my own and Skip; plain questions and a check have an answer box.
+      - Edit then Approve saves the edited words, the paused job goes back in Fill in several, the card waiting on the computer is answered in the person's session without Keep, and the card says so; a plain answer the same; Skip and Review again.
+      - Didn't go through opens with Answers to review and its count, its tab carries N to review, and the waiting job leads with Answer the question.
+      - Saved answers has Answer written questions without my review, off, which saves on with Undo; nothing waiting reads Nothing to review.
+      - Every button is a 44px target (48px and full width on a phone) and nothing is wider than the screen.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the kernel's routes are scripted stand-ins."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
   - id: assisted-application-replay
     name: Go on after a timeout fills in again from where it was, and the receipt counts what came from memory
     purpose: Prove the job page of a paused assisted application and its receipt through Career's real routes on a made-up person's real store, in Chromium at 1440x900 and 412x915, when the kernel played back what an earlier attempt entered.
@@ -4500,9 +4662,11 @@ cases:
     expected:
       - GET /regenerate/older lists exactly the open jobs whose packet records an earlier Career version (or none) or lacks Resume_Parse.docx, best match first; a current packet, an applied job and a job with no documents are left out.
       - POST /regenerate queues his jobs in his order after the confirmation only, at most 300 in one run, and refuses an applied job with its reason while the others go in.
-      - Three jobs are regenerated in order, never two at once, each with its own tailoring notes; each new packet records this Career's version and carries Resume_Parse.docx, so they no longer count as older.
+      - Three jobs are regenerated in order, never two at once, each with its own tailoring notes; each new packet records this Career's version and the documents revision it was written under and carries Resume_Parse.docx, so they no longer count as older.
       - A failed job is tried once more and then left with its reason; Pause lets the job being written finish and starts nothing, Go on takes the next, Stop skips the rest; a fresh router reads the same queue and a run lost mid-way counts as one try and is made again.
       - His own Generate on a job the queue took wins and the queue skips it; a job applied while waiting is skipped; another person sees and changes nothing, and nobody signed out is answered.
+      - Production 2026-11-27, a take that sat through other runs holding his store (every advance refused before Career ran) is taken again with no try counted, never ended "The generation stopped before it finished, so nothing was saved"; both jobs are written on their first try.
+      - Documents take turns with Fill in several, nothing is taken or started while three approved jobs wait to be filled in, the queue says so, and the job is written once fewer wait.
     prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove the disposable store root; the model and Chromium are scripted stand-ins."}
@@ -4620,7 +4784,8 @@ cases:
       "If you are not selected for this position, continue to keep an eye on our careers page"; the other's subject ends
       "We have your application." The shipped lib/career-email-updates.js over real SQLite with the engine's own schema,
       the real application-email-state.json and job-board-state.json, and a scripted mailbox, for a made-up person and
-      made-up employers.
+      made-up employers. Production, 2026-11-27: two of six automatic confirmations named the employer and no job, one in
+      Workday words that read as nothing, and were linked to no application.
     level: integration
     runner: {kind: node-test, scope: package, files: [tests/career-email-updates.test.mjs]}
     expected:
@@ -4629,6 +4794,9 @@ cases:
       - A message dated earlier than five minutes after applied_at is not a rejection of that application; an offer and an interview invitation read as before.
       - The next check relabels a stored rejection whose subject is a confirmation inside that time and puts its job back to applied, or to the interview already on record, also when the mailbox cannot be read.
       - A rejection the person recorded, a job with a real rejection stored, an event outside that time or with another subject, and an event matched to several applications keep their status.
+      - A Workday-hosted confirmation ("Thank you for your job application with us!") and a SmartRecruiters-hosted one that name the employer and no job link to the one application there from five minutes before its applied_at to an hour after. Two applications there in that hour leave it for review, and three hours later it links to nothing.
+      - A rejection, an interview or an offer that names only the employer links to nothing, and the Workday receipt words never turn a rejection into an acknowledgement.
+      - The first check after the upgrade reads again, once, the newest fifty messages it had linked to nothing, only in the room its own reading leaves of its two messages. It records only acknowledgements and passes over a message deleted since.
     prerequisites: [runner:node-test]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close the in-memory database and remove the temporary store folder."}

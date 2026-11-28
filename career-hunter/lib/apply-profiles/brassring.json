@@ -551,8 +551,12 @@
   ],
   "signature": {
     "page": "questions",
-    "name": [],
-    "date": []
+    "name": [
+      "Full Legal Name"
+    ],
+    "date": [
+      "Date"
+    ]
   },
   "upload": {
     "resume": [

@@ -8,9 +8,13 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Support per-clip speed with pitch-preserving atempo, named color looks, stabilization, chroma key, background matting, captions, procedural RGBA stickers and 720p/1080p/4K 30/60fps export profiles.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Derive even-pixel output width and height from document.aspectRatio (16:9, 9:16, 1:1) across preview, 720p, 1080p and 4K.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Fit title text within the canvas safe area using the same sizing contract as the browser preview.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve the existing admitted timeline helper in the fixed native sandbox as well as the package layout.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Preserve complete Unicode title endings in the fixed renderer without changing saved text.
  */
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OUTPUT_NAME = exports.SAMPLES_PER_FRAME = exports.SAMPLE_RATE = exports.TIMELINE_FPS = exports.TimelineCompileError = exports.DEFAULT_ASPECT_RATIO = exports.ASPECT_RATIOS = void 0;
+exports.OUTPUT_NAME = exports.SAMPLES_PER_FRAME = exports.SAMPLE_RATE = exports.TIMELINE_FPS = exports.TimelineCompileError = exports.DEFAULT_ASPECT_RATIO = exports.ASPECT_RATIOS = exports.renderTitleText = exports.titleFontSize = void 0;
 exports.resolveCompileSpec = resolveCompileSpec;
 exports.clipDuration30 = clipDuration30;
 exports.atempoStages = atempoStages;
@@ -18,10 +22,11 @@ exports.compileClipVisualFilters = compileClipVisualFilters;
 exports.appendStickerGraph = appendStickerGraph;
 exports.compileTimeline = compileTimeline;
 const video_edit_multitrack_compiler_1 = require("./video-edit-multitrack-compiler");
+// The native renderer flattens its admitted helpers under /helpers. Both layouts load the same canonical module.
+_a = require(__dirname === '/helpers' ? './timeline-validation.mjs' : '../tools/editor/timeline-validation.mjs'), exports.titleFontSize = _a.titleFontSize, exports.renderTitleText = _a.renderTitleText;
 exports.ASPECT_RATIOS = Object.freeze(['16:9', '9:16', '1:1']);
 exports.DEFAULT_ASPECT_RATIO = '16:9';
 class TimelineCompileError extends Error {
-    code;
     constructor(code) {
         super(code);
         this.code = code;
@@ -33,7 +38,6 @@ exports.SAMPLE_RATE = 48000;
 exports.SAMPLES_PER_FRAME = exports.SAMPLE_RATE / exports.TIMELINE_FPS;
 exports.OUTPUT_NAME = 'output.mp4';
 const MAX_FRAMES_30 = 1800;
-const TITLE_DIVISORS = Object.freeze({ small: 24, medium: 16, large: 10 });
 const FONT_PATH = /^\/[A-Za-z0-9/_.-]{1,255}\.(?:ttf|otf)$/;
 const LOOKS = Object.freeze({
     none: { sat: 1, con: 1, bri: 0, rs: 0, gs: 0, bs: 0 },
@@ -295,12 +299,12 @@ function titleChain(graph, input, total30, spec) {
         const start30 = checkInt(title.start, 0, total30 - 1), end30 = checkInt(title.end, start30 + 1, total30);
         if (typeof title.text !== 'string' || title.text.length > 240 || /[\u0000-\u001f]/.test(title.text))
             failInvalid();
-        const size = Math.round(Math.min(spec.width, spec.height) / TITLE_DIVISORS[title.size]);
+        const size = (0, exports.titleFontSize)(title.text, title.size, spec.width, spec.height);
         if (!size || !['top', 'center', 'bottom'].includes(title.position))
             failInvalid();
         const y = title.position === 'top' ? `${margin}` : title.position === 'center' ? '(h-text_h)/2' : `h-text_h-${margin}`;
         const name = `title-${index}.txt`;
-        files.push({ name, text: title.text });
+        files.push({ name, text: (0, exports.renderTitleText)(title.text) });
         return `drawtext=textfile=${name}:expansion=none:fontfile=${input.fontFile}:fontsize=${size}:fontcolor=white:borderw=3:bordercolor=black:`
             + `x=(w-text_w)/2:y=${y}:enable='between(n,${start30 * spec.fpsScale},${end30 * spec.fpsScale - 1})'`;
     });

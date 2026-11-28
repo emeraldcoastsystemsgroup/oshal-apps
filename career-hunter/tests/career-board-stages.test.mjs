@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the shared stage control reads Getting ready (was Preparing); the expected stage names follow.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: this unserved page draws the shared stage control, which now shows the row of one bar section and has no To approve; the expected row follows.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | ?view=approve opens Saved on this page and never goes to the approvals address: that address forwards to the Job Board with the same query, so the two would have sent a browser back and forth.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "have a new tab that listas the failed aplications and what went wrong"): My jobs' stage row gains Didn’t go through after Getting ready; this unserved page draws the shared control, so its row follows.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +35,7 @@ test('phone: the stage control, old addresses and an empty stage', async () => {
   try {
     const stages = page.getByRole('tablist', { name: 'Application stages' });
     await stages.getByRole('tab', { name: 'Getting ready' }).waitFor();
-    assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'Getting ready', 'Removed'], 'the row of the section Getting ready is in');
+    assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'Getting ready', 'Didn’t go through', 'Removed'], 'the row of the section Getting ready is in');
     assert.equal(await stages.getByRole('tab', { name: 'Getting ready' }).getAttribute('aria-selected'), 'true', '?view=queue is Getting ready');
     assert.equal(await page.locator('#min_pay').isVisible(), false, 'no pay filter while preparing');
     await page.getByRole('heading', { name: 'Nothing to prepare yet' }).waitFor();

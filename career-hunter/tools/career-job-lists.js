@@ -1,4 +1,6 @@
 /* CHANGE LOG:
+ * 34 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0: the stage row's Didn’t go through also carries how many questions wait on Answers to review (tools/career-answers-review.js count, key answersToReview), beside its own count.
+ * 33 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "for any aplication that doesnt submit correctly have a new tab that listas the failed aplications and what went wrong"): ?view=didnt-go-through opens Didn’t go through, the stage of My jobs after Getting ready. Its list is tools/career-didnt-go-through.js's (GET /didnt-go-through, each job that did not go through with what went wrong and what to do next), so the job feed, the search row, the filters, the pager and the Table are not this stage's; the fill-in queue panel stays above it, and when a job in that queue changes state the list is read again. The stage row's count of it is that list's count, read on the stages of My jobs. Guard: tests/career-didnt-go-through-browser.test.mjs.
  * 32 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-CONCURRENT (Roger, 2026-11-25: "when im batch running resumes and trying to look for jobs i cant post them .. hit save... ect.."): Save, Unsave and Remove on My jobs wait while a résumé is written and save by themselves (tools/career-pending-writes.js, loaded by the page frame). Keeping a job's description when its sheet opens is the sheet's own work with its own fallback when Career is busy (it reads the description for the view), so it is sent as batch work and does not wait. Guard: tests/career-concurrent-writes-browser.test.mjs, tests/career-job-details-sheet-browser.test.mjs.
  * 31 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday, and his open jobs need new documents): Generate again (tools/career-regenerate.js) is mounted above the jobs on Saved, Getting ready and New matches, the stages whose jobs have documents; a List row of a job in its queue says its place (Generate again: In line, Starting, Writing now). Guard: tests/career-regenerate-browser.test.mjs.
  * 30 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH, store gate: the fill-in queue panel is not mounted on New matches (its swipe deck and status line are the match deck's own; tests/career-match-deck-page.test.mjs). Saved, Getting ready and the other stages show it.
@@ -32,14 +34,16 @@
  * 17 | maintainer@emeraldcoastsystemsgroup.com | Restore only the optimistically removed phone card and its history entry after an exact native busy refusal, preserving explicit retry and acknowledged saves.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Name Open application, explain preparation immediately and retain per-job busy, acknowledged and unknown states across redraws; reconcile unknown writes read-only before any separate manual retry.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Remove a Career pick through its existing owner board dismissal, clearing Saved while retaining application and native ticket history. */
-(()=>{'use strict';const $=id=>document.getElementById(id),query=new URLSearchParams(location.search),view=query.get('view'),recommended=view==='matches',stage={matches:'matches',queue:'queue',status:'status',interviewing:'interview',offer:'offer',closed:'closed',dismissed:'dismissed'}[view]||'saved';
+(()=>{'use strict';const $=id=>document.getElementById(id),query=new URLSearchParams(location.search),view=query.get('view'),recommended=view==='matches',stage={matches:'matches',queue:'queue',status:'status',interviewing:'interview',offer:'offer',closed:'closed',dismissed:'dismissed','didnt-go-through':'didnt'}[view]||'saved';
  /* ?view=approve is the address the To approve stage had. It opens Saved, where the jobs Career picked lead the list. */
  const fromApprove=view==='approve';
  const DONE=new Set(['applied','interview','offer','rejected']),labels={saved:'My jobs',queue:'Getting ready',status:'Applied',matches:'New matches',interview:'Interviewing'};
  /* The stages the row gained when Applications became its own bar section (judge's report 2026-11-11, change 9): the title, what the page says it holds and what an empty one says. APPLICATIONS are the stages of jobs a person has applied to; FEED and VIEW are the status the feed is asked for and the ?view= each stage answers. */
  const ADDED={offer:['Offer','Applications that reached an offer.','No offers yet','An application that reaches an offer appears here.'],closed:['Closed','Applications that ended without an offer.','Nothing closed','An application that is turned down appears here.'],dismissed:['Removed','Jobs you removed. Prepare one to bring it back.','Nothing removed','A job you remove from your lists is kept here.']};
  for(const key of Object.keys(ADDED))labels[key]=ADDED[key][0];
- const APPLICATIONS=new Set(['status','interview','offer','closed']),FEED={status:'applied',closed:'rejected'},VIEW={matches:'matches',queue:'queue',status:'status',interview:'interviewing',offer:'offer',closed:'closed',dismissed:'dismissed'},ROW={saved:'saved',queue:'preparing',status:'applied',matches:'matches',interview:'interviewing',offer:'offer',closed:'closed',dismissed:'dismissed'};
+ const APPLICATIONS=new Set(['status','interview','offer','closed']),FEED={status:'applied',closed:'rejected'},VIEW={matches:'matches',queue:'queue',status:'status',interview:'interviewing',offer:'offer',closed:'closed',dismissed:'dismissed',didnt:'didnt-go-through'},ROW={saved:'saved',queue:'preparing',status:'applied',matches:'matches',interview:'interviewing',offer:'offer',closed:'closed',dismissed:'dismissed',didnt:'didnt-go-through'};
+ /* 1.77.6: Didn't go through lists what Career tried to apply to and did not submit (tools/career-didnt-go-through.js); the job feed, its search, filters, pager and Table are not this stage's. */
+ const DIDNT=stage==='didnt';labels.didnt='Didn’t go through';
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function companySentBadge(job){const n=Math.floor(Number(job?.companySentCount));if(!(n>=1))return '';const co=String(job?.company||'this company').trim()||'this company',label=n===1?`1 confirmed application sent to ${co}`:`${n} confirmed applications sent to ${co}`;return ` <span class="company-sent-badge" role="img" aria-label="${esc(label)}" title="${esc(label)}">✓ ${n} sent</span>`;}
  const fields=['q','sort','per','min_score','pay_period','min_pay','max_pay','days','remote','within'];let page=1,firstPage=1,rows=[],exhausted=false,epoch=0,controller=null,memoryKey=null,earlier=query.get('earlier')==='1',busy=false,returnY=0,firstLoad=true,savingJobs=new Set();
@@ -53,13 +57,14 @@
  const REPLY={acknowledged:'Application received',interview:'Interview reply',offer:'Offer',rejected:'Not selected'};
  $('pageTitle').textContent=labels[stage];document.title=labels[stage];$('pageDescription').textContent=stage==='saved'?'Your saved jobs. Open a job to compare its fit, or prepare an application.':stage==='queue'?'Open an application to tailor it, generate documents and review how to send it.':stage==='status'?'Applications currently in Applied status, and anything being sent now.':stage==='interview'?'Applications with a recorded interview.':'Jobs that match your résumé. Save the ones you want to go after.';
  if(ADDED[stage])$('pageDescription').textContent=ADDED[stage][1];
+ if(DIDNT){$('pageDescription').textContent='Applications Career tried that were not submitted, newest first, with what went wrong and what to do next.';$('keywordSearch').hidden=true;$('filters').hidden=true;$('pager').hidden=true;}
  $('searchModes').hidden=!recommended;if($('matchesLayoutSwitch'))$('matchesLayoutSwitch').hidden=!recommended;
  document.querySelector(`[data-career-tool="${recommended?'career-search':stage==='saved'?'career-board':stage==='queue'?'career-submissions':'career-application-status'}"]`)?.setAttribute('aria-current','page');
  $('sort').value=stage==='queue'?'generated':APPLICATIONS.has(stage)?'applied':stage==='dismissed'?'recent':recommended?'posted':'ai';
  /* Whether the person picked the sort themselves this visit; only such a sort is remembered and put back. */
  let sortChosen=false;$('sort').addEventListener('change',()=>{sortChosen=true;});
  /** @description Draw the stage row with fresh counts; called again after a job moves. @returns {void} */
- function drawStages(){if(window.CareerStages)void CareerStages.counts().then(counts=>CareerStages.render($('careerStages'),ROW[stage],counts));}
+ function drawStages(known){if(!window.CareerStages)return;const mine=Number.isSafeInteger(known)?Promise.resolve(known):!APPLICATIONS.has(stage)&&window.CareerDidntGoThrough?CareerDidntGoThrough.count():Promise.resolve(null),asked=!APPLICATIONS.has(stage)&&window.CareerAnswersReview?CareerAnswersReview.count():Promise.resolve(null);void Promise.all([CareerStages.counts(),mine,asked]).then(([counts,n,a])=>{if(Number.isSafeInteger(n))counts.didntGoThrough=n;if(Number.isSafeInteger(a))counts.answersToReview=a;CareerStages.render($('careerStages'),ROW[stage],counts);});}
  drawStages();
  document.querySelectorAll('[data-stage-filter="match"]').forEach(el=>{el.hidden=!['saved','matches'].includes(stage);});
  /* Near me (1.67.4): the stages of My jobs take Within and Distance from home; the stages of Applications do not. */
@@ -128,7 +133,12 @@
  /** @description A queued job's place in the fill-in queue, for its List row, or ''. @param {number} id @returns {string} */
  function batchWords(id){const entry=batchQueue?.entries.find(item=>item.postingId===id&&(item.active||item.state==='waiting'));return entry?'Fill-in queue: '+(window.CareerApplyBatch.WORD[entry.state]||entry.state)+(entry.active&&entry.reason?' · '+entry.reason:''):'';}
  /** @description Show his fill-in queue above the jobs; a change redraws the List's rows so each says its place. @returns {void} */
- function mountBatch(){const host=$('applyBatch');if(!host||recommended||!window.CareerApplyBatch||!window.CareerSubmit)return;CareerApplyBatch.mount(host,{say,onChange:queue=>{const before=JSON.stringify(batchQueue?.entries||[]);batchQueue=queue;if(JSON.stringify(queue?.entries||[])!==before&&!busy&&rows.length&&!window.CareerJobsTable?.active())render();}});}
+ function mountBatch(){const host=$('applyBatch');if(!host||recommended||!window.CareerApplyBatch||!window.CareerSubmit)return;CareerApplyBatch.mount(host,{say,onChange:queue=>{const before=JSON.stringify(batchQueue?.entries||[]),seen=batchSeen;batchSeen=true;batchQueue=queue;if(DIDNT){if(seen&&placesOf(queue)!==placesOf({entries:JSON.parse(before)}))void didnt?.refresh();return;}if(JSON.stringify(queue?.entries||[])!==before&&!busy&&rows.length&&!window.CareerJobsTable?.active())render();}});}
+ /** @description Each queued job's state, the part of the queue Didn't go through lists from. @param {object|null} queue @returns {string} */
+ function placesOf(queue){return JSON.stringify((queue?.entries||[]).map(entry=>[entry.postingId,entry.state,entry.active]));}
+ let didnt=null,batchSeen=false;
+ /** @description Didn't go through: its own list (tools/career-didnt-go-through.js) in the page's list, its count on the stage row. @returns {void} */
+ function mountDidnt(){if(!window.CareerDidntGoThrough){$('requestState').textContent='This list could not be loaded. Reload the page.';return;}didnt=CareerDidntGoThrough.mount($('list'),{status:$('requestState'),say,onCount:n=>drawStages(n)});}
  let regenQueue=null;
  const regenStates=queue=>JSON.stringify((queue?.entries||[]).map(entry=>[entry.postingId,entry.state]));
  function regenWords(id){const entry=regenQueue?.entries.find(item=>item.postingId===id&&['queued','claimed','running'].includes(item.state));return entry?'Generate again: '+(window.CareerRegenerate.WORD[entry.state]||entry.state):'';}
@@ -246,7 +256,7 @@
  /** @description The deck's refill: read the first page again and add what is new. The jobs just saved or passed have left it, so the next ones follow. @returns {Promise<void>} */
  function deckMore(){page=1;return load(true,false);}
  function render(){
-  if(window.CareerJobsTable?.active())return;
+  if(DIDNT||window.CareerJobsTable?.active())return;
   rows=rows.filter(job=>!removing.has(job.id));picked=picked.filter(job=>!removing.has(job.id));
   /* The deck shows one job; how many are left is the stage row's count, so the line that counts rows is cleared once a read has answered. */
   if(CareerMatchDeck.draw(deckLayout())){if(!busy)$('requestState').textContent='';return;}
@@ -259,6 +269,7 @@
   $('pager').innerHTML=`<span class="hint">${rows.length?`Showing ${((firstPage-1)*Number($('per').value))+1}–${((firstPage-1)*Number($('per').value))+rows.length}`:'No results'}${exhausted?' · End of this view':''}</span><div class="actions">${firstPage>1?'<button class="btn" data-page="previous">← Previous</button>':''}${!exhausted?'<button class="btn" data-page="more">Load more</button><button class="btn" data-page="next">Next →</button>':''}</div>`;
  }
  async function load(append=false,top=false){
+  if(DIDNT){await didnt?.refresh();return;}
   if(recommended){await resumeReady;if(noResume()||readingResume()){rows=[];renderWithoutResume();return;}}
   if(window.CareerJobsTable?.active()){address();remember();return CareerJobsTable.load();}
   controller?.abort();controller=new AbortController();const current=++epoch;if(!append)viewEpoch+=1;busy=true;reading=true;loadError=null;$('list').setAttribute('aria-busy','true');$('requestState').textContent=rows.length?'Updating results…':'Loading jobs…';if(!rows.length&&deckLayout())CareerMatchDeck.draw(true);
@@ -411,5 +422,5 @@
  $('showEarlier').onclick=()=>{earlier=true;page=1;refilter();};window.addEventListener('pagehide',()=>{remember();for(const check of fitChecks.values())check.stop?.();fitChecks.clear();render();});
  void CareerNavigation.refreshCounts().then(data=>{if(stage==='queue'&&data?.earlierPreparation){$('earlier').hidden=false;$('earlierCount').textContent='('+data.earlierPreparation+')';}});
  (async()=>{let owner='';try{const response=await fetch('/api/auth/user',{signal:AbortSignal.timeout(2000)}),identity=await response.json();if(response.ok&&identity.authenticated&&identity.tenant&&identity.principal_id){owner=identity.tenant+':'+identity.principal_id;memoryKey='career-journey:'+identity.tenant+':'+identity.principal_id+':'+stage;const stored=JSON.parse(sessionStorage.getItem(memoryKey)||'null');const explicit=fromApprove||fields.some(key=>query.has(key))||query.has('page');if(stored&&!explicit){for(const key of fields)if(stored.filters?.[key]!=null&&(key!=='sort'||stored.sortChosen===true))$(key).value=stored.filters[key];sortChosen=stored.sortChosen===true;page=stored.page||1;returnY=stored.scrollY||0;earlier=stored.earlier===true;}}}catch{/* URL and current session still work without persistent preferences. */}
-  for(const key of fields)if(query.has(key))$(key).value=query.get(key);if(query.has('page'))page=Math.max(1,Number(query.get('page'))||1);if(![25,50,100,200].includes(Number($('per').value)))$('per').value='50';firstPage=page;attachTable(owner);mountBatch();mountRegenerate();void load();})();
+  for(const key of fields)if(query.has(key))$(key).value=query.get(key);if(query.has('page'))page=Math.max(1,Number(query.get('page'))||1);if(![25,50,100,200].includes(Number($('per').value)))$('per').value='50';firstPage=page;if(DIDNT){mountBatch();mountDidnt();return;}attachTable(owner);mountBatch();mountRegenerate();void load();})();
 })();

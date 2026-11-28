@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read submission-mail updates through native caller-owned Gmail egress, conservatively match submitted jobs, and retain bounded private receipts without sending mail.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | An employer's automatic confirmation was recorded as a rejection and its job set to rejected (production, 2026-11-26: two applications, each confirmed within seconds; one confirmation says what to do "if you are not selected for this position"). The rejection words were tested before the acknowledgement words, anywhere in the text. Now (1) a message that confirms receipt is a rejection only when it states a decision; (2) rejection words count only in what a sentence states: a clause that holds "if", "unless", "until", "should we", "in the event", "in case", "whether" or "when the position", or that speaks of candidates in general, does not count, nor does the rest of its sentence; (3) a message dated earlier than five minutes after a job's applied_at, the slack the matcher already allows before it, is not a rejection of that application. The next check relabels a stored rejection whose subject is a confirmation inside that time, and puts its job back when nothing else says rejected.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.76.16 (Roger's PointClickCare application, 2026-11-26): its confirmation's subject is "Thank you for your application to PointClickCare!", words the receipt pattern did not have (it knew "thank you for applying"), so it was stored as a rejection and the repair could not see it as a confirmation. "Thank you for your application" and its near forms confirm receipt.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5 (production, 2026-11-27: six applications, all six employers confirmed within two seconds, and two confirmations were linked to nothing, because every link needed the job title). A Workday-hosted confirmation ("Thank you for your job application with us!", "We just wanted to confirm that we have received it") read as nothing; a SmartRecruiters-hosted one read as an acknowledgement but named the employer and no job. (1) Those Workday words (RECEIPT) read as an acknowledgement and, unlike CONFIRMS, never set the rejection words aside, so no message that read as a rejection reads otherwise. (2) An acknowledgement that names an employer and no submitted job is linked to the person's one application at that employer dated from an hour before the message to five minutes after it; two or more wait for review. A rejection, an interview and an offer still need the title. (3) A state the earlier rules wrote reads again, once (readerRevision, beside version 1, which the earlier reader requires and the job board reads), the newest fifty messages they read and linked to nothing, in the room a check's own reading leaves of its two messages; it records only acknowledgements, so it changes no status, and passes over a message deleted since.
  */
 'use strict';
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
@@ -9,10 +10,16 @@ const boardState=require('./career-board-state');
 const FILE='application-email-state.json';
 /** The slack between a message's date and a job's applied_at, in milliseconds. A message up to five minutes before applied_at is still that application's mail; one earlier than five minutes after it cannot be its rejection. */
 const SLACK=300000;
+/** How long after applied_at an employer's confirmation that names no job is still that application's: an hour. Automatic confirmations come within seconds. */
+const RECEIPT_HOUR=3600000;
+/** The revision of the reading rules; a state an earlier one wrote reads again, once, up to READ_AGAIN of the messages it linked to nothing. */
+const READER_REVISION=2,READ_AGAIN=50;
 const OFFER=/(?:offer of employment|job offer|offer letter|pleased to offer)/;
 const INTERVIEW=/(?:schedule.{0,30}interview|interview invitation|invite.{0,30}interview|interview availability|interview with|next step.{0,30}interview)/;
 /** The words that confirm an application arrived. */
 const CONFIRMS=/(?:application.{0,25}(?:received|submitted|review)|received.{0,25}application|we have your application|thank you for applying|thanks for applying|thank(?:s| you) for (?:your|the|submitting (?:your|an)) application)/;
+/** Receipt words of a Workday-hosted confirmation. They read a message as an acknowledgement; unlike CONFIRMS they leave the rejection words counting, so a message that read as a rejection reads as one still. */
+const RECEIPT=/(?:thank(?:s| you) for (?:your|the|submitting (?:your|an)) job application|thank(?:s| you) for taking the time to submit (?:an|your) (?:job )?application|confirm(?:s|ing)? (?:that )?we (?:have |ve )?received)\b/;
 /** The rejection words as they were. They count in a statement, in a message that does not confirm receipt. */
 const REJECTION_WORDS=/(?:not (?:be )?(?:moving|proceeding)|other candidates|not selected|unsuccessful|regret to inform|will not be|position has been filled)/;
 /** A stated decision: the only rejection a message that confirms receipt can carry, since a confirmation uses the looser words about everyone. */
@@ -66,7 +73,7 @@ function statement(sentence){
   return (condition<0?clauses:clauses.slice(0,condition)).filter(Boolean).join(' ');
 }
 /**
- * @description What one message says about an application, from its words alone. An offer comes first. A rejection needs a statement: a stated decision in a message that confirms receipt, a decision or the older rejection words in one that does not. Then an interview, then a confirmation.
+ * @description What one message says about an application, from its words alone. An offer comes first. A rejection needs a statement: a stated decision in a message that confirms receipt, a decision or the older rejection words in one that does not (the RECEIPT words do not count as confirming receipt there). Then an interview, then a confirmation, by CONFIRMS or RECEIPT.
  * @param {string} subject The subject line.
  * @param {string} rest The snippet and the body; '' reads the subject alone.
  * @returns {{kind:string|null,otherwise:string|null,text:string}} The kind; the kind with the rejection left out, for a message too early to be one; the normalised text.
@@ -74,12 +81,12 @@ function statement(sentence){
 function reading(subject,rest){
   const raw=plain(subject)+'\n\n'+plain(rest),text=normal(raw);
   if(OFFER.test(text))return {kind:'offer',otherwise:'offer',text};
-  const confirms=CONFIRMS.test(text),otherwise=INTERVIEW.test(text)?'interview':confirms?'acknowledged':null;
+  const confirms=CONFIRMS.test(text),otherwise=INTERVIEW.test(text)?'interview':(confirms||RECEIPT.test(text))?'acknowledged':null;
   const rejected=raw.split(SENTENCE_END).map(statement).some(said=>DECISION.test(said)||(!confirms&&REJECTION_WORDS.test(said)));
   return {kind:rejected?'rejected':otherwise,otherwise,text};
 }
 /**
- * @description Matches one mailbox message to the submitted jobs it names (employer and title, dated no earlier than five minutes before applied_at) and reads its kind. A rejection is matched only to applications at least five minutes old when it was sent; when every named application is younger, the message is read without its rejection.
+ * @description Matches one mailbox message to the submitted jobs it names (employer and title, dated no earlier than five minutes before applied_at) and reads its kind. A rejection is matched only to applications at least five minutes old when it was sent; when every named application is younger, the message is read without its rejection. An acknowledgement that names no submitted job but names an employer is matched to the applications at that employer whose applied_at is from an hour before the message to five minutes after it, since an employer's automatic confirmation often names the employer and not the job; one is linked, two or more wait for review. A rejection, an interview and an offer need the title.
  * @param {object} message A mail API message with its payload.
  * @param {Array<{id:number,title:string,company:string,applied_at:string}>} jobs The person's submitted jobs.
  * @returns {object|null} The event to store, or null when the message is no update for any of them.
@@ -87,20 +94,18 @@ function reading(subject,rest){
 function match(message,jobs){
   const headers=message.payload?.headers||[];
   const header=name=>String(headers.find(h=>h.name.toLowerCase()===name)?.value||'');
-  const subject=header('subject').slice(0,500),said=reading(subject,(message.snippet||'')+'\n\n'+content(message.payload)),text=said.text;
+  const subject=header('subject').slice(0,500),said=reading(subject,(message.snippet||'')+'\n\n'+content(message.payload)),text=' '+said.text+' ';
   const at=Number(message.internalDate),date=Number.isFinite(at)?new Date(at).toISOString():null;
   let kind=said.kind;
   if(!kind||!date)return null;
-  let candidates=jobs.filter(job=>{
-    if(!Number.isFinite(timestamp(job.applied_at))||at<timestamp(job.applied_at)-SLACK)return false;
-    const company=normal(job.company).replace(/ (?:inc|llc|ltd|corporation|corp)$/,'');
-    const title=normal(job.title);
-    return company.length>=3&&title.length>=6&&(' '+text+' ').includes(' '+company+' ')&&(' '+text+' ').includes(' '+title+' ');
-  });
+  const named=job=>{const company=normal(job.company).replace(/ (?:inc|llc|ltd|corporation|corp)$/,'');return company.length>=3&&text.includes(' '+company+' ');};
+  const dated=jobs.filter(job=>Number.isFinite(timestamp(job.applied_at))&&at>=timestamp(job.applied_at)-SLACK);
+  let candidates=dated.filter(job=>{const title=normal(job.title);return named(job)&&title.length>=6&&text.includes(' '+title+' ');});
   if(kind==='rejected'){
     const old=candidates.filter(job=>at>=timestamp(job.applied_at)+SLACK);
     if(old.length)candidates=old;else kind=said.otherwise;
   }
+  if(!candidates.length&&said.kind==='acknowledged')candidates=dated.filter(job=>at<=timestamp(job.applied_at)+RECEIPT_HOUR&&named(job));
   if(!kind||!candidates.length)return null;
   return {messageId:String(message.id),threadId:String(message.threadId||''),subject,date,kind,
     postingId:candidates.length===1?Number(candidates[0].id):null,
@@ -129,6 +134,37 @@ function repair(dir,db,state){
   for(const event of wrong)event.kind='acknowledged';
   return wrong.length;
 }
+/**
+ * @description Once, for a state an earlier revision of the reading rules wrote: queues the newest READ_AGAIN messages it read and linked to nothing, newest first, for these rules to read again. A state this revision starts has nothing to read again.
+ * @param {object} state The stored email state; changed in place.
+ * @returns {void}
+ */
+function queueReadAgain(state){
+  if(state.readerRevision>=READER_REVISION)return;
+  const linked=new Set(state.events.map(event=>String(event.messageId)));
+  const ids=state.seen.filter(id=>!linked.has(String(id))).slice(-READ_AGAIN).reverse();
+  if(ids.length)state.readAgain=ids;
+  state.readerRevision=READER_REVISION;
+}
+/**
+ * @description Reads queued messages again in the room the check's own reading left. It records only an acknowledgement, the one reading the newer rules add, placed in date order among the stored events, and changes no job status. A message the mailbox no longer has is passed over; any other failure leaves the message queued for the next check.
+ * @param {object} state The stored email state; changed in place.
+ * @param {Array<object>} jobs The person's submitted jobs.
+ * @param {function} api The check's mailbox reader; api(url,true) answers null for a message the mailbox no longer has.
+ * @param {number} room How many messages this check may still read.
+ * @returns {Promise<void>}
+ */
+async function readAgain(state,jobs,api,room){
+  const queue=Array.isArray(state.readAgain)?state.readAgain:[];
+  while(room-->0&&queue.length){
+    const message=await api('messages/'+encodeURIComponent(queue[0])+'?format=full',true),event=message&&match(message,jobs);
+    if(event?.kind==='acknowledged'&&!state.events.some(e=>e.messageId===event.messageId)){
+      event.mailbox=state.mailbox;state.events.splice(state.events.findLastIndex(e=>e.date<=event.date)+1,0,event);
+    }
+    queue.shift();
+  }
+  if(queue.length)state.readAgain=queue;else delete state.readAgain;
+}
 function expectedMailbox(dir){
   const file=path.join(dir,'career_db.json'),s=fs.lstatSync(file);
   if(!s.isFile()||s.isSymbolicLink()||s.size>20*1024*1024)throw Error('Resume profile unavailable');
@@ -141,13 +177,14 @@ function publicState(state){return {mailbox:state.mailbox||null,expectedMailbox:
   pending:!!(state.pageToken||state.pendingIds?.length),events:state.events.slice(-50).reverse()};}
 async function check(dir,db,fetcher=fetch,now=Date.now()){
   const state=read(dir),checked=new Date(now).toISOString();
-  const api=async url=>{
+  const api=async(url,gone)=>{
     const response=await fetcher('https://gmail.googleapis.com/gmail/v1/users/me/'+url,{method:'GET',signal:AbortSignal.timeout(5500)});
+    if(gone&&response.status===404)return null;
     if(!response.ok)throw Error([401,403].includes(response.status)?'Connect the submission Gmail account with mail read access in Connections.':'Submission mailbox unavailable (HTTP '+response.status+').');
     return response.json();
   };
   try{
-    repair(dir,db,state);
+    repair(dir,db,state);queueReadAgain(state);
     const expected=expectedMailbox(dir);state.expectedMailbox=expected;
     const profile=await api('profile');state.mailbox=String(profile.emailAddress||'').toLowerCase();
     if(!expected||state.mailbox!==expected)throw Error('The connected Gmail mailbox must match the submission email on your resume ('+(expected||'email missing')+').');
@@ -157,6 +194,7 @@ async function check(dir,db,fetcher=fetch,now=Date.now()){
       WHERE s.status IN ('applied','interview','offer','rejected') AND s.applied_at IS NOT NULL
         AND julianday(s.applied_at)>=julianday(?) ORDER BY s.applied_at DESC LIMIT 200`).all(since);
     if(!state.window){state.window={after:Math.floor((state.lastSuccessAt?Date.parse(state.lastSuccessAt)-86400000:now-7*86400000)/1000),before:Math.floor(now/1000)+1};}
+    let room=2;
     if(jobs.length){
       if(!state.pendingIds?.length){
         const q='after:'+state.window.after+' before:'+state.window.before+' {application interview "job offer" "offer letter"}';
@@ -166,7 +204,7 @@ async function check(dir,db,fetcher=fetch,now=Date.now()){
       // Only two messages per bounded native frame. Keep the remaining page durable before advancing.
       for(const id of state.pendingIds.slice(0,2)){
         if(!state.seen.includes(id)){
-          const message=await api('messages/'+encodeURIComponent(id)+'?format=full');
+          const message=await api('messages/'+encodeURIComponent(id)+'?format=full');room--;
           const event=match(message,jobs);
           if(event){
             if(event.postingId&&!event.needsReview){
@@ -186,6 +224,8 @@ async function check(dir,db,fetcher=fetch,now=Date.now()){
       }
     }else{state.pendingIds=[];state.pageToken=null;}
     if(!state.pendingIds?.length&&!state.pageToken){state.lastSuccessAt=new Date(state.window.before*1000).toISOString();delete state.window;}
+    // Reading again comes after the window is settled, so a failure there never holds the window open.
+    if(jobs.length)await readAgain(state,jobs,api,room);
     state.lastCheckedAt=checked;state.status='connected';state.error=null;
   }catch(error){
     state.lastCheckedAt=checked;state.status='unavailable';state.error=String(error.message||'Submission email check failed').slice(0,500);

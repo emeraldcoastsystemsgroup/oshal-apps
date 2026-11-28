@@ -243,7 +243,7 @@ is a pure module with tests; the relay role of B1 answers a controller's status 
 tip by proxy and delivers a queued command after a simulated link return, over loopback node
 doubles; a queued command older than the window is dropped naming the reason.
 
-## The assistant cannot call its route-backed tools yet (2026-10-06)
+## ~~The assistant cannot call its route-backed tools yet (2026-10-06)~~ — CLOSED in 0.5.2
 
 **CLOSED 2026-11-19 (version 0.5.2).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `0.5.2` verifies explicit `posture: inline` + `chatBot: relay-designer`, adds explicit object `inputSchema` declarations to `relay-capabilities` and `relay-list-plans`, checks `personas/relay-designer.yaml` plain-prose and ```` ```tool_call ```` `{"tool": ...}` rules, and guards manifest, persona, and route execution in `tests/bot-tools-contract.test.js`.
 

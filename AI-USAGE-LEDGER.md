@@ -50,6 +50,7 @@ Coverage: 90 packages, 90 rated, 0 unrated.
 | career-hunter | 64 / 256 (declared) | linkedin-profile-draft | profile draft turn | T2 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | profile-ingest | resume or artifact ingest | T2 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | story-review | story review answer | T2 | none | template | not yet measured | none recorded |
+| career-hunter | 64 / 256 (declared) | application-answers | written application answer draft | T2 | none | disable | not yet measured | none recorded |
 | circuit-lab | 288 / 1152 (declared) | circuit-engineer-chat | engineer chat turn | T4 | none | disable | not yet measured | none recorded |
 | classroom-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | cloud | 64 / 256 (declared) | cloud-op | cloud operation ticket | T4 | none | disable | not yet measured | none recorded |

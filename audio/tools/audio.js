@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | OSHAL Audio Studio multitrack workbench controller, Web Audio DSP graph, surface bridge, and revision-locked concierge integration.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Wire real CAS stem WAV reload, full 5-stage channel strip persistence, stereo Web Audio playback, file import, slice/loop/filler tools, Kokoro TTS, mic capture, and Cockpit concierge handoff.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | Persist explicit track removals, clear empty/new sessions, preserve the first saved draft and zero reverb.
  */
 'use strict';
 
@@ -21,6 +22,7 @@
     targetLufs: -14.0,
     tempo: 120,
     tracks: [],
+    removedStemIds: new Set(),
     selectedTrackIdx: 0,
     activeSourceNodes: [],
     currentProject: null,
@@ -157,7 +159,7 @@
           <input type="hidden" class="trk-eq-mid" value="${Number(track.eqMidDb || 0)}" data-bridge-field="track:${roleKey}:eqMidDb">
           <input type="hidden" class="trk-eq-high" value="${Number(track.eqHighDb || 0)}" data-bridge-field="track:${roleKey}:eqHighDb">
           <input type="hidden" class="trk-comp-ratio" value="${Number(track.compRatio || 2.5)}" data-bridge-field="track:${roleKey}:compRatio">
-          <input type="hidden" class="trk-reverb-mix" value="${Number(track.reverbMix || 0.08)}" data-bridge-field="track:${roleKey}:reverbMix">
+          <input type="hidden" class="trk-reverb-mix" value="${Number(track.reverbMix ?? 0.08)}" data-bridge-field="track:${roleKey}:reverbMix">
           <label class="check-label"><input type="checkbox" class="trk-duck" ${track.ducking ? 'checked' : ''} data-bridge-field="track:${roleKey}:ducking"> Duck</label>
           <button type="button" class="btn ghost btn-select-trk">Strip</button>
           <button type="button" class="btn danger btn-remove-trk">Remove</button>
@@ -176,6 +178,7 @@
       setMobilePane('right');
     });
     card.querySelector('.btn-remove-trk').addEventListener('click', () => {
+      if (track.persisted) StudioState.removedStemIds.add(track.id);
       StudioState.tracks.splice(idx, 1);
       StudioState.isDirty = true;
       selectTrackIndex(StudioState.selectedTrackIdx);
@@ -249,7 +252,8 @@
     track.eqMidDb = Number(el('strip-eq-mid')?.value) || 0;
     track.eqHighDb = Number(el('strip-eq-high')?.value) || 0;
     track.compRatio = Math.max(1, Number(el('strip-comp-ratio')?.value) || 2.5);
-    track.reverbMix = Math.max(0, Math.min(1, Number(el('strip-reverb-mix')?.value) || 0.08));
+    const reverbMix = Number(el('strip-reverb-mix')?.value);
+    track.reverbMix = Math.max(0, Math.min(1, Number.isFinite(reverbMix) ? reverbMix : 0.08));
     track.distortionMode = el('strip-distortion-mode')?.value || 'bypass';
     track.driveDb = Math.max(0, Number(el('strip-drive-db')?.value) || 0);
     track.hpf = Boolean(el('strip-hpf')?.checked);
@@ -321,163 +325,12 @@
     syncChannelStripFromSelectedTrack();
   }
 
-  async function fetchProjectsList() {
-    try {
-      const res = await fetch('/api/audio/editor/projects');
-      if (!res.ok) return;
-      const data = await res.json();
-      StudioState.projects = Array.isArray(data.projects) ? data.projects : [];
-      renderProjectsSelectorAndTable();
-      if (!StudioState.currentProject && StudioState.projects.length > 0) {
-        await loadProjectById(StudioState.projects[0].id);
-      }
-    } catch {}
-  }
-
-  function renderProjectsSelectorAndTable() {
-    const sel = el('select-project-list');
-    const tbody = el('projects-tbody');
-    if (sel) {
-      sel.innerHTML = '<option value="">Unsaved Session</option>';
-      StudioState.projects.forEach((p) => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = `${p.title} (Rev ${p.revision || 1})`;
-        if (StudioState.currentProject?.id === p.id) opt.selected = true;
-        sel.appendChild(opt);
-      });
-    }
-    if (tbody) {
-      tbody.innerHTML = '';
-      StudioState.projects.forEach((p) => {
-        const tr = document.createElement('tr');
-        if (StudioState.currentProject?.id === p.id) tr.className = 'active';
-        const bpm = p.master?.tempo || p.tempo || 120;
-        tr.innerHTML = `<td>${p.title}</td><td class="num">${bpm}</td><td class="num">${p.revision || 1}</td>`;
-        tr.addEventListener('click', () => loadProjectById(p.id));
-        tbody.appendChild(tr);
-      });
-    }
-  }
-
-  async function loadProjectById(projectId) {
-    if (!projectId) return;
-    const res = await fetch(`/api/audio/editor/projects/${encodeURIComponent(projectId)}`);
-    if (!res.ok) return;
-    const { project } = await res.json();
-    if (!project) return;
-    await applyServerProjectState(project);
-    setStatus(`Loaded "${project.title}" (Rev ${project.revision || 1}).`);
-  }
-
-  async function applyServerProjectState(project) {
-    StudioState.currentProject = project;
-    StudioState.isDirty = false;
-    StudioState.sampleRate = Number(project.sampleRate || 48000);
-    StudioState.tempo = Number(project.tempo || project.master?.tempo || 120);
-    StudioState.masterGainDb = Number(project.master?.masterGainDb ?? 0);
-    if (el('project-title')) el('project-title').textContent = project.title;
-    if (el('input-project-title')) el('input-project-title').value = project.title;
-    if (el('input-tempo')) el('input-tempo').value = String(StudioState.tempo);
-    if (el('slider-master-gain')) el('slider-master-gain').value = String(StudioState.masterGainDb);
-    if (el('val-master-gain')) el('val-master-gain').textContent = `${StudioState.masterGainDb.toFixed(1)} dB`;
-    if (el('revision-badge')) el('revision-badge').textContent = `Rev ${project.revision || 1}`;
-
-    if (Array.isArray(project.stems) && project.stems.length > 0) {
-      const loaded = [];
-      for (const s of project.stems) {
-        const audio = await window.AudioUIHelpers.fetchStemPcm(s, StudioState.sampleRate);
-        const trk = createTrackObject(s.name || s.trackName, s.trackName || 'vocals', audio.left, StudioState.sampleRate, audio.right);
-        Object.assign(trk, {
-          id: s.id, persisted: true, blobHash: s.blobHash,
-          gainDb: Number(s.gainDb ?? 0), pan: Number(s.pan ?? 0),
-          eqLowDb: Number(s.eqLowDb ?? 0), eqMidDb: Number(s.eqMidDb ?? 0), eqHighDb: Number(s.eqHighDb ?? 0),
-          compRatio: Number(s.compRatio ?? 2.5), reverbMix: Number(s.reverbMix ?? 0.08),
-          distortionMode: s.distortionMode || 'bypass', driveDb: Number(s.driveDb ?? 0),
-          hpf: Boolean(s.hpf), ducking: Boolean(s.ducking), muted: Boolean(s.muted), solo: Boolean(s.solo),
-        });
-        recomputeTrackDsp(trk);
-        loaded.push(trk);
-      }
-      StudioState.tracks = loaded;
-      StudioState.selectedTrackIdx = Math.min(StudioState.selectedTrackIdx, Math.max(0, loaded.length - 1));
-      renderTracksDom();
-      syncChannelStripFromSelectedTrack();
-    }
-    renderProjectsSelectorAndTable();
-    emitSurfaceContext();
-  }
-
-  async function createNewProject() {
-    const title = el('input-project-title')?.value?.trim() || 'Studio Arrangement';
-    const tempo = Number(el('input-tempo')?.value) || 120;
-    const sampleRate = Number(el('select-sample-rate')?.value) || 48000;
-    const res = await fetch('/api/audio/editor/agent-projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, tempo, sampleRate }),
-    });
-    if (!res.ok) { setStatus('Unable to create project.', true); return null; }
-    const { project } = await res.json();
-    StudioState.currentProject = project;
-    await fetchProjectsList();
-    setStatus(`Created session "${project.title}" (Rev ${project.revision}).`);
-    return project;
-  }
-
-  async function persistUnsavedStems(projectId) {
-    for (const trk of StudioState.tracks) {
-      if (trk.persisted && trk.blobHash) continue;
-      const b64 = window.AudioUIHelpers.encodeTrackToWavBase64(trk, StudioState.sampleRate);
-      const res = await fetch(`/api/audio/editor/projects/${encodeURIComponent(projectId)}/stems`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: projectId, name: trk.name, trackName: trk.role, audioBase64: b64, mimeType: 'audio/wav' }),
-      });
-      if (res.ok) {
-        const out = await res.json();
-        trk.id = out.stem.id;
-        trk.blobHash = out.blobHash;
-        trk.persisted = true;
-      }
-    }
-  }
-
-  async function saveCurrentProjectRevision() {
-    let proj = StudioState.currentProject || await createNewProject();
-    if (!proj) return false;
-    await persistUnsavedStems(proj.id);
-    const freshRes = await fetch(`/api/audio/editor/projects/${encodeURIComponent(proj.id)}`);
-    if (freshRes.ok) proj = (await freshRes.json()).project || proj;
-
-    const title = el('input-project-title')?.value?.trim() || proj.title;
-    const tempo = Number(el('input-tempo')?.value) || 120;
-    const operations = [
-      { type: 'rename', title },
-      { type: 'setTempo', tempo },
-      { type: 'setMaster', masterGainDb: StudioState.masterGainDb, targetLufs: StudioState.targetLufs },
-      ...StudioState.tracks.filter((t) => t.persisted).map((t) => ({
-        type: 'setChannelStrip',
-        trackId: t.id,
-        config: {
-          name: t.name, role: t.role, gainDb: t.gainDb, pan: t.pan, hpf: t.hpf, ducking: t.ducking,
-          muted: t.muted, solo: t.solo, eqLowDb: t.eqLowDb, eqMidDb: t.eqMidDb, eqHighDb: t.eqHighDb,
-          compRatio: t.compRatio, reverbMix: t.reverbMix, distortionMode: t.distortionMode, driveDb: t.driveDb,
-        },
-      })),
-    ];
-    const res = await fetch(`/api/audio/editor/projects/${encodeURIComponent(proj.id)}/operations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: proj.id, baseRevision: proj.revision || 1, operations: operations.slice(0, 32) }),
-    });
-    if (!res.ok) { setStatus('Failed to save revision.', true); return false; }
-    const data = await res.json();
-    if (data.project) await applyServerProjectState(data.project);
-    await fetchProjectsList();
-    setStatus(`Saved revision ${data.project?.revision || ''}.`);
-    return true;
-  }
+  const sessions = new window.AudioSession({ state: StudioState, el, createTrackObject, recomputeTrackDsp, renderTracksDom, syncChannelStripFromSelectedTrack, emitSurfaceContext, setStatus });
+  const fetchProjectsList = (...args) => sessions.fetchProjectsList(...args);
+  const loadProjectById = (...args) => sessions.loadProjectById(...args);
+  const applyServerProjectState = (...args) => sessions.applyServerProjectState(...args);
+  const createNewProject = (...args) => sessions.createNewProject(...args);
+  const saveCurrentProjectRevision = (...args) => sessions.saveCurrentProjectRevision(...args);
 
   async function handleFileImport(ev) {
     const file = ev.target.files?.[0];

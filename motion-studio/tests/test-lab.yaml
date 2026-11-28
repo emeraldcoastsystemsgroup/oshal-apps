@@ -21,6 +21,7 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): phone-start proves the window's composer (model menu, Files, Tap to talk, Keep trying, Send) inside the sheet and the column and under the finger, in place of the old pane's Attach and Read aloud icons; common-editor-foundation's unavailable-provider turn and design-standard's live Summarize starter are in the window.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: register one-chat-window (every concierge entry on Motion Studio, standalone and as Create's Motion Studio screen, opens Motion Studio's own chat window, and on a phone the window's own Close closes the Concierge sheet so the editor takes the next tap).
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4: register tool-parity (CREATE-TOOL-MOTION-STUDIO-01, -04, -05, -09: motion-preview bounded frame inspection, canvas drag/scale/rotate, timeline layer-bar and keyframe drag, and Revision History Restore plus Redo).
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register native command parameter parsing and actual command-form composition settings alongside manual workbench coverage.
 version: 1
 cases:
   - id: storage-busy-retry
@@ -171,10 +172,11 @@ cases:
       scope: package
       files:
         - tests/workbench.test.mjs
+        - tests/command-params.test.mjs
     expected:
       - >-
         Human layers/keys/scrub/undo/photo/reopen workflows use real rendered pixels and fence stale
-        frames.
+        frames. Catalog-generated command fields preserve native numeric ids and duration, booleans and exact wide values; malformed structured input is refused before editing.
     prerequisites:
       - runner:playwright
       - browser:chromium

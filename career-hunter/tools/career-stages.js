@@ -1,4 +1,6 @@
 /* CHANGE LOG
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0: Didn’t go through carries a second badge, “N to review”, when questions only the person can answer wait on Answers to review (count key answersToReview); none when there are none, so the row reads as before.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "have a new tab that listas the failed aplications and what went wrong"): My jobs gains Didn’t go through after Getting ready (?view=didnt-go-through, count key didntGoThrough). Its status is its own name, which no feed answers: the page lists it from GET /didnt-go-through (tools/career-didnt-go-through.js), and its count is that list's. Home's pipeline is unchanged.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: Applications stages are a mutually exclusive workflow filter — Applied (?view=status) filters and counts strictly status='applied' so jobs promoted to Interviewing/Offer or moved to Closed leave Applied and appear only in their current stage.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Read the exact actionable personal-match count separately from saved and application stages.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | ?view=approve, the address the To approve stage had, is in the map of old addresses: it opens Saved, where Career's picks lead. The live Job Board already did this by itself; the unserved board page reads this map and used to bounce to the approvals address, which now forwards back.
@@ -15,6 +17,7 @@
     { id: 'matches', label: 'New matches', status: '', href: BOARD + '?view=matches', count: 'matches', side: 'jobs' },
     { id: 'saved', label: 'Saved', status: 'saved', href: BOARD + '?view=saved', count: 'saved', side: 'jobs' },
     { id: 'preparing', label: 'Getting ready', status: 'queue', href: BOARD + '?view=queue', count: 'queue', side: 'jobs' },
+    { id: 'didnt-go-through', label: 'Didn’t go through', status: 'didnt-go-through', href: BOARD + '?view=didnt-go-through', count: 'didntGoThrough', side: 'jobs' },
     { id: 'dismissed', label: 'Removed', status: 'dismissed', href: BOARD + '?view=dismissed', side: 'jobs' },
     { id: 'applied', label: 'Applied', status: 'applied', href: BOARD + '?view=status', count: 'applied', side: 'applications' },
     { id: 'interviewing', label: 'Interviewing', status: 'interview', href: BOARD + '?view=interviewing', count: 'interview', side: 'applications' },
@@ -24,7 +27,7 @@
   /** Home's pipeline, in the order a job moves. */
   const PIPELINE = ['matches', 'saved', 'preparing', 'applied', 'interviewing', 'offer'].map((id) => STAGES.find((stage) => stage.id === id));
   /** ?view= values, old and new, to the board status they open. */
-  const VIEW_STATUS = { matches: '', queue: 'queue', status: 'applied', saved: 'saved', approve: 'saved', interviewing: 'interview', offer: 'offer', closed: 'rejected', dismissed: 'dismissed' };
+  const VIEW_STATUS = { matches: '', queue: 'queue', status: 'applied', saved: 'saved', approve: 'saved', interviewing: 'interview', offer: 'offer', closed: 'rejected', dismissed: 'dismissed', 'didnt-go-through': 'didnt-go-through' };
   /** How many of Career's picks a page shows at once; the next ones follow as these are prepared or removed. */
   const PICK_LIMIT = 10;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,7 +50,8 @@
     const now = STAGES.find((stage) => stage.id === current) || STAGES[1];
     const chip = (stage) => {
       const n = stage.count && counts[stage.count] > 0 ? `<span class="n">${counts[stage.count]}</span>` : '';
-      return `<a class="tab" role="tab" data-stage="${stage.id}" data-k="${stage.status}" href="${stage.href}" aria-selected="${stage.id === now.id}">${esc(stage.label)}${n}</a>`;
+      const asked = stage.id === 'didnt-go-through' && counts.answersToReview > 0 ? `<span class="n-review">${counts.answersToReview} to review</span>` : '';
+      return `<a class="tab" role="tab" data-stage="${stage.id}" data-k="${stage.status}" href="${stage.href}" aria-selected="${stage.id === now.id}">${esc(stage.label)}${n}${asked}</a>`;
     };
     host.setAttribute('role', 'tablist');
     host.setAttribute('aria-label', 'Application stages');

@@ -43,6 +43,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.5.3 (BACKLOG B5): complete per-feature timing budget and cancellation — tagged in-flight cancellation on native engine.exchange (preserving last good revision and freeing active slots), structured budgetExceeded build telemetry, UI per-feature timing (ms) and featureBudgetMs input, real cad_engine_bridge.py SIGKILL kill-on-close test, and real-kernel FeatureBudget verification (28/28 in oshal-cad-studio-engine:local).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4 (BACKLOG B1): complete real-kernel verification of revolve, sweep, and loft analytic-volume and refusal tests (28/28 pass in oshal-cad-studio-engine:local, 65/65 Node contract/bridge/worker-logic pass) and close B1 in BACKLOG.md.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 0.5.5 (BACKLOG B4): add ISO 68-1 metric `thread` (external boss / internal hole) and embossed/debossed `text` (bundled OFL-1.1 LiberationSans-Regular.ttf font + LICENSE.txt), include bundled font in engine build hash, verify 34/34 real-kernel tests in oshal-cad-studio-engine:local and Scan to Print validateMesh (euler=2, watertight, 0 open/degenerate) on a threaded boss STL.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: release the already-quoted Test Lab catalog so installed cases are visible in production.
 name: cad-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -57,7 +58,7 @@ rating:
       degrade: disable
 displayName: CAD Studio
 description: "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports."
-version: 0.5.5
+version: 0.5.6
 status: active
 scope: person
 

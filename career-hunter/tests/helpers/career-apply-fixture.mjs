@@ -3,9 +3,11 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0: the engine's background start (runCareerCliAsync) is stood in too: it starts nothing unless a case sets `engineAsync` ({sub, args, extra, dir, paths} -> the start's answer), so a route that asks for a background run (Answers to review's drafts) is proved without the engine's model path; every start is recorded in `asyncCalls`.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-LOCATION: `person(sub, {locations})` gives some of the made-up person's jobs a location (role id to location) on the record and in the packet's profile snapshot, as Work history saves them before the job's documents are made; without it the person is exactly as before.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.76.3: the scripted ticket port answers getTicket with a status a test can set (ticketStatus), so a run whose ticket the kernel failed can be proved.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.4: the scripted port can answer getTicketWork as gone (workGone), as the kernel does for a cancelled ticket's work.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0: each made-up packet's application.json records posting_id and career_version (this manifest's version) first, as generation writes it since 1.75.0, so Fill in several, which writes documents of an earlier Career again before approving them, finds these packets current; a case can still make one older.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: `job(sub, id, {company, title, url})` adds another prepared job to a made-up person already in the harness (its own company, posting, packet folder with both PDFs and the parse résumé, its row and its preparation receipt, the way job 7 is stored), and `mark(id, status)` sets a job's row as I applied does, so a batch of several jobs runs over the same real routes and store.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the made-up Word file beside the packet is the parse résumé, Resume_Parse.docx, which generation now writes and the packet uploads; `executive` also writes an executive Resume_ATS.docx, so a case can show it is not the one uploaded. The packet's profile snapshot carries the recorded roles, as generation saves it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): a made-up person's job may name its company's engine and token and the posting's engine id ({company: {atsType, atsToken}, atsJobId}), as Career's sources record them, for a company page that embeds an engine's form.
@@ -26,6 +28,8 @@ const toolchain = path.join(packageRoot, '..', 'scripts/toolchain');
 const express = require(require.resolve('express', { paths: [toolchain] }));
 const Database = require(require.resolve('better-sqlite3', { paths: [toolchain] }));
 const python = process.env.JOBHUNTER_PYTHON || 'python3';
+/** The Career version a packet made today records (application.json career_version), read from this package's manifest. */
+export const CAREER_VERSION = /^version:\s*(\d+\.\d+\.\d+)/m.exec(fs.readFileSync(path.join(packageRoot, 'oshal-app.yaml'), 'utf8'))[1];
 /** A made-up Word file beside a packet, as generation writes Resume_Parse.docx (only the cases that need a render make one). */
 export const WORD = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('made-up Word résumé of job 7')]);
 export const WORKDAY = 'https://example.wd1.myworkdayjobs.com/en-US/External/job/Office-Manager_R100';
@@ -91,7 +95,7 @@ export function kernel() {
 export async function applyHarness() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'career-apply-')), previous = process.env.JOBHUNTER_STORE_ROOT;
   process.env.JOBHUNTER_STORE_ROOT = root;
-  const mapping = loadMapping(), engineCalls = [];
+  const mapping = loadMapping(), engineCalls = [], asyncCalls = [];
   const runEngine = async (_pool, sub, args, extra = {}) => {
     const dir = modules.store.userPaths(sub).userDir;engineCalls.push({ sub, args, extra });
     const out = spawnSync(python, mapping(args[0], args.slice(1))[0], { cwd: packageRoot, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024,
@@ -99,7 +103,7 @@ export async function applyHarness() {
     return { ok: out.status === 0, out: out.stdout, err: out.stderr };
   };
   const { modules } = loadCompiledModules({ apply: 'lib/career-apply-routes.js', store: 'routes/career-user-store.js' },
-    { 'better-sqlite3': Database, express, '../routes/career-engine-dispatch': { runCareerCliAwait: runEngine } });
+    { 'better-sqlite3': Database, express, '../routes/career-engine-dispatch': { runCareerCliAwait: runEngine, runCareerCliAsync: (...args) => runAsync(...args) } });
   const port = kernel(), app = express();
   app.use(express.json({ limit: '2mb' }));
   app.use((req, _res, next) => { const sub = req.headers['x-test-person']; if (sub) req.oidc = { user: { sub: String(sub) } }; next(); });
@@ -108,8 +112,13 @@ export async function applyHarness() {
   const origin = 'http://127.0.0.1:' + server.address().port;
   const raw = (method, route, body, sub) => fetch(origin + '/api/career-hunter' + route, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(sub ? { 'x-test-person': sub } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const call = async (method, route, body, sub) => { const response = await raw(method, route, body, sub); return { code: response.status, body: await response.json().catch(() => null) }; };
-  return { root, origin, port, engineCalls, call, raw, person: (sub, options) => person(modules, sub, options), job: (sub, id, options) => addJob(modules, sub, id, options),
+  const harness = { root, origin, port, engineCalls, asyncCalls, engineAsync: null, call, raw, person: (sub, options) => person(modules, sub, options), job: (sub, id, options) => addJob(modules, sub, id, options),
     async stop() { await new Promise((done) => server.close(done)); if (previous === undefined) delete process.env.JOBHUNTER_STORE_ROOT; else process.env.JOBHUNTER_STORE_ROOT = previous; fs.rmSync(root, { recursive: true, force: true }); } };
+  async function runAsync(_pool, sub, args, extra = {}) {
+    const paths = modules.store.userPaths(sub); asyncCalls.push({ sub, args, extra });
+    return harness.engineAsync ? harness.engineAsync({ sub, args, extra, dir: paths.userDir, paths }) : { started: false, limitReason: 'busy' };
+  }
+  return harness;
 }
 
 /**
@@ -133,7 +142,7 @@ function person(modules, sub, { url = WORKDAY, word = WORD, executive = null, co
   corpus.prepare("INSERT OR REPLACE INTO postings_corpus(id,company_id,ats_job_id,title,url,active)VALUES(7,1,?,'Office Manager',?,1)").run(atsJobId, url);corpus.close();
   fs.writeFileSync(path.join(dir, 'career_db.json'), JSON.stringify(own, null, 2));
   const folder = path.join(dir, 'applications', 'Example_Freight_Co__7'); fs.mkdirSync(folder, { recursive: true });
-  fs.writeFileSync(path.join(folder, 'application.json'), JSON.stringify({ company: 'Example Freight Co', title: 'Office Manager', template_family: 'Professional',
+  fs.writeFileSync(path.join(folder, 'application.json'), JSON.stringify({ posting_id: 7, career_version: CAREER_VERSION, company: 'Example Freight Co', title: 'Office Manager', template_family: 'Professional',
     generated: { resume: resume(), cover: { greeting: 'Dear team,', paragraphs: ['I run offices well.'], closing: 'Sincerely,' } }, profile_snapshot: { profile: own.profile, roles: own.roles } }, null, 2));
   fs.writeFileSync(path.join(folder, 'Resume_ATS.pdf'), '%PDF-1.7\nDana Example resume\n%%EOF');
   fs.writeFileSync(path.join(folder, 'CoverLetter.pdf'), '%PDF-1.7\nDana Example cover\n%%EOF');
@@ -162,7 +171,7 @@ function addJob(modules, sub, id, { company = 'Sample Company ' + id, title = 'O
   corpus.prepare('INSERT OR REPLACE INTO companies(id,name)VALUES(?,?)').run(id + 100, company);
   corpus.prepare('INSERT OR REPLACE INTO postings_corpus(id,company_id,ats_job_id,title,url,active)VALUES(?,?,?,?,?,1)').run(id, id + 100, 'fiction-' + id, title, url); corpus.close();
   const folder = path.join(dir, 'applications', company.replace(/\W+/g, '_') + '__' + id); fs.mkdirSync(folder, { recursive: true });
-  fs.writeFileSync(path.join(folder, 'application.json'), JSON.stringify({ company, title, template_family: 'Professional',
+  fs.writeFileSync(path.join(folder, 'application.json'), JSON.stringify({ posting_id: id, career_version: CAREER_VERSION, company, title, template_family: 'Professional',
     generated: { resume: resume(), cover: { greeting: 'Dear team,', paragraphs: ['I run offices well.'], closing: 'Sincerely,' } }, profile_snapshot: { profile: record().profile, roles: record().roles } }, null, 2));
   fs.writeFileSync(path.join(folder, 'Resume_ATS.pdf'), `%PDF-1.7\nDana Example resume for job ${id}\n%%EOF`);
   fs.writeFileSync(path.join(folder, 'CoverLetter.pdf'), `%PDF-1.7\nDana Example cover for job ${id}\n%%EOF`);

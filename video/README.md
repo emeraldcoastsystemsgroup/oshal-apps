@@ -126,6 +126,7 @@ screen (all below).
   validated timeline into one fixed FFmpeg argument array.
   - The only document values that reach the filter graph are range-checked integers.
   - Title text goes to server-named files that drawtext reads with expansion off.
+  - Long titles fit within a horizontal safe area. Preview and export use the same canvas-relative sizing at every output resolution.
   - Media are server-resolved local files, read through the file protocol with an explicit demuxer.
   - Nothing runs through a shell.
 

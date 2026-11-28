@@ -29,11 +29,12 @@
  * 23 | maintainer@emeraldcoastsystemsgroup.com | Scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"). A change to one package waited for every package's suites, 12 to 15 minutes, and unrelated one-test timeouts under load failed the gate four times in one night. A run now does the publish wall, the structural rules and the suites of the packages the change touches or reaches (scripts/store-ci-scope.mjs decides; anything it cannot place runs everything), says before it starts what it runs and what it leaves to the scheduled full run, and ends on a line that says scoped: the full-pass line is printed by a full run only. --full runs every job, --plan prints the plan and runs nothing, --base measures from another commit, --retry-from reruns the jobs that failed in a first run on the same tree plus the publish wall, and STORE_CI_RESULT_FILE receives the result for the hook, store-push and the scheduled full run. An argument this runner does not know is refused, so a mistyped --full cannot quietly run less.
  * 24 | maintainer@emeraldcoastsystemsgroup.com | Require sharp + express + multer in the pinned toolchain for scan-to-print's HTTP route suite (tests/routes.core.test.js, BACKLOG B6), so a clone whose toolchain predates sharp fails closed naming npm ci --prefix scripts/toolchain rather than with a raw MODULE_NOT_FOUND.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | Carry the test-catalogs job's strict YAML step: one `check` policy entry for scripts/check-test-catalog-yaml.mjs, which needs no framework checkout (libyaml through python3's PyYAML, js-yaml from this toolchain), so unlike the framework loader step beside it it runs here instead of reporting SKIPPED. Twelve catalogs the kernel could not parse passed this gate on 2026-11-19 and 2026-11-20.
+ * 26 | maintainer@emeraldcoastsystemsgroup.com | Cap node:test concurrency (default 4, STORE_CI_BROWSER_CONCURRENCY) for steps whose matched test files include more than that many Playwright/Chromium browser files. On a 20-core ARM64 host, default concurrency 19 launches up to 18 browser files at once (~111 Chromium processes on trading's native suite), triggering rare (~0.05-0.1%) headless-Chromium first-wait stalls; capping multi-browser steps cuts peak Chromium processes by ~73% without retrying or weakening any assertion, while leaving non-browser suites and explicit --test-concurrency flags untouched.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, globSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decideScope, headCommit, treeFingerprint } from './store-ci-scope.mjs';
@@ -64,6 +65,15 @@ const VALUED = ['--base', '--retry-from'];
 const DEADLINE_SECONDS = Number(process.env.STORE_CI_CHECK_DEADLINE_SECONDS) > 0
   ? Number(process.env.STORE_CI_CHECK_DEADLINE_SECONDS)
   : 900;
+
+// Cap node:test file concurrency for steps with many Playwright/Chromium browser test files so
+// a 20-core host does not burst 18+ concurrent headless Chromium trees (~110+ OS processes) at once.
+const BROWSER_CONCURRENCY = Number.isInteger(Number(process.env.STORE_CI_BROWSER_CONCURRENCY))
+  && Number(process.env.STORE_CI_BROWSER_CONCURRENCY) > 0
+  ? Number(process.env.STORE_CI_BROWSER_CONCURRENCY)
+  : 4;
+const BROWSER_TEST_MARKER = /\bplaywright\b|\bchromium\b/;
+const MAX_INSPECT_BYTES = 512 * 1024;
 
 // Step env keys whose workflow value is the address of a service container store-ci starts beside
 // the job. Locally the operator supplies the same address; the suites refuse any other.
@@ -548,6 +558,44 @@ function runProcess(check, args, options) {
 }
 
 /**
+ * @description Count matched test files in a `node --test` invocation that drive Playwright/Chromium.
+ * @param {string} cwd The check's working directory.
+ * @param {string[]} args Arguments passed to `node` (starting with `--test`).
+ * @returns {number} Matched browser test file count.
+ */
+function countBrowserTestFiles(cwd, args) {
+  const matched = new Set();
+  for (let index = args.indexOf('--test') + 1; index < args.length; index += 1) {
+    const token = args[index];
+    if (token.startsWith('-')) continue;
+    let hits = [];
+    try { hits = globSync(token, { cwd }); } catch { hits = []; }
+    for (const rel of hits) matched.add(join(cwd, rel));
+  }
+  let browsers = 0;
+  for (const file of matched) {
+    try {
+      const info = statSync(file);
+      if (!info.isFile() || info.size > MAX_INSPECT_BYTES) continue;
+      if (BROWSER_TEST_MARKER.test(readFileSync(file, 'utf8'))) browsers += 1;
+    } catch { /* unreadable path — let node --test report it */ }
+  }
+  return browsers;
+}
+
+/**
+ * @description Return a `--test-concurrency=<N>` flag when a `node --test` step runs more browser
+ *   test files than BROWSER_CONCURRENCY and does not already declare its own concurrency cap.
+ * @param {string} cwd The check's working directory.
+ * @param {string[]} args Arguments passed to `node`.
+ * @returns {string} Flag to inject, or '' when no cap applies.
+ */
+function browserConcurrencyFlag(cwd, args) {
+  if (args.some((arg) => arg === '--test-concurrency' || arg.startsWith('--test-concurrency='))) return '';
+  return countBrowserTestFiles(cwd, args) > BROWSER_CONCURRENCY ? `--test-concurrency=${BROWSER_CONCURRENCY}` : '';
+}
+
+/**
  * @description Execute one mirrored check and grade it the way store-ci would.
  * @param {object} check The planned check.
  * @returns {Promise<{status:string,detail:string,seconds:number}>} The graded outcome.
@@ -557,7 +605,12 @@ async function runCheck(check) {
   const argv = tokenize(check.command);
   const useNode = argv[0] === 'node';
   const args = argv.slice(1);
-  if (isTap) args.splice(args.indexOf('--test') + 1, 0, '--test-reporter=tap');
+  const cwd = join(ROOT, check.workingDirectory || '.');
+  if (isTap) {
+    const cap = browserConcurrencyFlag(cwd, args);
+    const inject = cap ? ['--test-reporter=tap', cap] : ['--test-reporter=tap'];
+    args.splice(args.indexOf('--test') + 1, 0, ...inject);
+  }
   const started = Date.now();
   // NODE_TEST_CONTEXT must never reach a child: a `node --test` process that inherits it reports
   // its results to the PARENT runner and exits 0 even when cases fail. Every verdict below is read
@@ -572,7 +625,7 @@ async function runCheck(check) {
     'GIT_SHALLOW_FILE', 'GIT_CEILING_DIRECTORIES',
   ]) delete cleanEnv[key];
   for (const key of LEGACY_ENV) delete cleanEnv[key];
-  const options = { cwd: join(ROOT, check.workingDirectory || '.'), env: { ...cleanEnv, ...check.env } };
+  const options = { cwd, env: { ...cleanEnv, ...check.env } };
   const result = await runProcess(check, useNode ? args : null, options);
   const seconds = (Date.now() - started) / 1000;
   const { output } = result;

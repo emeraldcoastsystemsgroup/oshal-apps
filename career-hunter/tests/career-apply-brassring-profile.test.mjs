@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane SITE-FIT, BrassRing (2026-11-26): the BrassRing rules against the words a real BrassRing Talent Gateway shows before its account (read-only: its posting, its sign-in page, its create-account page; the application itself is behind the account and was not read). The posting's own address shows the sign-in page first; Back shows the posting, whose Apply to job returns to sign-in. The rules already fit every one of those words, so this file changes no rule: it keeps them fitting. The kernel takes a rule only for a field whose whole label is the rule's, and presses only a button or link whose whole words are a press word.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.77.3 (Roger's BAE Systems run, 2026-11-26, the first page behind his account): Start Your Application offers Let's get started and Save and finish later; Let's get started is its opening press, and Save and finish later is no press of any kind.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5 (BAE Systems' application, 2026-11-27): its Acknowledgment page is signed in two required boxes, Full Legal Name and Date, which the site prefills from an earlier application with a months-old date. They are BrassRing's signature line, on a page of questions (the rules name no steps and the page shows Save and continue), which the kernel enters only with the Attestations signature switch on; no field rule takes either.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,6 +31,21 @@ const CREATE = { buttons: ['Show passwordpassword', 'Show re-enter password', 'C
 
 /** Start Your Application, the first page behind his account (Roger's BAE Systems run, 2026-11-26). */
 const START = { buttons: ['Let\'s get started', 'Save and finish later'], links: ['Skip to main content', '.', 'Careers Site', 'Back', 'HERE', 'Privacy'] };
+/** The Acknowledgment page of BAE Systems' application (2026-11-27): its statement, then two required boxes the site
+ * prefills from an earlier application, and Save and continue under them; its progress bar is a percentage, no steps. */
+const ACK = { buttons: ['Save and continue'], name: 'Full Legal Name', date: 'Date' };
+
+test('the Acknowledgment page\'s Full Legal Name and Date are the signature line, on a page of questions, and no field rule takes either', () => {
+  // The kernel reads a page as one of questions when the rules name no steps and the page shows a Continue word
+  // (apply_pages.rs unnamed_kind), and signs only the line the rules name, on the page kind they name, with his switch.
+  assert.deepEqual(rules.steps, {});
+  assert.deepEqual(ACK.buttons.filter((words) => presses('continue', words)), ['Save and continue']);
+  const names = (list, label) => list.some((known) => norm(known) === norm(label));
+  assert.equal(rules.signature.page, 'questions');
+  assert.ok(names(rules.signature.name, ACK.name) && !names(rules.signature.date, ACK.name), 'Full Legal Name takes his full name');
+  assert.ok(names(rules.signature.date, ACK.date) && !names(rules.signature.name, ACK.date), 'Date takes today');
+  for (const label of [ACK.name, ACK.date]) assert.equal(slotFor(label), null, `${label}: no field rule fills it without his switch`);
+});
 
 test('Start Your Application is begun with Let\'s get started; Save and finish later is never pressed', () => {
   assert.deepEqual(START.buttons.filter((words) => presses('open', words)), ['Let\'s get started']);

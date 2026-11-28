@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Job Board, the merged Prepare & submit / Application status / Approvals). The live Job Board is tools/career-job-lists.html (GET /board-native serves it), so the pipeline is proven there, in Chromium over a synthetic fixture: the stage control shows New matches · Saved · To approve · Preparing · Applied · Interviewing with the right stage selected for the old addresses (board-native = Saved, ?view=queue = Preparing, ?view=status = Applied), ?view=interviewing asks the feed for status=interview, ?view=approve opens the approvals view; an empty stage is one empty state whose primary is Find jobs, with no "0 shown" and no "No results · End of this view"; pay and fit filters leave the Preparing stage; Clear filters exists.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the stage reads Getting ready (was Preparing); the expected stage names follow.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: the row is the stages of the bar section the page is on (My jobs: New matches, Saved, Getting ready, Removed; Applications: Applied, Interviewing, Offer, Closed), To approve is in neither, ?view=approve stays on the page (Saved), and ?view=offer, ?view=closed and ?view=dismissed ask the feed for their own status where each used to open Saved.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.77.6 (the owner, 2026-11-27: "have a new tab that listas the failed aplications and what went wrong"): My jobs' stage row gains Didn’t go through after Getting ready; the row of My jobs follows.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,7 +27,7 @@ function feed() {
   };
 }
 
-const JOBS = ['New matches', 'Saved', 'Getting ready', 'Removed'], APPLICATIONS = ['Applied', 'Interviewing', 'Offer', 'Closed'];
+const JOBS = ['New matches', 'Saved', 'Getting ready', 'Didn’t go through', 'Removed'], APPLICATIONS = ['Applied', 'Interviewing', 'Offer', 'Closed'];
 for (const [query, selected, row] of [['', 'Saved', JOBS], ['?view=queue', 'Getting ready', JOBS], ['?view=status', 'Applied', APPLICATIONS]]) {
   test(`board-native${query || ''} selects ${selected} in the one stage control`, async () => {
     const { page, context } = await openScreen(browser, 'career-job-lists.html', feed(), PHONE, query);

@@ -112,7 +112,10 @@ Application status activates the original person's `career-application-updates` 
 that mailbox to match the resume's submission email. The monitor starts with the past seven days
 of submitted applications, retains those applications for later updates, and never reads other
 owners' stores, sends mail or submits jobs. Exact employer/title matches can record acknowledgements,
-interviews, offers or rejections. Ambiguous matches remain for review. Email receipts do not upgrade
+interviews, offers or rejections. An employer's confirmation that names the employer and no job is
+linked to the one application there whose applied_at is from an hour before the message to five
+minutes after it; a rejection, interview or offer still needs the title. Ambiguous matches remain
+for review. Email receipts do not upgrade
 manual submission provenance to verified employer acceptance. Connection failures remain visible;
 open **Settings → Accounts** to connect or reconnect Gmail through native authorization.
 Saved authorization metadata does not prove mail-read access: the same section shows the dated
@@ -953,6 +956,7 @@ Container memory, MiB low / high: **64 / 256 (declared)**.
 | linkedin-profile-draft | profile draft turn | T2 | none | disable | not yet measured | none recorded |
 | profile-ingest | resume or artifact ingest | T2 | none | disable | not yet measured | none recorded |
 | story-review | story review answer | T2 | none | template | not yet measured | none recorded |
+| application-answers | written application answer draft | T2 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
 
 ### Interview preparation and practice
@@ -1409,6 +1413,49 @@ ended, **Clear**; a press Career cannot take while it writes a job is sent again
 (1440x900 and 412x915); on an installed Career, `tests/career-regenerate-live-proof.mjs check` runs it as a test person on the
 test slot, closing the page and following the queue to its end.
 
+**Didn't go through (1.77.6).** My jobs has a **Didn’t go through** tab after Getting ready (`?view=didnt-go-through`), with
+its count on the stage row. It lists every job of the person's that Career tried to apply to and did not submit, newest first,
+one row per job (its latest attempt): the title, linking to the job's page, the company, the employer's site, when it ended,
+**What went wrong** in Career's own words and **What to do next** with its button: **Go on** (the job page's Go on, the same
+approval's next attempt, refused while Career's records say another job is being filled in on the person's computer; it then
+opens the job's page), **Approve again** (the fill-in queue's own approval sheet for that job) or **Open the job**. It reads the
+assisted-application runs (failed, stopped, paused, not seen, left open at Review, an approval that ended before Career
+started it, a run never started on the computer, a record still filling in, waiting or at Review past its approval and the
+two-hour limit of one attempt), Fill in several's ended jobs (the queue's words stand unless the run moved on after it) and
+Generate again (a failed job, or one skipped because its posting closed). A job applied, removed, sent or still going is not
+listed. The fill-in queue's **Skip** of a job that was waiting for the person keeps what it waited for ("Skipped while it waited
+for you: Needs your answer: ... Nothing was submitted.", or "Stopped while it waited for you: ..." when an advance finds its run
+stopped first), on the entry and on the run, so the tab shows it after the queue is gone. Route: `GET /didnt-go-through`
+(`lib/career-didnt-go-through.js`, on the assisted application's router, bound to
+`career.read`), the person's own store only, read only. Guarded by `tests/career-didnt-go-through.test.mjs` (the real routes on
+made-up people's stores) and `tests/career-didnt-go-through-browser.test.mjs` (1440x900 and 412x915).
+
+**Answers to review (1.79.0).** A job that stops on a question nobody answered from the person's record waits on
+**Answers to review** (`/answers-to-review-ui`), reached from Didn't go through (which opens with the entry and its count, its
+tab reading "N to review", and a waiting job leading with **Answer the question**) and from the job's page (a line saying the job
+waits for the person's answer). Career learns the questions from its own records with no page open (a run's waiting words, an
+ended run's receipt with each card's id, the words a skipped job kept) and from the waiting cards the person's page reads from
+the kernel; each question is one entry across employers (`lib/career-answers-kinds.js`, `lib/career-answers-review.js`,
+`answers-review.json`). A **written** question (one that asks for prose: Tell us about, Describe, Why, What platform have you
+built, Have you owned ... If so, When working on ...) gets a draft of two to five first-person sentences from the person's
+record and the cover letter Career wrote for that job: one background engine run (`answers-draft`,
+`engine/jobhunter/written_answers.py`) whose model calls are `enrich.complete`, the Career worker rail on the Career bot, at
+most three questions a run and never while another run holds the person's store. A draft is kept only when it draws on recorded
+work it was given and `claims_check` finds nothing the records do not support; it shows the roles it drew on. A **plain**
+question (a fact no record holds, such as a start date, notice period, time off, a non-compete or pay, or a question with
+listed choices) and a **check** (arithmetic or a captcha) are never drafted and have an answer box. **Approve**, **Edit then
+Approve** and **Write my own** (`POST /answers-to-review/approve`) keep the answer in Saved answers under the question's exact
+words, the id the run looks up, the other ids its words take and its folded key (a check is never kept), put every job that
+stopped on it back in Fill in several approved again with its packet as it is now, and the page answers a card still waiting
+on the person's computer in their own session. The same question at another employer goes back with the saved answer by itself.
+**Skip** sets a question aside under Skipped (**Review again**). Saved answers has **Answer written questions without my
+review** (off by default): on, a ready draft is used straight away and listed as answered automatically, for a later change.
+The `career-answers-review` schedule (every five minutes, `runsAs: user`) calls `POST /answers-to-review/refresh` so all of
+this goes on with no page open. Routes: `GET /answers-to-review-ui`, `GET /answers-to-review`, `POST /answers-to-review/refresh`,
+`/approve`, `/skip`, `/reopen` (`lib/career-answers-review-routes.js`), bound like their neighbours. Guarded by
+`tests/career-answers-review.test.mjs`, `tests/career-written-answers.test.mjs` and
+`tests/career-answers-review-browser.test.mjs` (1440x900 and 412x915).
+
 **Expanded experience on Work history (1.68.4).** A person's client engagements and client accounts were always in their
 main résumé (`career_db.json`: `project_ledger`, each `{project, role, industry, duration_months, tech, public}`, and
 `named_accounts`, `{group: [names]}`), and no screen but Download my data's Evidence lines read them. Work history now shows
@@ -1549,3 +1596,5 @@ kernel platform export).
 <!-- CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.7: My résumé draws no chat of its own; a tailored résumé's chat is Career's concierge, the kernel's one chat window (Concierge on a computer, Edit with AI on a phone), in that résumé's own conversation, with the tools that read and change it on its context. -->
 <!-- CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.24: Years by skill on Work history, where a person gives their own years per skill and in total; what Used on résumés shows; the `years` section read and the `years` edit of the main-résumé edit, and their guards. -->
 <!-- CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Document 1.69.0: the swipe deck that is the phone layout of New matches (Pass, Save, a real Undo, More), the address /mobile handing off to it, and their guards. -->
+<!-- CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Document 1.77.5: an employer's confirmation that names the employer and no job is linked to the one application there from that hour; a rejection, interview or offer still needs the job title. -->
+<!-- CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | Document 1.79.0: Answers to review, its drafts from the record, Approve putting jobs back in Fill in several, the switch, the schedule, the routes and their guards. -->

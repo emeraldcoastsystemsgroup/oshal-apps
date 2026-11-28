@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): the Attestations group's two switches, Tick the employer's terms box for me and Sign the self-identification form with my name and today's date, start off, say what each does in his name, save with the revision the page read and Undo puts the earlier answers back; Undo is refused once the answers changed after that save.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Saved answers, design APPLY-ORBIT 5.4): the page and its routes for a made-up person. Red on store main 75fa525e (no page and no route). Settings links to it; the page is served by GET /saved-answers-ui; in Chromium at 1440x900 and 412x915 over the real routes and store, the standing answers save into apply_profile.json under the keys normalizeAutofillProfile reads, so the next packet carries them as facts; an answer kept on a card is listed with where it came from and Remove takes it out; a save from a window that read an older revision is refused in words and changes nothing; no person and a wrong shape are refused; one person never sees another's answers.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Remember each employer site and Look at the page before moving on are not available yet: each starts off, cannot be switched, says "Not available yet, so it stays off.", and the route refuses switching one on; the other three start on. Red before: all five started on.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5: the signature switch's label and description say it also covers an application's signature line that asks for the name and the date, such as an acknowledgment, as the approval screen does.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -103,10 +104,10 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
     try {
       await page.locator('#attest:not([hidden])').waitFor();
       assert.equal(await page.locator('#attestTitle').innerText(), 'Attestations');
-      const terms = page.getByRole('switch', { name: /Tick the employer’s terms box for me/ }), sign = page.getByRole('switch', { name: /Sign the self-identification form with my name and today’s date/ });
+      const terms = page.getByRole('switch', { name: /Tick the employer’s terms box for me/ }), sign = page.getByRole('switch', { name: /Sign the self-identification form and signature lines with my name and today’s date/ });
       assert.deepEqual([await terms.isChecked(), await sign.isChecked()], [false, false], 'both start off');
       assert.match(await page.locator('#attest').innerText(), /Career ticks the box that says you agree to the employer’s terms, in your name\./);
-      assert.match(await page.locator('#attest').innerText(), /Career types your name and today’s date as your signature on the employer’s self-identification form, in your name\./);
+      assert.match(await page.locator('#attest').innerText(), /Career types your name and today’s date as your signature on the employer’s self-identification form, and on an application’s signature line that asks for your name and the date \(such as an acknowledgment\), in your name\./);
       await press(size, terms);
       await page.locator('#attestSaved', { hasText: 'Saved.' }).waitFor();
       assert.deepEqual(file().attest, { terms: true, self_id_signature: false });

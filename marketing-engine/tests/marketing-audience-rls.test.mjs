@@ -50,6 +50,10 @@
  *     oshal_marketing_sms_queue (no operator bypass), TCPA/CTIA opt-in persistence, unconsented
  *     403 refusal, clock-controlled quiet-hours hold, STOP suppression + held-queue cancellation,
  *     and cross-owner 404/0-row isolation.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | Derive sequence tick nowIso timestamps from
+ *     Date.now() in the 007-marketing-sequences RLS test (instead of hardcoded 2026-11-26/27 dates
+ *     that drifted behind enrollment next_run_at = now()) and assert both before-due (0 due) and
+ *     after-due progression for Step 1 and Step 2.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -1009,19 +1013,33 @@ test('007-marketing-sequences enforces exact-owner FORCE RLS, strict standing au
   assert.equal((await invokeHandler(sequences.getSequence, db.appPool, OWNER_B, { params: { id: seqId } })).statusCode, 404);
   assert.equal((await invokeHandler(sequences.disarmSequence, db.appPool, OWNER_B, { params: { id: seqId } })).statusCode, 404);
 
+  // Enrollments created with next_run_at = now() are not due before their time, and are due once it passes.
+  const tickBaseMs = Date.now();
+  const t0 = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { dryRun: true, nowIso: new Date(tickBaseMs - 60_000).toISOString() },
+  });
+  assert.equal(t0.statusCode, 200);
+  assert.equal(t0.body.stats.dryRun, 0);
+
   // Step 1 dry-run tick advances both c1 and c2 to step 1!
+  const step1Ms = tickBaseMs + 60_000;
   const t1 = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, {
-    params: { id: seqId }, body: { dryRun: true, nowIso: '2026-11-26T12:00:00.000Z' },
+    params: { id: seqId }, body: { dryRun: true, nowIso: new Date(step1Ms).toISOString() },
   });
   assert.equal(t1.statusCode, 200);
   assert.equal(t1.body.stats.dryRun, 2);
 
-  // Suppress c2 between Step 1 and Step 2 -> Step 2 completes c1 and stops c2 (stopped_unsubscribed)!
+  // Suppress c2 between Step 1 and Step 2 -> Step 2 is not due before its 12h delay, then completes c1 and stops c2 (stopped_unsubscribed)!
   await invokeHandler(audience.createSuppression, db.appPool, OWNER_A, {
     body: { email: 'seq-rls-2@example.com', channel: 'email', reason: 'unsubscribe' },
   });
+  const t2Early = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, {
+    params: { id: seqId }, body: { dryRun: true, nowIso: new Date(step1Ms + 6 * 3600_000).toISOString() },
+  });
+  assert.equal(t2Early.statusCode, 200);
+  assert.equal(t2Early.body.stats.dryRun, 0);
   const t2 = await invokeHandler(sequences.tickSequence, db.appPool, OWNER_A, {
-    params: { id: seqId }, body: { dryRun: true, nowIso: '2026-11-27T01:00:00.000Z' },
+    params: { id: seqId }, body: { dryRun: true, nowIso: new Date(step1Ms + 13 * 3600_000).toISOString() },
   });
   assert.equal(t2.statusCode, 200);
   assert.equal(t2.body.stats.dryRun, 1);

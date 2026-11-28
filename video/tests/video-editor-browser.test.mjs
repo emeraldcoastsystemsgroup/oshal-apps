@@ -8,11 +8,12 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | A storage refusal on upload names its cause on the screen instead of "Something went wrong", and the media list stays as it was.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 (the oshal design standard): the export controls are pressed in the Export sheet the app row's Export opens, Duplicate and Delete project come from the Project menu, Delete project asks in the page (no native confirm), the first status is "Ready.", on a phone a tapped clip adjusts in a sheet from the tool row, and the contrast check reads a colour the design tokens mix (color(srgb …), channels 0 to 1).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Compare actual title preview bounds and font scale with the compiled export on desktop and phone.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startPostgres, resetPostgres } from './video-editor-postgres.fixture.mjs';
-import { mediaBytes, clipProbe, bedProbe } from './video-editor.fixture.mjs';
+import { mediaBytes, clipProbe, bedProbe, loadCompiled } from './video-editor.fixture.mjs';
 import { chromium, openEditor as openSourceEditor, PALETTES } from './video-editor-browser.fixture.mjs';
 
 // Existing detailed workflows deliberately expand the grouped tools they exercise.
@@ -42,6 +43,33 @@ async function addMedia(page) {
   await page.locator('#addBed').setInputFiles(file('Tune.wav', 'audio', bedProbe({ seconds: 10 })));
   await status(page, 'Tune.wav added.');
 }
+
+test('long title preview scales with the export canvas on desktop and phone', async t => {
+  const {page, api, errors} = await openSourceEditor(t, browser, database);
+  await status(page, 'Ready.');
+  await page.getByRole('button', {name:'Add a clip', exact:true}).click();
+  await page.locator('#addClip').setInputFiles(file('Title clip.mp4','video',clipProbe({seconds:3})));
+  await status(page,'Title clip.mp4 added.');
+  await page.getByRole('button',{name:'Text',exact:true}).click();
+  await page.locator('#titleText').fill('Open Swarm — Create. Save. Share.');
+  await page.locator('#titleSize').selectOption('large');
+  await page.locator('#addTitle').click();
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+  await page.locator('#saveProject').click();await status(page,'Saved · revision 1');
+  const id=new URL(page.url()).searchParams.get('project');
+  const document=(await api.call(`/editor/projects/${id}`)).body.project.document;
+  const {compileTimeline}=loadCompiled('video-edit-compiler.js');
+  const output=compileTimeline({document,media:{v1:'/tmp/title-fixture.mp4'},variant:'export',fontFile:'/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'});
+  const outputFont=Number(/fontsize=(\d+)/.exec(output.filterGraph)[1]);
+  for(const width of [1440,412]) {
+    await page.setViewportSize({width,height:900});
+    await page.waitForFunction(ratio => Math.abs(parseFloat(getComputedStyle(document.getElementById('titleOverlay')).fontSize)
+      / document.getElementById('previewScreen').clientWidth - ratio) < 0.004,outputFont/output.width);
+    const bounds=await page.locator('#titleOverlay').evaluate(node=>{const range=document.createRange();range.selectNodeContents(node);const text=range.getBoundingClientRect(),screen=document.getElementById('previewScreen').getBoundingClientRect();return {left:text.left-screen.left,right:screen.right-text.right,width:screen.width};});
+    assert.ok(bounds.left>=bounds.width*0.03 && bounds.right>=bounds.width*0.03,'all title glyphs remain within the preview');
+  }
+  assert.deepEqual(errors,[]);
+});
 
 test('import, trim, split, reorder, title, volume, undo, save, reopen and export on the real screen', async t => {
   const { page, api, errors, external, requests } = await openEditor(t, browser, database);

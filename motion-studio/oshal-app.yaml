@@ -19,11 +19,12 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.2 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: on a phone the Concierge sheet holds the one Jarvis chat window, and the window's own Close (editor-concierge:hide) now closes that sheet too so the editor takes the next tap, both standalone and inside Create (create-motion-studio). Presentation only: no route, tool, permission, migration or catalog change. Guard: tests/motion-one-chat-window.test.mjs.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-01, -04, -05, -09): add bounded motion-preview concierge tool on existing read grants, interactive on-canvas drag/scale/rotate handles (mouse and touch), timeline layer-bar and keyframe-diamond dragging (mouse and touch), and on-screen Revision History sheet with Restore and Redo.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.4.5: preserve numeric, boolean and structured values in the native command form.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: "Edit saved motion compositions with selectable layers, video and audio clips, motion blur, native properties, inline captions, keyframes, masks and photos."
-version: 0.4.4
+version: 0.4.5
 runtime: process
 lastingStorage: true
 status: active

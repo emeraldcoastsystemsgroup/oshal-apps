@@ -4,6 +4,7 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | OSHAL Audio Studio 3-pane multitrack workbench conforming to surface-themes.css, table.js, and oshal-surface-bridge.
   2 | maintainer@emeraldcoastsystemsgroup.com | Apply crisp-glass design standard: single primary CTA, zero emoji SVG icons, mobile pane switcher, ADR-208 formula macros, and Cockpit concierge handoff.
   3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16: the first track started 617 px down a 915 px phone, 67%, under the app bar, the section tabs, a transport wrapped onto three rows, six formula macros wrapped onto four rows and the status line). The transport's controls and its tools are two groups (transport-main: Play, Pause, Stop, Record Take and the time; transport-tools: Slice, Loop 16s and the LUFS meter), which a desktop still lays out as one bar (display: contents); on a phone the tracks come right under one transport row, as in GarageBand or BandLab, and the tools, the status line and the macros (one row that scrolls sideways) follow them. Presentation only.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Load the saved-session controller through the existing authorized UI asset route.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -377,6 +378,7 @@
   <script src="/api/audio/dsp_synth.js"></script>
   <script src="/api/audio/dsp_engine.js"></script>
   <script src="/api/audio/audio-ui-helpers.js"></script>
+  <script src="/api/audio/ui/audio-session.js"></script>
   <script src="/api/audio/audio.js"></script>
 </body>
 </html>

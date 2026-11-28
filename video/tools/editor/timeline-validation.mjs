@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add backward-compatible per-clip speed, color looks, stabilization, chroma key, background matting, captions and keyframed stickers without external helper dependencies.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Support optional project aspectRatio (16:9, 9:16, 1:1; defaults to 16:9) and canonical even-pixel dimensions across preview, 720p, 1080p and 4K.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep shared title sizing in the existing helper admitted by the fixed native renderer.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve complete Unicode title endings with invisible padding for renderers that confuse character and UTF-8 byte lengths.
  */
 
 import { validateMotionSource } from './motion-source.mjs';
@@ -277,4 +279,40 @@ export function timelineFrames(document) {
 
 export function timelineAssets(document) {
   return Object.entries(document.sources).map(([name, source]) => ({ key: name, asset: source.asset, kind: source.kind }));
+}
+
+const DIVISORS = Object.freeze({small:24, medium:16, large:10});
+// Unkerned DejaVu Sans Bold advance widths at 2048 units/em, printable ASCII.
+// A four-percent allowance and conservative fallback also cover substituted glyphs.
+const ADVANCES = [713,934,1067,1716,1425,2052,1786,627,936,936,1071,1716,778,850,778,748,
+  1425,1425,1425,1425,1425,1425,1425,1425,1425,1425,819,819,1716,1716,1716,1188,2048,
+  1585,1561,1503,1700,1399,1399,1681,1714,762,762,1587,1305,2038,1714,1741,1501,1741,
+  1577,1475,1397,1663,1585,2259,1579,1483,1485,936,748,936,1716,1024,1024,1382,1466,
+  1214,1466,1389,891,1466,1458,702,702,1362,702,2134,1458,1407,1466,1466,1010,1219,
+  979,1458,1335,1892,1321,1335,1192,1458,748,1458,1716];
+const PUNCTUATION = {'–':1024,'—':2048,'…':2048,'’':778,'‘':778,'“':1346,'”':1346};
+
+/** @description Fit a single-line title within a five-percent horizontal safe area at any canvas size.
+ * @param {string} text Plain title. @param {'small'|'medium'|'large'} size Requested size.
+ * @param {number} width Canvas pixels. @param {number} height Canvas pixels.
+ * @returns {number} Pixel font size, or zero for invalid layout inputs.
+ */
+export function titleFontSize(text, size, width, height) {
+  if (typeof text !== 'string' || !Object.hasOwn(DIVISORS,size) || ![width,height].every(value => Number.isFinite(value) && value > 0)) return 0;
+  const scale = Math.min(width,height) / 720;
+  const advance = [...text].reduce((sum,char) => {
+    const code = char.codePointAt(0);
+    return sum + (code >= 32 && code <= 126 ? ADVANCES[code-32] : PUNCTUATION[char] ?? 4096);
+  },0) / 2048;
+  const fitted = Math.floor((width / scale * 0.9) / Math.max(1,advance * 1.04));
+  return Math.max(1,Math.round(Math.min(720 / DIVISORS[size],Math.max(1,fitted)) * scale));
+}
+
+/** @description Keep the saved title intact and pad only the encoder file with zero-width spaces.
+ * FFmpeg 6.1.1 passes a character count as a UTF-8 byte limit, dropping the ending after non-ASCII text.
+ * One zero-width character per excess byte lets that limit include the complete original string.
+ * @param {string} text Validated single-line title. @returns {string} Encoder-only title text.
+ */
+export function renderTitleText(text) {
+  return text + '\u200b'.repeat(new TextEncoder().encode(text).length - [...text].length);
 }

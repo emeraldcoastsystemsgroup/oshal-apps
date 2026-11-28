@@ -6,6 +6,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register rp-pdf-features and rp-pdf-workbench cases for RP-PDF-01..10 and RP-ALL-01, and update design-standard expectations for live controls.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): native-content-browser asks in the window (saved revision and selection on the context, the card waiting in the window while native edits stay local); rp-pdf-workbench presses the window's Summarize this PDF starter.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: register tool-parity-tools and tool-parity-browser cases for CREATE-TOOL-PDF-WORKBENCH-08, -05 and -03.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: keep the registered approval browser case focused through the real chat message field and preserve owner revalidation.
 version: 1
 cases:
   - id: model

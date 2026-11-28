@@ -59,6 +59,10 @@ with @admin on the kernel COLLABORATE board; this lane does not deploy in parall
 
 ## Owned persistence adapter
 
+The advanced command form preserves native JSON values for numbers, booleans, arrays and objects.
+Plain text remains text; quote a numeric composition name to distinguish it from a numeric id.
+Composition settings use the same native command boundary as the other manual edits.
+
 `routes/project-store.mjs` now provides real SQL-backed create/list/read/save,
 immutable revision history, export, project deletion, and raster upload/list/read/
 unused deletion. Ownership is derived exclusively from the admitted context's

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0, Answers to review: an answer approved there carries the other question ids its words take (also: another field kind, or the same question at another employer); the task's answers carry it under each of them, each id once, after every saved answer's own id, so a packet of a person with no such answer is the packet it was.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: the task carries flags {input, window, submit}, How Career fills in a form from the person's Saved answers (career-apply-flags.js; like a person, in front, stop before Submit unless he chose otherwise), under the approval digest; the review says each in words (flagLines) and its last line says Career presses Submit once when he chose Submit after I approve. His standing veteran and disability answers are the facts selfid.veteran and selfid.disability (yes or no; a blank one is no fact, so the form's question is declined), and his citizenship the fact eligibility.citizenship.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.3 and Appendix C): the approved input of an assisted application, browser-task version 2. It carries this job's Word and PDF résumé and the PDF cover letter, each checked by its kind (PK for Word, %PDF- for PDF) and digested; the facts from the person's record that may be typed (normalizeAutofillProfile and the standing answers); the roles in this job's résumé with their recorded dates and deliverables; education; the saved answers; and the employer site's rules (lib/apply-profiles). Today's approval accepted only PDFs (career-submission-native.js review). Nothing here is invented: every value is read from the person's own store, and a date the record holds only as a year stays a year.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1): the task carries attest {terms, selfIdSignature} from the person's Attestations switches, false unless he switched one on, under the approval digest, so a switch changed after approval does not reach that run; the review says each in words.
@@ -9,6 +10,8 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.76.12: the facts carry work.employer, his current employer from the résumé's roles (the role with no end, else the first), so a site's rules can fill a Current company box; the kernel refuses a rule that names a role directly (role.1.employer in 1.76.10 made it refuse every Lever packet).
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.76.14 (the PointClickCare check run, 2026-11-26): Lever has no cover-letter upload, only an ADDITIONAL INFORMATION box that says "Add a cover letter or anything else you want to share", and it was left empty, so the application went without its letter. The packet now carries the generated letter's words as the answer to a site's letter box (COVER_BOXES; Lever's so far), whole or not at all (never cut to fit), unless he kept an answer for that box.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The smart build (design apply-smart-design-2026-11-26, 2.0): the task carries assist, What Career does by itself on an employer's site, from the person's five switches (career-apply-help.js), under the approval digest, so a switch changed after approval does not reach that run; with every switch off, and for a caller that gives no switches, the task carries no assist at all and is the task before the switches. Its mail codes part names the only senders a code may come from: the approved site's own domain, and the job site's sending domains when its rules name them (a `mail` list, kept out of the rules the kernel reads). The review says each switch in one sentence (assistLines, and assistLinesAny for a sheet of several jobs) and, in one line, what Career does and does not do with a sign-in and a code on this run (handsLine).
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.77.5 (BAE Systems' BrassRing Acknowledgment page, whose signature line is Full Legal Name and Date): the Attestations words on the approval screen, on and off, say the signature switch also covers an application's signature line that asks for the name and the date, such as an acknowledgment, so they stay true now that BrassRing's rules name that line.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0 (answers from the person's record before asking): the task's answers carry, after Saved answers and a site's letter box, the record's answers to questions the person's runs met (material.recordAnswers from career-apply-question-bank.js, each under its exact question id), under the approval digest; the review lists them as fromRecord with the rule that gave each. input() takes a shorter wait for one person's turn (waitMs, below the 30 minutes of a single run): Fill in several gives its runs five minutes, so a job waiting for something only the person can give pauses by itself and the queue goes on with no page open (the kernel's own bound; a package cannot cancel a person's ticket).
  */
 'use strict';
 const queue=require('./career-submission-queue'),roles=require('./career-resume-roles'),sites=require('./career-apply-sites'),flagsOf=require('./career-apply-flags'),helpOf=require('./career-apply-help');
@@ -53,7 +56,18 @@ function coverText(cover,name){
 function answersFor(material,siteId,name){
  const kept=answers(material.answers),letter=coverText(material.cover,name);
  for(const [label,type] of letter?COVER_BOXES[siteId]||[]:[]){const id=answerIds.questionId(label,type);if(!kept.some(item=>item.id===id))kept.push({id,text:label,value:letter});}
+ // Answers from the person's record (career-apply-question-bank.js), for questions their runs met that nothing above answers.
+ for(const item of answers(material.recordAnswers))if(!kept.some(saved=>saved.id===item.id))kept.push(item);
  return kept.slice(0,200);
+}
+/**
+ * @description The answers of this packet that came from the person's record, as the approval screen lists them: the
+ * question, the answer and the rule. @param {object[]} task The task's answers. @param {object[]} [record] material.recordAnswers.
+ * @returns {object[]} [{id, text, value, rule}]
+ */
+function recordLines(task,record){
+ const rules=new Map((Array.isArray(record)?record:[]).map(item=>[item.id,item.rule]));
+ return task.filter(item=>rules.has(item.id)&&(record.find(one=>one.id===item.id)?.value||'').trim()===item.value).map(item=>({...item,rule:String(rules.get(item.id)||'')}));
 }
 /** Whether a self-identification value is one its slot takes: yes or no, male or female, or a race. */
 const selfidFits=(slot,value)=>slot==='selfid.gender'?['male','female'].includes(value):slot==='selfid.race'?!['yes','no','male','female'].includes(value):['yes','no'].includes(value);
@@ -147,9 +161,19 @@ function school(entry){
 }
 /** @description The record's education, at most ten schools. @param {object} careerDb @returns {object[]} */
 const education=careerDb=>(Array.isArray(careerDb?.education)?careerDb.education:[]).map(school).filter(Boolean).slice(0,10);
-/** @description The saved answers the run may use, by Career's question id. @param {object[]} saved @returns {object[]} */
-const answers=saved=>(Array.isArray(saved)?saved:[]).filter(item=>/^question:[a-f0-9]{64}$/.test(item?.id||'')&&text(item.text)&&typeof item.value==='string'&&item.value.trim())
- .slice(0,200).map(item=>({id:item.id,text:text(item.text),value:item.value.trim().slice(0,MAX_ANSWER)}));
+const QUESTION=/^question:[a-f0-9]{64}$/;
+/**
+ * @description The saved answers the run may use, by Career's question id: each under its own id, then under every other
+ * id it also answers (an answer from Answers to review: another field kind, or the same question at another employer),
+ * each id once (the kernel refuses an id twice) and the first answer for an id kept. @param {object[]} saved @returns {object[]}
+ */
+function answers(saved){
+ const valid=(Array.isArray(saved)?saved:[]).filter(item=>QUESTION.test(item?.id||'')&&text(item.text)&&typeof item.value==='string'&&item.value.trim());
+ const out=[],seen=new Set(),add=(id,item)=>{if(seen.has(id)||out.length>=200)return;seen.add(id);out.push({id,text:text(item.text),value:item.value.trim().slice(0,MAX_ANSWER)});};
+ for(const item of valid)add(item.id,item);
+ for(const item of valid)for(const id of Array.isArray(item.also)?item.also:[])if(QUESTION.test(id))add(id,item);
+ return out;
+}
 
 /**
  * @description Everything one approval covers, from material the server read from the person's own store. The form is
@@ -184,7 +208,8 @@ const SLOT_LABELS={'name.first':'First name','name.middle':'Middle name','name.l
  * @returns {string[]} One sentence each.
  */
 const attestLines=attest=>[attest.terms?'Career ticks the employer’s terms box for you, in your name.':'You tick the employer’s terms box yourself. Career hands it back to you there.',
- attest.selfIdSignature?'Career signs the self-identification form with your name and today’s date, in your name.':'You sign the self-identification form yourself. Career hands it back to you there.'];
+ attest.selfIdSignature?'Career signs the self-identification form, and an application’s signature line that asks for your name and the date (such as an acknowledgment), with your name and today’s date, in your name.'
+  :'You sign the self-identification form, and an application’s signature line that asks for your name and the date (such as an acknowledgment), yourself. Career hands them back to you there.'];
 /** @description Where the run stops, as the approval screen says it. @param {{id:string}} site @returns {string} */
 const stopLine=site=>site.id==='generic'?'Career stops before any button that sends the application. You press it.':'Career stops at the employer’s Review page. You press Submit.';
 /**
@@ -228,16 +253,17 @@ function review(material){
  return {postingId:task.postingId,title:material.posting.title,company:material.posting.company,url:task.url,host:new URL(task.url).hostname,
   site,uploads:task.rules.document,documents:task.documents.map(({id,name,type,sha256,bytes})=>({id,name,type,sha256,byteLength:bytes.length})),
   facts:Object.entries(task.facts).sort(([a],[b])=>shown(a)-shown(b)).map(([slot,value])=>({slot,label:SLOT_LABELS[slot]||slot,value})),roles:task.roles,education:task.education,
-  answers:task.answers,attest:task.attest,attestLines:attestLines(task.attest),flags:task.flags,flagLines:flagsOf.lines(task.flags),stop:flagsOf.stopLine(task.flags,stopLine(site)),mode:modeLines(site,new URL(task.url).hostname),
+  answers:task.answers,fromRecord:recordLines(task.answers,material.recordAnswers),attest:task.attest,attestLines:attestLines(task.attest),flags:task.flags,flagLines:flagsOf.lines(task.flags),stop:flagsOf.stopLine(task.flags,stopLine(site)),mode:modeLines(site,new URL(task.url).hostname),
   assist:task.assist||null,...assistWords(task,material.help),handsLine:handsLine(task.assist||null),packetDigest:built.packetDigest};
 }
 /**
  * @description The approved input of one attempt, Appendix C: its own attempt number and request digest over the same
  * approved task. Refused past 1 MiB. @param {{id:string,attempt:number,expiresAt:number,task:object}} run @returns {object}
  */
-function input({id,attempt,expiresAt,task}){
+function input({id,attempt,expiresAt,task,waitMs}){
  const documents=task.documents.map(({id:doc,name,type,sha256,bytes})=>({id:doc,name,type,sha256,base64:bytes.toString('base64')}));
- const bound={version:2,intentId:id,attempt,origin:new URL(task.url).origin,expiresAt,mode:'assist',bounds:{...BOUNDS},
+ const wait=Number.isSafeInteger(waitMs)&&waitMs>0&&waitMs<BOUNDS.waitMs?{waitMs}:{};
+ const bound={version:2,intentId:id,attempt,origin:new URL(task.url).origin,expiresAt,mode:'assist',bounds:{...BOUNDS,...wait},
   task:{submissionId:id,postingId:task.postingId,url:task.url,documents,facts:task.facts,roles:task.roles,education:task.education,answers:task.answers,attest:task.attest,flags:task.flags,rules:task.rules,
    ...(task.assist?{assist:task.assist}:{})}};
  const value={...bound,requestDigest:queue.jsonDigest(bound)};

@@ -16,6 +16,7 @@
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Serve tools/busy-retry.mjs, the workbench's retry of storage-busy refusals, under the existing /ui/:asset read.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: admit bounded video/audio uploads, composition audio window previews, media-workbench UI module, and modular route mounting.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4 (CREATE-TOOL-MOTION-STUDIO-01, -04, -05, -09): mount bounded JSON preview-frame endpoint for motion-preview and serve canvas-overlay, timeline-drag and history-sheet modules.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Serve the typed native command-form helper through the existing guarded UI asset route.
  */
 import { mountPortableRoutes, binaryChunkParser } from './portable-http.mjs';
 import { mountRenderRoutes } from './render-http.mjs';
@@ -80,7 +81,7 @@ function contextStore(ctx) {
 
 function mountCatalogAndReadRoutes(router, run, root) {
   router.get('/app', run('view', async () => ({ send: res => res.type('html').sendFile(resolve(root, 'tools/workbench.html')) })));
-  for (const file of ['workbench.mjs', 'editor-foundation-adapter.mjs', 'editor-handoff.mjs', 'workbench.css', 'native-json.mjs', 'bundle-client.mjs', 'sha256-stream.mjs', 'value-patch.mjs', 'render-client.mjs', 'media-workbench.mjs', 'canvas-overlay.mjs', 'timeline-drag.mjs', 'history-sheet.mjs', 'busy-retry.mjs'])router.get('/ui/' + file, run('view', async () => ({ send: res => res.type(file.endsWith('.css') ? 'text/css' : 'text/javascript').sendFile(resolve(root, 'tools', file)) })));
+  for (const file of ['workbench.mjs', 'editor-foundation-adapter.mjs', 'editor-handoff.mjs', 'workbench.css', 'native-json.mjs', 'command-params.mjs', 'bundle-client.mjs', 'sha256-stream.mjs', 'value-patch.mjs', 'render-client.mjs', 'media-workbench.mjs', 'canvas-overlay.mjs', 'timeline-drag.mjs', 'history-sheet.mjs', 'busy-retry.mjs'])router.get('/ui/' + file, run('view', async () => ({ send: res => res.type(file.endsWith('.css') ? 'text/css' : 'text/javascript').sendFile(resolve(root, 'tools', file)) })));
   router.get('/permissions', run('view', async (_req, _store, bound) => ({ permissions: await permissions(bound) })));
   router.get('/editing-contract', run('view', async (_req, _store, bound) => editingContract(bound)));
   router.get('/agent-contract', run('view', async (_req, _store, bound) => agentContract(bound)));

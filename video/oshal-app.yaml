@@ -54,6 +54,9 @@
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: claim Today's concierge entry synchronously when editor.html parses (editor-concierge-early.js under the existing editor/assets/:asset allowlist) and honor any Concierge press that arrives while Video's 15 ES modules are still loading, so switching to create-video inside Create never flashes Create's floating ball or collapses an early press into zero open windows. No permission, tool or catalog binding change. Guard: tests/video-one-chat-window.test.mjs.
 # 34 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): vertical (9:16), square (1:1) and landscape (16:9) projects on screen, in the concierge (video-new-project aspectRatio and video-apply-edits project patch), in preview canvas sizing and in real FFmpeg MP4 export across v1 and v2 timelines. No permission, role template, migration or authorization.yaml change. Guard: tests/editor-aspect-ratio.test.mjs.
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-04, -09, -12): owned media listing (GET /editor/media, video-list-media, Uploaded library panel), non-destructive version history and restore (POST /editor/projects/:id/revisions/restore, video-list-revisions, video-restore-revision, Version history sheet), and timeline management (duplicateClip, renameTrack, deleteTrack on screen and in video-apply-edits). Uses existing own editor permissions only. Guard: tests/video-tool-parity.test.mjs.
+# 36 | maintainer@emeraldcoastsystemsgroup.com | 1.14.7: share canvas-relative title fitting between the browser and export.
+# 37 | maintainer@emeraldcoastsystemsgroup.com | 1.14.8: keep shared title sizing within the fixed native renderer helper contract.
+# 38 | maintainer@emeraldcoastsystemsgroup.com | 1.14.9: preserve complete Unicode title endings in native exports.
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -83,7 +86,7 @@ rating:
       degrade: disable
 displayName: Video Studio
 description: "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor."
-version: 1.14.6
+version: 1.14.9
 status: active
 lastingStorage: true
 chatBot: video-editor

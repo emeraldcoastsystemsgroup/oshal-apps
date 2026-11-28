@@ -23,6 +23,9 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): register editor-aspect-ratio (tests/editor-aspect-ratio.test.mjs) proving 9:16, 1:1 and 16:9 projects on screen, through concierge routes, in real FFmpeg/ffprobe MP4 exports and in Chromium at 1440x900 and 412x915.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.14.6 (CREATE-TOOL-VIDEO-04, -09, -12): register video-tool-parity (tests/video-tool-parity.test.mjs) proving owned media listing, non-destructive revision history restore, and duplicateClip / renameTrack / deleteTrack on screen and through concierge routes.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Reconcile editor-live-acceptance install pin from video 1.9.0 to current 1.14.6.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Register decoded long-title export fitting and browser/export sizing parity.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Include the actual native sandbox helper contract and decoded MP4 in title fitting.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Check the final decoded punctuation glyph after a Unicode title, in addition to safe bounds.
 version: 1
 cases:
   - id: package-readiness
@@ -112,6 +115,21 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: title-fitting
+    name: Long titles fit browser previews and decoded exports
+    purpose: Render and decode real long-title MP4s in both timeline formats at 720p, 1080p and 4K, including landscape, portrait and square canvases.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/title-layout.test.mjs]}
+    expected:
+      - The first and last title glyphs remain inside the canvas safe area in real decoded frames; fitting leaves the source text unchanged.
+      - Title sizing scales with the canvas and rejects invalid layout inputs.
+    prerequisites: [runner:node, engine:ffmpeg, font:dejavu-sans-bold, runtime:bubblewrap, harness:oshal-kernel-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the unique temporary video clips, title files, exports and decoded frames after the suite.
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
     installation: never
   - id: timeline-compiler
     name: Timeline to FFmpeg compiler
@@ -341,6 +359,7 @@ cases:
       files:
         - tests/video-editor-browser.test.mjs
     expected:
+      - Long title glyphs fit the preview on desktop and phone, and the preview uses the same canvas-relative font size as export.
       - Two clips and a music file come in through the native file picker; trim, split at the playhead (S) and reorder ([ and ]) on the keyboard give exactly the saved segments, with a title, clip volume and music volume.
       - Undo and redo step one edit at a time; save, reload and reopen show the same edit; export and preview finish and offer their files.
       - The unsaved draft survives a live theme change, a failed save, a reload and a conflict, and can be saved as a new project without touching the other save.

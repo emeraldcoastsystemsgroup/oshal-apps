@@ -3,6 +3,8 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday; his open jobs were generated before this week's fixes and each needs Generate résumé & cover letter again): Generate again over the COMPILED board routes (lib/career-regenerate-routes.js mounted by routes/career-board-routes.js), the engine dispatch, runner and launcher and the Python engine (prepare_job, generate_for, the parse résumé), on made-up people. Doubled: the model (a scripted answer on the package's rail path), Chromium (a stand-in that writes a one-line PDF), the kernel leaves in tests/helpers/career-route-harness.mjs. Proved: GET /regenerate/older picks exactly the open jobs whose packet predates this Career or lacks Resume_Parse.docx; three jobs are regenerated in his order, one at a time, each with its own tailoring notes, each new packet recording this Career's version and carrying the parse résumé; a failed job is tried once more, then left with its reason; Pause, Go on and Stop; the queue is read back by a fresh router (a reload or a kernel restart) and a run lost mid-way is tried again; an applied job is refused, and one applied while waiting is skipped; his own Generate meanwhile wins; another person sees and changes nothing. Red on store main 1ac6e2fd: GET /regenerate/older is not mounted.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0: each regenerated packet records the documents revision it was written under (application.json documents_revision, the engine's DOCUMENTS_REVISION), beside the Career version.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Career 1.78.0: the restart case says what makes a take a lost run (nothing else of his finished after it); the production case of 2026-11-27 (a take that sat through other runs holding his store is taken again with no try counted, and both jobs are written on their first try, where before the take was ended "The generation stopped before it finished, so nothing was saved"; red on 1.77.6); and documents taking turns with Fill in several (nothing starts while three approved jobs wait).
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,6 +20,7 @@ const require=createRequire(import.meta.url);
 const Database=require(join(process.env.STORE_CI_TOOLCHAIN||new URL('../../scripts/toolchain',import.meta.url).pathname,'node_modules','better-sqlite3'));
 const root=mkdtempSync(join(tmpdir(),'career-regenerate-route-')),SUB='regen-avery',OTHER='regen-blair',ISSUER='https://issuer.example.test';
 const VERSION=/^version:\s*(\d+\.\d+\.\d+)/m.exec(readFileSync(new URL('../oshal-app.yaml',import.meta.url),'utf8'))[1];
+const REVISION=Number(/^DOCUMENTS_REVISION\s*=\s*(\d+)/m.exec(readFileSync(new URL('../engine/jobhunter/documents_revision.py',import.meta.url),'utf8'))[1]);
 const DESCRIPTION='Lead the platform group, own delivery and reliability, and grow the engineering team. '.repeat(20);
 const ENV_KEYS=['PORT','CHROMIUM_PATH','PLAYWRIGHT_CHROMIUM_PATH'];
 const saved=Object.fromEntries(ENV_KEYS.map(key=>[key,process.env[key]]));
@@ -101,6 +104,10 @@ async function drive(until=queue=>['done','stopped'].includes(queue.state)&&!que
  assert.fail('the queue did not end: '+JSON.stringify(queue));
 }
 const states=queue=>queue.entries.map(entry=>[entry.postingId,entry.state]);
+/** His board state as the engine keeps it (job-board-state.json), every receipt made `ms` older; and one receipt set as a run left it. */
+function ageReceipts(ms){const file=join(dirOf(SUB),'job-board-state.json'),board=JSON.parse(readFileSync(file,'utf8'));
+ for(const job of Object.values(board.jobs||{}))if(job?.completedAt)job.completedAt=new Date(Date.parse(job.completedAt)-ms).toISOString();writeFileSync(file,JSON.stringify(board));}
+function setReceipt(id,receipt){const file=join(dirOf(SUB),'job-board-state.json'),board=JSON.parse(readFileSync(file,'utf8'));board.jobs[id]={...(board.jobs[id]||{}),...receipt};writeFileSync(file,JSON.stringify(board));}
 const press=name=>call('POST','/regenerate/'+name,{});
 /** Start each case from no queue and a model that answers. */
 async function fresh(){fails.clear();await clear();}
@@ -158,6 +165,7 @@ test('three jobs are regenerated in his order, one at a time, each with its own 
  assert.ok(jobs[103].completedAt<=jobs[101].requestedAt&&jobs[101].completedAt<=jobs[102].requestedAt,'each started after the one before ended');
  for(const id of [101,102,103]){
   assert.equal(packet(id).career_version,VERSION,`job ${id}'s new packet records this Career`);
+  assert.equal(packet(id).documents_revision,REVISION,`job ${id}'s new packet records the documents revision it was written under`);
   assert.ok(existsSync(join(folderOf(id),'Resume_Parse.docx')),`job ${id} now has the résumé for upload forms`);
   assert.equal(jobs[id].applicationDraft?.guidance??'',id===102?'Lead with the Kubernetes migration for the Bravo team.':'','his notes for the job are kept');
  }
@@ -217,10 +225,45 @@ test('a reload or a kernel restart keeps the queue, and a run lost mid-way is tr
  assert.deepEqual((await call('GET','/regenerate')).json.queue,before,'a fresh router reads the same queue from his store');
  // The kernel restarted while job 101 was being written: its run's writes were discarded, so his store shows it taken
  // longer ago than any start could take, with no receipt.
+ // Nothing else of his finished after it was taken (every receipt is older than the take).
  const file=join(dirOf(SUB),'regenerate-queue.json'),stored=JSON.parse(readFileSync(file,'utf8'));
  stored.entries[0].claimedAt=new Date(Date.now()-10*60*1000).toISOString();writeFileSync(file,JSON.stringify(stored));
+ ageReceipts(20*60*1000);
  const queue=await drive();
  assert.deepEqual(queue.entries.map(entry=>[entry.postingId,entry.state,entry.attempts]),[[101,'done',2],[103,'done',1]],'the lost run counts as one try and the job is made again');
+ await clear();
+});
+
+test('production 2026-11-27: a take that sat through other runs holding his store is taken again, never "stopped before it finished"',{timeout:300000},async()=>{
+ await fresh();
+ await call('POST','/regenerate',{jobs:[101,103],confirmed:true});
+ assert.deepEqual(states((await call('POST','/regenerate/advance',{})).json.queue)[0],[101,'claimed']);
+ // Every advance was refused before Career ran (career_run_in_progress) while his job page's Generate wrote other jobs back
+ // to back: job 101 was taken ten minutes ago, nothing started it, and another job's documents finished five minutes ago.
+ const file=join(dirOf(SUB),'regenerate-queue.json'),stored=JSON.parse(readFileSync(file,'utf8'));
+ stored.entries[0].claimedAt=new Date(Date.now()-10*60*1000).toISOString();writeFileSync(file,JSON.stringify(stored));
+ ageReceipts(20*60*1000);setReceipt(104,{requestId:'his-page-104',phase:'ready',completedAt:new Date(Date.now()-5*60*1000).toISOString()});
+ const taken=(await call('POST','/regenerate/advance',{})).json.queue;
+ assert.deepEqual(taken.entries.map(entry=>[entry.postingId,entry.state,entry.attempts,entry.reason]),[[101,'claimed',1,''],[103,'queued',0,'']],'taken again as it is: no try counted, nothing ended');
+ assert.equal(taken.entries[0].note,'Waiting for Career to finish what it is doing on your account.');
+ const queue=await drive();
+ assert.deepEqual(queue.entries.map(entry=>[entry.postingId,entry.state,entry.attempts]),[[101,'done',1],[103,'done',1]],'both written, each on its first try');
+ assert.ok(!queue.entries.some(entry=>/stopped before it finished/.test(entry.reason+entry.retry)),'no job says it stopped before it finished');
+ await clear();
+});
+
+test('documents take turns with Fill in several: none starts while three approved jobs wait, and they go on when fewer wait',{timeout:300000},async()=>{
+ await fresh();
+ const batchFile=join(dirOf(SUB),'apply-batch.json'),entry=(n,state)=>({postingId:900+n,runId:`00000000-0000-4000-8000-00000000000${n}`,state,active:false,title:'Job',company:'Co',reason:''});
+ writeFileSync(batchFile,JSON.stringify({version:1,id:'00000000-0000-4000-8000-0000000000aa',state:'running',reason:'',createdAt:new Date().toISOString(),entries:[entry(1,'waiting'),entry(2,'waiting'),entry(3,'waiting')]}));
+ await call('POST','/regenerate',{jobs:[103],confirmed:true});
+ let queue;for(let n=0;n<4;n+=1)queue=(await call('POST','/regenerate/advance',{})).json.queue;
+ assert.deepEqual(states(queue),[[103,'queued']],'nothing is taken or started while three approved jobs wait');
+ assert.equal(queue.reason,'Waiting while Fill in several has 3 approved jobs to fill in; documents are written again when fewer than 3 wait.');
+ const stored=JSON.parse(readFileSync(batchFile,'utf8'));stored.entries[2].state='submitted';writeFileSync(batchFile,JSON.stringify(stored));
+ queue=await drive();
+ assert.deepEqual(queue.entries.map(item=>[item.postingId,item.state,item.attempts]),[[103,'done',1]],'with two waiting, the job is written');
+ rmSync(batchFile,{force:true});
  await clear();
 });
 

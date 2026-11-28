@@ -19,6 +19,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: update surface-design-standard for live RP-CAD-01..05 controls (zero planned placeholders) and register rp-cad-exports-print-measure covering OBJ/MTL, 3MF, GLB, USDZ, sharp-edge mm/in measurement, AR QR, and honest printer queue handoff.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 0.5.5 (BACKLOG B4): 18 feature types (thread and text), 34 real-kernel cases including watertight threaded-boss STL mesh validation, and b4-thread-text-mesh contract suite.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Quote the case cad-bot-tools-contract purpose in single quotes. The plain value held ": ", so the kernel's serde_yaml refused the whole catalog ("the catalog is not valid YAML") and this package's Test Lab showed no case; js-yaml and PyYAML refused it too. The text is unchanged and no case was added or removed.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.5.6: release the already-quoted Test Lab catalog so installed cases are visible in production.
 # -----------------------------------------------------------------------------
 version: 1
 cases:

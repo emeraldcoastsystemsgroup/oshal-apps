@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the COMPILED timeline compiler (routes/video-edit-compiler.js) emits one fixed argument array whose filter graph carries only integers: exact frame and sample trims, split per reused clip, exact silence for a silent clip, titles from server-named files with expansion off, the bed padded/cut to the timeline, every graph label produced and consumed exactly once, and hostile title text, fractional or textual numbers, relative or multi-line media paths and unsafe font paths refused.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep fixed-filter and injection guards while allowing width-fitted title sizes and output pixel rounding.
  */
 'use strict';
 const test = require('node:test');
@@ -92,7 +93,7 @@ test('title text never enters the arguments: it is written to a server-named fil
   for (const arg of compiled.args) {
     for (const fragment of ["It's", 'localtime', 'movie=', '/etc/passwd', "drawtext='x'", 'a:b,c']) assert.ok(!arg.includes(fragment), `${fragment} leaked into ${arg.slice(0, 60)}`);
   }
-  assert.match(compiled.filterGraph, /\[vcat\]drawtext=textfile=title-0\.txt:expansion=none:fontfile=\/usr\/share\/fonts\/dejavu\/DejaVuSans-Bold\.ttf:fontsize=72:[^;]*y=60:enable='between\(n,0,29\)'\[vtitled\]/);
+  assert.match(compiled.filterGraph, /\[vcat\]drawtext=textfile=title-0\.txt:expansion=none:fontfile=\/usr\/share\/fonts\/dejavu\/DejaVuSans-Bold\.ttf:fontsize=\d+:[^;]*y=60:enable='between\(n,0,29\)'\[vtitled\]/);
 });
 
 test('the preview variant uses the same graph at 640x360 and faster encoder settings', async () => {
@@ -100,7 +101,11 @@ test('the preview variant uses the same graph at 640x360 and faster encoder sett
   const exported = compileTimeline({ document, media: MEDIA, variant: 'export', fontFile: FONT });
   const preview = compileTimeline({ document, media: MEDIA, variant: 'preview', fontFile: FONT });
   assert.deepEqual([preview.width, preview.height, preview.frames], [640, 360, exported.frames]);
-  assert.equal(preview.filterGraph.replaceAll('640:360', '1280:720').replace('fontsize=36', 'fontsize=72').replace('y=30:', 'y=60:'), exported.filterGraph);
+  const previewFont = Number(/fontsize=(\d+)/.exec(preview.filterGraph)[1]);
+  const exportFont = Number(/fontsize=(\d+)/.exec(exported.filterGraph)[1]);
+  assert.ok(Math.abs(previewFont * 2 - exportFont) <= 1, 'font fitting scales with only pixel rounding');
+  assert.equal(preview.filterGraph.replaceAll('640:360', '1280:720').replace(/fontsize=\d+/g, 'fontsize=fitted').replace('y=30:', 'y=60:'),
+    exported.filterGraph.replace(/fontsize=\d+/g, 'fontsize=fitted'));
   assert.equal(preview.args[preview.args.indexOf('-preset') + 1], 'ultrafast');
 });
 

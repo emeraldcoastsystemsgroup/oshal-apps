@@ -1,0 +1,123 @@
+<!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Career 1.79.0, Answers to review (the owner, 2026-11-27: "i would like to review them for now.. so when we have those there will need to have an approval page or on the review page or something .. make it nice"): the page of the questions employers asked that only the person, or a draft from their record, can answer. Reached from My jobs > Didn't go through and from a job's page. One card per question: the jobs waiting on it (each a link to its page, "on your computer now" when a run waits on its card), the question as the employer wrote it, Career's draft in an editable box with the roles it drew on, and Approve, Edit then Approve, Write my own and Skip; a draft still being written says so, one Career could not write says why. Plain questions and checks have an answer box (the employer's own choices when it listed them) with Approve and Skip. Below: Answered automatically (when Answer written questions without my review is on) with Change answer, and Skipped with Review again. Saved answers' look: the same card, type scale, 44px targets and the kit's buttons; one column, full-width buttons and no sideways scroll at 412 px.
+-->
+<html lang="en" data-career-surface="answers-review" data-ds-category="collection" data-ds-first-action="tap">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Answers to review</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<link rel="stylesheet" href="/api/career-hunter/static/career-kit.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ds-page); color: var(--ds-ink); font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 16px 24px 56px; }
+  .wrap, .wrap * { overflow-wrap: anywhere; }
+  .back { margin: 0 0 4px; }
+  .back a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ds-accent-ink); font-weight: 600; text-decoration: none; }
+  h1 { display: flex; align-items: center; gap: 10px; font-size: 24px; line-height: 32px; margin: 0 0 6px; }
+  h2 { font-size: 18px; line-height: 24px; margin: 28px 0 4px; }
+  .lead, .ar-sub { color: var(--ds-ink-2); margin: 0 0 12px; max-width: 70ch; }
+  .ar-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 9px; border-radius: 14px;
+    background: var(--ds-accent); color: var(--ds-on-accent); font-size: 14px; font-weight: 700; line-height: 1; }
+  .ar-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 8px; padding: 10px 14px; border: 1px solid var(--ds-hairline);
+    border-radius: var(--ds-radius-m); background: var(--ds-surface-2); font-size: 14px; line-height: 20px; }
+  .ar-mode b { font-weight: 700; }
+  .ar-mode a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ds-accent-ink); font-weight: 600; }
+  #status { margin: 8px 0; color: var(--ds-ink-2); }
+  #status:empty { display: none; }
+  .ar-list { display: flex; flex-direction: column; gap: 14px; }
+  .ar-card { background: var(--ds-surface); border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l); padding: 16px 18px; }
+  .ar-card[data-busy] { opacity: .7; }
+  .ar-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 13px; line-height: 18px; color: var(--ds-ink-2); }
+  .ar-kind { padding: 2px 10px; border-radius: var(--ds-radius-m); background: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-surface)); color: var(--ds-accent-ink); font-weight: 700; }
+  .ar-kind[data-kind="check"] { background: color-mix(in srgb, var(--ds-warn, #8a5a00) 16%, var(--ds-surface)); color: var(--ds-ink); }
+  .ar-jobs { margin: 0 0 10px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+  .ar-jobs a { display: inline-flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-height: 44px; padding: 4px 12px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-xl);
+    background: var(--ds-surface-2); color: var(--ds-ink); font-size: 14px; line-height: 18px; text-decoration: none; }
+  .ar-jobs a:hover { border-color: var(--ds-accent); }
+  .ar-jobs b { font-weight: 700; }
+  .ar-live { color: var(--ds-ok, #1d7a3a); font-weight: 700; font-size: 12px; }
+  .ar-q { margin: 0 0 12px; font-size: 18px; line-height: 26px; font-weight: 700; }
+  .ar-q::before { content: '“'; } .ar-q::after { content: '”'; }
+  .ar-box label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 6px; }
+  .ar-box textarea { display: block; width: 100%; min-height: 120px; padding: 12px 14px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m);
+    background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-size: 15px; line-height: 1.55; resize: vertical; }
+  .ar-box textarea[readonly] { background: var(--ds-surface-2); border-color: var(--ds-hairline); border-left: 4px solid var(--ds-accent); cursor: default; }
+  .ar-box textarea:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
+  .ar-box .ar-count { margin: 4px 0 0; text-align: right; font-size: 12px; color: var(--ds-ink-2); }
+  .ar-box textarea[rows="2"] { min-height: 72px; }
+  .ar-from { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: var(--ds-ink-2); }
+  .ar-from b { color: var(--ds-ink); font-weight: 600; }
+  .ar-note { margin: 8px 0 0; font-size: 13px; line-height: 18px; color: var(--ds-ink-2); }
+  .ar-wait { display: flex; align-items: center; gap: 10px; padding: 14px; border: 1px dashed var(--ds-line-control); border-radius: var(--ds-radius-m); background: var(--ds-surface-2); }
+  .ar-wait::before { content: ''; flex: 0 0 18px; height: 18px; border-radius: 50%; border: 3px solid var(--ds-hairline); border-top-color: var(--ds-accent); animation: ar-spin 1s linear infinite; }
+  @keyframes ar-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .ar-wait::before { animation: none; } }
+  .ar-why { margin: 0; padding: 12px 14px; border: 1px solid var(--ds-hairline); border-radius: var(--ds-radius-m); background: var(--ds-surface-2); }
+  fieldset.ar-choices { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  fieldset.ar-choices legend { font-weight: 600; font-size: 14px; margin: 0 0 6px; padding: 0; }
+  label.ar-choice { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--ds-hairline); border-radius: var(--ds-radius-m); cursor: pointer; }
+  label.ar-choice input { width: 20px; height: 20px; margin: 0; flex: 0 0 20px; }
+  .ar-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .ar-said { margin: 10px 0 0; font-weight: 600; }
+  .ar-said:empty { display: none; }
+  .ar-said[data-bad] { color: var(--ds-bad); }
+  .ar-done { padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--ds-ok, #1d7a3a) 45%, var(--ds-edge)); border-radius: var(--ds-radius-l);
+    background: color-mix(in srgb, var(--ds-ok, #1d7a3a) 8%, var(--ds-surface)); }
+  .ar-done p { margin: 0; }
+  .ar-done p + p { margin-top: 4px; color: var(--ds-ink-2); font-size: 14px; }
+  .ar-answer { margin: 0; padding: 12px 14px; border-left: 4px solid var(--ds-ok, #1d7a3a); border-radius: var(--ds-radius-m); background: var(--ds-surface-2); white-space: pre-wrap; }
+  details.ar-skipped { margin: 28px 0 0; }
+  details.ar-skipped > summary { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; cursor: pointer; }
+  .ar-skip-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 0; border-top: 1px solid var(--ds-hairline); }
+  .ar-skip-row p { margin: 0; flex: 1 1 260px; }
+  .ar-unread { margin: 0 0 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--ds-warn, #8a5a00) 45%, var(--ds-edge)); border-radius: var(--ds-radius-m); }
+  @media (max-width: 640px) {
+    .wrap { padding: 12px 16px 48px; }
+    h1 { font-size: 22px; line-height: 28px; }
+    .ar-card { padding: 14px; }
+    .ar-q { font-size: 17px; line-height: 24px; }
+    .ar-actions > * { flex: 1 1 100%; min-height: 48px; }
+  }
+</style>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
+<body>
+<main class="wrap" id="answersReview" data-ds-work>
+  <p class="back"><a href="/api/career-hunter/board-native?view=didnt-go-through" data-career-tool="career-board">← Didn’t go through</a></p>
+  <h1 id="pageTitle">Answers to review <span class="ar-badge" id="arCount" hidden></span></h1>
+  <p class="lead">Questions employers asked that Career could not answer from your record. Approve an answer once: Career keeps it in Saved answers and puts every job waiting on it back in Fill in several, so you never type it again.</p>
+  <p class="ar-mode" id="arMode" hidden></p>
+  <p id="status" role="status" aria-live="polite">Reading the questions your applications are waiting on…</p>
+  <section id="writtenSection" aria-labelledby="writtenTitle" hidden>
+    <h2 id="writtenTitle">Written questions</h2>
+    <p class="ar-sub">Career drafted these from your record and the cover letter it wrote for each job. Check that each says only what is true before you approve it.</p>
+    <div class="ar-list" id="written"></div>
+  </section>
+  <section id="plainSection" aria-labelledby="plainTitle" hidden>
+    <h2 id="plainTitle">Only you can answer</h2>
+    <p class="ar-sub">Your record does not hold these, so Career does not guess.</p>
+    <div class="ar-list" id="plain"></div>
+  </section>
+  <div class="ck-empty" id="empty" hidden>
+    <h2>Nothing to review</h2>
+    <p>When an employer’s form asks something Career cannot answer from your record, the question waits here with the jobs that stopped on it.</p>
+    <a class="ck-btn" href="/api/career-hunter/board-native?view=didnt-go-through" data-career-tool="career-board">Open Didn’t go through</a>
+  </div>
+  <section id="autoSection" aria-labelledby="autoTitle" hidden>
+    <h2 id="autoTitle">Answered automatically</h2>
+    <p class="ar-sub">Career used its draft for these without asking you, because Answer written questions without my review is on. Change one and Career uses your words from now on.</p>
+    <div class="ar-list" id="automatic"></div>
+  </section>
+  <details class="ar-skipped" id="skippedSection" hidden><summary>Skipped <span id="skippedCount"></span></summary><div id="skipped"></div></details>
+</main>
+<script src="/api/career-hunter/static/career-answers-review.js"></script>
+</body>
+</html>
